@@ -81,6 +81,47 @@ ipcMain.handle('get-schedule', (_event: any, season: number = 2024) => {
     ORDER BY g.week, g.id
   `).all(season);
 });
+
+// Returns a dashboard summary: top 5 teams per conference and last week's scores
+ipcMain.handle('get-dashboard', (_event: any, season: number = 2024) => {
+  const topAFC = db.prepare(`
+    SELECT t.city || ' ' || t.name AS team_name,
+      SUM(CASE WHEN (g.home_team_id = t.id AND g.home_score > g.away_score)
+                 OR (g.away_team_id = t.id AND g.away_score > g.home_score) THEN 1 ELSE 0 END) AS wins,
+      SUM(CASE WHEN (g.home_team_id = t.id AND g.home_score < g.away_score)
+                 OR (g.away_team_id = t.id AND g.away_score < g.home_score) THEN 1 ELSE 0 END) AS losses
+    FROM teams t
+    JOIN games g ON (g.home_team_id = t.id OR g.away_team_id = t.id)
+    WHERE g.season = ? AND g.is_simulated = 1 AND t.conference = 'AFC'
+    GROUP BY t.id ORDER BY wins DESC LIMIT 5
+  `).all(season);
+
+  const topNFC = db.prepare(`
+    SELECT t.city || ' ' || t.name AS team_name,
+      SUM(CASE WHEN (g.home_team_id = t.id AND g.home_score > g.away_score)
+                 OR (g.away_team_id = t.id AND g.away_score > g.home_score) THEN 1 ELSE 0 END) AS wins,
+      SUM(CASE WHEN (g.home_team_id = t.id AND g.home_score < g.away_score)
+                 OR (g.away_team_id = t.id AND g.away_score < g.home_score) THEN 1 ELSE 0 END) AS losses
+    FROM teams t
+    JOIN games g ON (g.home_team_id = t.id OR g.away_team_id = t.id)
+    WHERE g.season = ? AND g.is_simulated = 1 AND t.conference = 'NFC'
+    GROUP BY t.id ORDER BY wins DESC LIMIT 5
+  `).all(season);
+
+  const recentGames = db.prepare(`
+    SELECT g.week, g.home_score, g.away_score,
+      ht.city || ' ' || ht.name AS home_team,
+      at.city || ' ' || at.name AS away_team
+    FROM games g
+    JOIN teams ht ON g.home_team_id = ht.id
+    JOIN teams at ON g.away_team_id = at.id
+    WHERE g.season = ? AND g.is_simulated = 1
+    ORDER BY g.week DESC, g.id DESC LIMIT 8
+  `).all(season);
+
+  return { topAFC, topNFC, recentGames };
+});
+
 // ─── App Lifecycle ─────────────────────────────────────────────────────────────
 
 app.on('ready', createWindow);

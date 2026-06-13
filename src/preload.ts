@@ -20,4 +20,8 @@ contextBridge.exposeInMainWorld('api', {
   getSchedule: (season: number) =>
     ipcRenderer.invoke('get-schedule', season),
 
+  //Fetch dashboard summary data
+  getDashboard: (season: number) =>
+    ipcRenderer.invoke('get-dashboard', season),
+
 });

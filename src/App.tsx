@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Standings from './Standings';
 import Teams from './Teams';
 import Schedule from './Schedule';
+import Home from './Home';
 
 type Tab = 'home' | 'standings' | 'teams' | 'schedule' | 'playoffs';
 
@@ -51,12 +52,7 @@ export default function App() {
 
       {/* Tab Content */}
       <div>
-        {activeTab === 'home' && (
-          <div style={{ padding: '40px', textAlign: 'center', color: '#aaa' }}>
-            <h2 style={{ color: '#4FC3F7' }}>Welcome to NFL Simulator</h2>
-            <p>2024 Season in progress. Use the tabs above to navigate.</p>
-          </div>
-        )}
+        {activeTab === 'home' && <Home />}
         {activeTab === 'standings' && <Standings />}
         {activeTab === 'teams' && <Teams />}
         {activeTab === 'schedule' && <Schedule />}
