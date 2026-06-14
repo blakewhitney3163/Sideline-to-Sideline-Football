@@ -1,14 +1,24 @@
 import React, { useState, useEffect } from 'react';
+import Home from './Home';
 import Standings from './Standings';
 import Teams from './Teams';
 import Schedule from './Schedule';
-import Home from './Home';
 import Stats from './Stats';
 import Playoffs from './Playoffs';
+import TeamSelection from './TeamSelection';
 
 declare const window: any;
 
 type Tab = 'home' | 'standings' | 'teams' | 'schedule' | 'stats' | 'playoffs';
+
+interface UserTeam {
+  id: number;
+  city: string;
+  name: string;
+  abbreviation: string;
+  conference: string;
+  division: string;
+}
 
 const tabs: { id: Tab; label: string }[] = [
   { id: 'home', label: 'Home' },
@@ -23,9 +33,16 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [playoffData, setPlayoffData] = useState(null);
   const [currentSeason, setCurrentSeason] = useState<number>(2025);
+  const [userTeam, setUserTeam] = useState<UserTeam | null | undefined>(undefined);
 
   useEffect(() => {
-    window.api.getCurrentSeason().then((s: number) => setCurrentSeason(s));
+    Promise.all([
+      window.api.getCurrentSeason(),
+      window.api.getUserTeam(),
+    ]).then(([season, team]: [number, UserTeam | null]) => {
+      setCurrentSeason(season);
+      setUserTeam(team);
+    });
   }, []);
 
   const handleSeasonAdvance = (nextSeason: number) => {
@@ -34,35 +51,69 @@ export default function App() {
     setActiveTab('home');
   };
 
-  return (
-    <div style={{ fontFamily: 'Arial', background: '#1a1a2e', minHeight: '100vh', color: 'white' }}>
+  // Loading
+  if (userTeam === undefined) {
+    return (
+      <div style={{
+        background: '#080808', height: '100vh',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: '#222', fontFamily: 'sans-serif', fontSize: 14,
+      }}>
+        Loading...
+      </div>
+    );
+  }
 
-      {/* Header */}
-      <div style={{ background: '#0f0f23', padding: '12px 20px', borderBottom: '2px solid #4FC3F7', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <h1 style={{ margin: 0, color: '#4FC3F7', fontSize: '20px', letterSpacing: '2px' }}>
-          NFL SIMULATOR
-        </h1>
-        <span style={{ color: '#FF8740', fontWeight: 'bold', fontSize: '14px' }}>
+  // First launch — no team selected
+  if (userTeam === null) {
+    return <TeamSelection onSelect={(team) => setUserTeam(team)} />;
+  }
+
+  return (
+    <div style={{ background: '#0d0d0d', minHeight: '100vh', color: '#fff', fontFamily: 'sans-serif' }}>
+
+      {/* App Header */}
+      <div style={{
+        background: '#0f0f0f', borderBottom: '1px solid #1a1a1a',
+        padding: '10px 20px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ fontSize: 15, fontWeight: 'bold', color: '#4FC3F7', letterSpacing: 1 }}>
+            NFL SIMULATOR
+          </div>
+          <div style={{ fontSize: 12, color: '#2a2a2a' }}>|</div>
+          <div style={{ fontSize: 13, color: '#FF8740', fontWeight: 'bold' }}>
+            {userTeam.city} {userTeam.name}
+          </div>
+          <button
+            onClick={() => setUserTeam(null)}
+            style={{
+              fontSize: 10, color: '#333', background: 'none',
+              border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline',
+            }}
+          >
+            change
+          </button>
+        </div>
+        <div style={{ fontSize: 12, color: '#333' }}>
           {currentSeason} Season
-        </span>
+        </div>
       </div>
 
       {/* Tab Bar */}
-      <div style={{ display: 'flex', background: '#0f0f23', borderBottom: '1px solid #333' }}>
+      <div style={{ background: '#0f0f0f', borderBottom: '1px solid #161616', display: 'flex', paddingLeft: 8 }}>
         {tabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             style={{
-              padding: '12px 24px',
-              background: 'none',
-              border: 'none',
+              padding: '11px 22px', background: 'none', border: 'none',
               cursor: 'pointer',
-              color: activeTab === tab.id ? '#4FC3F7' : '#aaa',
+              color: activeTab === tab.id ? '#4FC3F7' : '#555',
               borderBottom: activeTab === tab.id ? '2px solid #4FC3F7' : '2px solid transparent',
               fontWeight: activeTab === tab.id ? 'bold' : 'normal',
-              fontSize: '14px',
-              transition: 'color 0.2s',
+              fontSize: 13, transition: 'color 0.2s',
             }}
           >
             {tab.label}
@@ -72,12 +123,20 @@ export default function App() {
 
       {/* Tab Content */}
       <div>
-        {activeTab === 'home' && <Home currentSeason={currentSeason} onSeasonAdvance={handleSeasonAdvance} />}
+        {activeTab === 'home' && (
+          <Home
+            currentSeason={currentSeason}
+            onSeasonAdvance={handleSeasonAdvance}
+            userTeam={userTeam}
+          />
+        )}
         {activeTab === 'standings' && <Standings currentSeason={currentSeason} />}
         {activeTab === 'teams' && <Teams />}
         {activeTab === 'schedule' && <Schedule currentSeason={currentSeason} />}
         {activeTab === 'stats' && <Stats currentSeason={currentSeason} />}
-        {activeTab === 'playoffs' && <Playoffs data={playoffData} setData={setPlayoffData} currentSeason={currentSeason} />}
+        {activeTab === 'playoffs' && (
+          <Playoffs data={playoffData} setData={setPlayoffData} currentSeason={currentSeason} />
+        )}
       </div>
     </div>
   );

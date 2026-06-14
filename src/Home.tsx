@@ -76,9 +76,17 @@ interface PlayoffGame {
   away_score: number;
 }
 
+interface UserTeam {
+  id: number;
+  city: string;
+  name: string;
+  abbreviation: string;
+}
+
 interface Props {
   currentSeason: number;
   onSeasonAdvance: (nextSeason: number) => void;
+  userTeam: UserTeam;
 }
 
 // ─── Style helpers ────────────────────────────────────────────────────────────
@@ -107,7 +115,7 @@ const smallBtn = (bg: string, fg: string, disabled: boolean): React.CSSPropertie
 
 // ─── Home ─────────────────────────────────────────────────────────────────────
 
-export default function Home({ currentSeason, onSeasonAdvance }: Props) {
+export default function Home({ currentSeason, onSeasonAdvance, userTeam }: Props) {
   const [loading, setLoading] = useState(true);
   const [hasSchedule, setHasSchedule] = useState(false);
   const [currentWeek, setCurrentWeek] = useState<number | null>(null);
@@ -127,6 +135,13 @@ export default function Home({ currentSeason, onSeasonAdvance }: Props) {
   const [playoffSeeds, setPlayoffSeeds] = useState<{ afc: SeedEntry[]; nfc: SeedEntry[] } | null>(null);
   const [playoffResults, setPlayoffResults] = useState<PlayoffGame[] | null>(null);
   const [simulatingPlayoffs, setSimulatingPlayoffs] = useState(false);
+  const [userRecord, setUserRecord] = useState<{ wins: number; losses: number } | null>(null);
+
+  const refreshUserRecord = async () => {
+    const standings = await window.api.getStandings(currentSeason);
+    const mine = standings.find((t: any) => t.id === userTeam.id);
+    if (mine) setUserRecord({ wins: mine.wins, losses: mine.losses });
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -137,11 +152,13 @@ export default function Home({ currentSeason, onSeasonAdvance }: Props) {
       setConfirming(false);
       setPlayoffSeeds(null);
       setPlayoffResults(null);
+      setUserRecord(null);
 
-      const [status, dashboard, champs] = await Promise.all([
+      const [status, dashboard, champs, standings] = await Promise.all([
         window.api.getCurrentWeek(),
         window.api.getDashboard(currentSeason),
         window.api.getChampions(),
+        window.api.getStandings(currentSeason),
       ]);
 
       if (cancelled) return;
@@ -155,34 +172,26 @@ export default function Home({ currentSeason, onSeasonAdvance }: Props) {
       setTopNFC(dashboard.topNFC);
       setChampions(champs);
 
+      const myTeam = standings.find((t: any) => t.id === userTeam.id);
+      if (myTeam) setUserRecord({ wins: myTeam.wins, losses: myTeam.losses });
+
       if (status.hasSchedule && !seasonDone) {
-        // Regular season in progress
         const week = status.currentWeek!;
         setViewWeek(week);
         const data = await window.api.getWeekMatchups(week);
         if (!cancelled) setMatchups(data);
       } else if (seasonDone && !champForSeason) {
-        // Regular season done, playoffs not started
         const [seeds, weekData] = await Promise.all([
           window.api.getPlayoffSeeds(),
           window.api.getWeekMatchups(17),
         ]);
-        if (!cancelled) {
-          setPlayoffSeeds(seeds);
-          setMatchups(weekData);
-          setViewWeek(17);
-        }
+        if (!cancelled) { setPlayoffSeeds(seeds); setMatchups(weekData); setViewWeek(17); }
       } else if (seasonDone && champForSeason) {
-        // Playoffs complete
         const [results, weekData] = await Promise.all([
           window.api.getPlayoffs(currentSeason),
           window.api.getWeekMatchups(17),
         ]);
-        if (!cancelled) {
-          setPlayoffResults(results);
-          setMatchups(weekData);
-          setViewWeek(17);
-        }
+        if (!cancelled) { setPlayoffResults(results); setMatchups(weekData); setViewWeek(17); }
       }
 
       if (!cancelled) setLoading(false);
@@ -207,13 +216,18 @@ export default function Home({ currentSeason, onSeasonAdvance }: Props) {
     if (currentWeek === null) return;
     setSimulating(true);
     await window.api.simulateWeek(currentWeek);
-    const status = await window.api.getCurrentWeek();
+    const [status, dashboard, standings] = await Promise.all([
+      window.api.getCurrentWeek(),
+      window.api.getDashboard(currentSeason),
+      window.api.getStandings(currentSeason),
+    ]);
     setCurrentWeek(status.currentWeek);
-    const data = await window.api.getWeekMatchups(viewWeek);
-    setMatchups(data);
-    const dashboard = await window.api.getDashboard(currentSeason);
     setTopAFC(dashboard.topAFC);
     setTopNFC(dashboard.topNFC);
+    const mine = standings.find((t: any) => t.id === userTeam.id);
+    if (mine) setUserRecord({ wins: mine.wins, losses: mine.losses });
+    const data = await window.api.getWeekMatchups(viewWeek);
+    setMatchups(data);
     setSimulating(false);
   };
 
@@ -239,10 +253,7 @@ export default function Home({ currentSeason, onSeasonAdvance }: Props) {
   };
 
   const handleBoxScore = async (gameId: number) => {
-    if (boxScore?.game?.id === gameId) {
-      setBoxScore(null);
-      return;
-    }
+    if (boxScore?.game?.id === gameId) { setBoxScore(null); return; }
     setBoxScoreLoading(true);
     setBoxScore(null);
     const data = await window.api.getGameBoxScore(gameId);
@@ -297,6 +308,11 @@ export default function Home({ currentSeason, onSeasonAdvance }: Props) {
                 ? 'Regular season complete — playoffs ready'
                 : `Week ${currentWeek} of 17 up next`}
             </div>
+            {userRecord && (
+              <div style={{ fontSize: 12, color: '#4FC3F7', fontWeight: 'bold' }}>
+                {userTeam.name}: {userRecord.wins}-{userRecord.losses}
+              </div>
+            )}
             {!confirmReset && (
               <button
                 onClick={() => setConfirmReset(true)}
@@ -309,15 +325,11 @@ export default function Home({ currentSeason, onSeasonAdvance }: Props) {
 
           {confirmReset && (
             <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#1a0a0a', border: '1px solid #4a1a1a', borderRadius: 6 }}>
-              <span style={{ fontSize: 12, color: '#e57373' }}>
-                ⚠ Deletes all games, stats & champions. Resets to 2025.
-              </span>
+              <span style={{ fontSize: 12, color: '#e57373' }}>⚠ Deletes all games, stats & champions. Resets to 2025.</span>
               <button onClick={handleReset} disabled={resetting} style={smallBtn('#c0392b', '#fff', resetting)}>
                 {resetting ? 'Resetting...' : 'Confirm Reset'}
               </button>
-              <button onClick={() => setConfirmReset(false)} style={smallBtn('#222', '#777', false)}>
-                Cancel
-              </button>
+              <button onClick={() => setConfirmReset(false)} style={smallBtn('#222', '#777', false)}>Cancel</button>
             </div>
           )}
         </div>
@@ -349,9 +361,7 @@ export default function Home({ currentSeason, onSeasonAdvance }: Props) {
               <button onClick={handleAdvance} disabled={advancing} style={btn('#FF8740', '#000', advancing)}>
                 {advancing ? 'Advancing...' : 'Confirm'}
               </button>
-              <button onClick={() => setConfirming(false)} style={btn('#1a1a1a', '#666', false)}>
-                Cancel
-              </button>
+              <button onClick={() => setConfirming(false)} style={btn('#1a1a1a', '#666', false)}>Cancel</button>
             </>
           )}
         </div>
@@ -403,22 +413,33 @@ export default function Home({ currentSeason, onSeasonAdvance }: Props) {
                   const homeWon = played && (game.home_score ?? 0) > (game.away_score ?? 0);
                   const awayWon = played && (game.away_score ?? 0) > (game.home_score ?? 0);
                   const expanded = boxScore?.game?.id === game.id;
+                  const isUserGame = game.home_team_id === userTeam.id || game.away_team_id === userTeam.id;
 
                   return (
-                    <div key={game.id} style={{ background: expanded ? '#101a10' : '#161616', border: `1px solid ${expanded ? '#1a381a' : played ? '#1c1c1c' : '#1e1e30'}`, borderRadius: 6, padding: '9px 10px' }}>
+                    <div key={game.id} style={{
+                      background: expanded ? '#101a10' : isUserGame ? '#0a0e18' : '#161616',
+                      border: `1px solid ${expanded ? '#1a381a' : isUserGame ? '#1c2e4a' : played ? '#1c1c1c' : '#1e1e30'}`,
+                      borderRadius: 6, padding: '9px 10px',
+                    }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
                         <span style={{ fontSize: 11, fontWeight: homeWon ? '700' : '400', color: homeWon ? '#fff' : played ? '#777' : '#c0c0c0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: played ? '73%' : '100%' }}>
-                          {homeWon && <span style={{ color: '#FF8740' }}>▸ </span>}{game.home_team}
+                          {homeWon && <span style={{ color: '#FF8740' }}>▸ </span>}
+                          {game.home_team}
                         </span>
                         {played && <span style={{ fontSize: 15, fontWeight: homeWon ? '700' : '400', color: homeWon ? '#fff' : '#666', flexShrink: 0 }}>{game.home_score}</span>}
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: played ? 7 : 4 }}>
                         <span style={{ fontSize: 11, fontWeight: awayWon ? '700' : '400', color: awayWon ? '#fff' : played ? '#777' : '#c0c0c0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: played ? '73%' : '100%' }}>
-                          {awayWon && <span style={{ color: '#FF8740' }}>▸ </span>}{game.away_team}
+                          {awayWon && <span style={{ color: '#FF8740' }}>▸ </span>}
+                          {game.away_team}
                         </span>
                         {played && <span style={{ fontSize: 15, fontWeight: awayWon ? '700' : '400', color: awayWon ? '#fff' : '#666', flexShrink: 0 }}>{game.away_score}</span>}
                       </div>
-                      {!played && <div style={{ fontSize: 9, color: '#404040', letterSpacing: 0.5 }}>PREVIEW</div>}
+                      {!played && (
+                        <div style={{ fontSize: 9, color: isUserGame ? '#4FC3F7' : '#404040', letterSpacing: 0.5 }}>
+                          {isUserGame ? '◆ YOUR GAME' : 'PREVIEW'}
+                        </div>
+                      )}
                       {played && (
                         <button onClick={() => handleBoxScore(game.id)} style={{ width: '100%', padding: '3px 0', background: expanded ? '#142014' : '#111', border: `1px solid ${expanded ? '#1a381a' : '#222'}`, borderRadius: 3, color: expanded ? '#4caf50' : '#555', cursor: 'pointer', fontSize: 9, letterSpacing: 0.5 }}>
                           {expanded ? '▲ BOX SCORE' : '▼ BOX SCORE'}
@@ -429,7 +450,6 @@ export default function Home({ currentSeason, onSeasonAdvance }: Props) {
                 })}
               </div>
 
-              {/* Box score panel */}
               {(boxScore || boxScoreLoading) && (
                 <div style={{ marginTop: 12, background: '#0a0a0a', border: '1px solid #1a381a', borderRadius: 8, padding: 16 }}>
                   {boxScoreLoading
@@ -473,12 +493,9 @@ export default function Home({ currentSeason, onSeasonAdvance }: Props) {
 
 function PlayoffSeedingsView({ seeds }: { seeds: { afc: SeedEntry[]; nfc: SeedEntry[] } | null }) {
   if (!seeds) return <div style={{ color: '#444', textAlign: 'center', padding: 40 }}>Loading seeds...</div>;
-
   return (
     <div>
-      <div style={{ fontSize: 10, color: '#444', letterSpacing: 1, marginBottom: 14 }}>
-        PLAYOFF SEEDINGS — TOP 7 PER CONFERENCE
-      </div>
+      <div style={{ fontSize: 10, color: '#444', letterSpacing: 1, marginBottom: 14 }}>PLAYOFF SEEDINGS — TOP 7 PER CONFERENCE</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <SeedingList title="AFC" seeds={seeds.afc} />
         <SeedingList title="NFC" seeds={seeds.nfc} />
@@ -496,9 +513,7 @@ function SeedingList({ title, seeds }: { title: string; seeds: SeedEntry[] }) {
           <span style={{ fontSize: 12, color: '#444', fontWeight: 'bold', width: 14, flexShrink: 0 }}>{i + 1}</span>
           <span style={{ flex: 1, fontSize: 12, color: '#ccc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{team.team_name}</span>
           <span style={{ fontSize: 12, color: '#666', flexShrink: 0 }}>{team.wins}-{team.losses}</span>
-          {i === 0 && (
-            <span style={{ fontSize: 9, color: '#666', background: '#1a1a00', padding: '1px 6px', borderRadius: 3, flexShrink: 0 }}>BYE</span>
-          )}
+          {i === 0 && <span style={{ fontSize: 9, color: '#666', background: '#1a1a00', padding: '1px 6px', borderRadius: 3, flexShrink: 0 }}>BYE</span>}
         </div>
       ))}
     </div>
@@ -508,9 +523,7 @@ function SeedingList({ title, seeds }: { title: string; seeds: SeedEntry[] }) {
 // ─── Playoff Results ──────────────────────────────────────────────────────────
 
 function PlayoffResultsView({ results, champion }: { results: PlayoffGame[] | null; champion?: Champion }) {
-  if (!results || results.length === 0) {
-    return <div style={{ color: '#444', textAlign: 'center', padding: 40 }}>Loading playoff results...</div>;
-  }
+  if (!results || results.length === 0) return <div style={{ color: '#444', textAlign: 'center', padding: 40 }}>Loading playoff results...</div>;
 
   const rounds = [
     { week: 18, label: 'WILD CARD', cols: 'repeat(3, 1fr)' },
@@ -521,30 +534,22 @@ function PlayoffResultsView({ results, champion }: { results: PlayoffGame[] | nu
 
   return (
     <div>
-      {/* Champion banner */}
       {champion && (
         <div style={{ textAlign: 'center', padding: '16px 20px', marginBottom: 20, background: '#120f00', border: '1px solid #3a2e00', borderRadius: 8 }}>
-          <div style={{ fontSize: 10, color: '#666', letterSpacing: 2, marginBottom: 6 }}>
-            {champion.season} SUPER BOWL CHAMPION
-          </div>
-          <div style={{ fontSize: 22, fontWeight: 'bold', color: '#FFD700' }}>
-            🏆 {champion.team_name}
-          </div>
+          <div style={{ fontSize: 10, color: '#666', letterSpacing: 2, marginBottom: 6 }}>{champion.season} SUPER BOWL CHAMPION</div>
+          <div style={{ fontSize: 22, fontWeight: 'bold', color: '#FFD700' }}>🏆 {champion.team_name}</div>
         </div>
       )}
-
       {rounds.map(({ week, label, cols }) => {
         const games = results.filter(g => g.week === week);
         if (games.length === 0) return null;
         const isSB = week === 21;
-
         return (
           <div key={week} style={{ marginBottom: 18 }}>
             <div style={{ fontSize: 10, fontWeight: 'bold', color: '#FF8740', letterSpacing: 1, marginBottom: 8 }}>{label}</div>
             <div style={{ display: 'grid', gridTemplateColumns: cols, gap: 8 }}>
               {games.map((game, i) => {
                 const homeWon = game.home_score > game.away_score;
-                const awayWon = !homeWon;
                 return (
                   <div key={i} style={{ background: isSB ? '#120f00' : '#161616', border: `1px solid ${isSB ? '#3a2e00' : '#1e1e1e'}`, borderRadius: 6, padding: isSB ? '12px 14px' : '9px 10px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
@@ -554,10 +559,10 @@ function PlayoffResultsView({ results, champion }: { results: PlayoffGame[] | nu
                       <span style={{ fontSize: isSB ? 18 : 15, fontWeight: homeWon ? '700' : '400', color: homeWon ? '#fff' : '#555', flexShrink: 0 }}>{game.home_score}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: isSB ? 13 : 11, fontWeight: awayWon ? '700' : '400', color: awayWon ? '#fff' : '#666', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '75%' }}>
-                        {awayWon && <span style={{ color: '#FF8740' }}>▸ </span>}{game.away_team}
+                      <span style={{ fontSize: isSB ? 13 : 11, fontWeight: !homeWon ? '700' : '400', color: !homeWon ? '#fff' : '#666', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '75%' }}>
+                        {!homeWon && <span style={{ color: '#FF8740' }}>▸ </span>}{game.away_team}
                       </span>
-                      <span style={{ fontSize: isSB ? 18 : 15, fontWeight: awayWon ? '700' : '400', color: awayWon ? '#fff' : '#555', flexShrink: 0 }}>{game.away_score}</span>
+                      <span style={{ fontSize: isSB ? 18 : 15, fontWeight: !homeWon ? '700' : '400', color: !homeWon ? '#fff' : '#555', flexShrink: 0 }}>{game.away_score}</span>
                     </div>
                   </div>
                 );
@@ -570,7 +575,7 @@ function PlayoffResultsView({ results, champion }: { results: PlayoffGame[] | nu
   );
 }
 
-// ─── Sidebar helpers ──────────────────────────────────────────────────────────
+// ─── Sidebar ─────────────────────────────────────────────────────────────────
 
 function SidebarBlock({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -595,7 +600,6 @@ function SidebarRow({ left, right, dimLeft }: { left: string; right: string; dim
 function BoxScore({ data }: { data: BoxScoreData }) {
   const { game, players } = data;
   const homeWon = game.home_score > game.away_score;
-
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'center', gap: 40, marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid #1a1a1a' }}>
@@ -623,7 +627,6 @@ function TeamStats({ teamName, players }: { teamName: string; players: BoxScoreP
   const rushers = players.filter(p => p.rush_attempts > 0).sort((a, b) => b.rush_yards - a.rush_yards).slice(0, 3);
   const receivers = players.filter(p => p.targets > 0).sort((a, b) => b.rec_yards - a.rec_yards).slice(0, 4);
   const nickname = teamName.split(' ').pop()?.toUpperCase() ?? teamName;
-
   return (
     <div>
       <div style={{ fontSize: 11, fontWeight: 'bold', color: '#FF8740', marginBottom: 8 }}>{nickname}</div>

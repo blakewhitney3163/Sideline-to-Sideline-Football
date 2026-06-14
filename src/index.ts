@@ -478,6 +478,24 @@ ipcMain.handle('get-playoff-seeds', () => {
   };
 });
 
+// User Team Selection
+ipcMain.handle('get-user-team', () => {
+  const row = db.prepare("SELECT value FROM settings WHERE key = 'user_team_id'").get() as any;
+  if (!row) return null;
+  const teamId = parseInt(row.value);
+  return db.prepare('SELECT * FROM teams WHERE id = ?').get(teamId) ?? null;
+});
+
+ipcMain.handle('set-user-team', (_event: any, teamId: number) => {
+  const existing = db.prepare("SELECT * FROM settings WHERE key = 'user_team_id'").get();
+  if (existing) {
+    db.prepare("UPDATE settings SET value = ? WHERE key = 'user_team_id'").run(String(teamId));
+  } else {
+    db.prepare("INSERT INTO settings (key, value) VALUES ('user_team_id', ?)").run(String(teamId));
+  }
+  return { success: true };
+});
+
 // ─── App Lifecycle ─────────────────────────────────────────────────────────────
 
 app.on('ready', createWindow);

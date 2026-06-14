@@ -8,6 +8,12 @@ contextBridge.exposeInMainWorld('api', {
   getPlayoffSeeds: () =>
   ipcRenderer.invoke('get-playoff-seeds'),
 
+  getUserTeam: () =>
+  ipcRenderer.invoke('get-user-team'),
+
+  setUserTeam: (teamId: number) =>
+  ipcRenderer.invoke('set-user-team', teamId),
+
   getStandings: (season: number) =>
     ipcRenderer.invoke('get-standings', season),
 
