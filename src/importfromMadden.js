@@ -44,19 +44,17 @@ function importFromMadden() {
   const csvPlayers = parseCSV(csvPath);
   console.log(`Found ${csvPlayers.length} players in CSV`);
 
-  // Build team abbreviation -> id map
   const teams = db.prepare('SELECT id, abbreviation FROM teams').all();
   const teamMap = {};
   for (const t of teams) teamMap[t.abbreviation] = t.id;
 
-  // Clear existing players
   db.prepare('DELETE FROM stats').run();
   db.prepare('DELETE FROM players').run();
   console.log('Cleared existing players and stats');
 
   const insert = db.prepare(`
-    INSERT INTO players (team_id, first_name, last_name, position, age, overall_rating, speed, strength, awareness)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO players (team_id, first_name, last_name, position, position_label, age, overall_rating, speed, strength, awareness)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   let imported = 0;
@@ -64,24 +62,25 @@ function importFromMadden() {
 
   const runImport = db.transaction(() => {
     for (const p of csvPlayers) {
-      // Skip punters and players without a position mapping
       const position = POSITION_MAP[p.position];
       if (!position) { skipped++; continue; }
 
-      // Skip if team not found
       const teamId = teamMap[p.team];
       if (!teamId) { skipped++; continue; }
 
       const { first, last } = splitName(p.fullname);
       if (!first || !last) { skipped++; continue; }
 
-      const age = parseInt(p.age) || 25;
-      const ovr = parseInt(p.overallrating) || 70;
-      const spd = parseInt(p.speed) || 70;
-      const str = parseInt(p.strength) || 70;
-      const awr = parseInt(p.awareness) || 70;
-
-      insert.run(teamId, first, last, position, age, ovr, spd, str, awr);
+      insert.run(
+        teamId, first, last,
+        position,
+        p.position,   // real Madden position label (LE, RE, MLB, HB, etc.)
+        parseInt(p.age) || 25,
+        parseInt(p.overallrating) || 70,
+        parseInt(p.speed) || 70,
+        parseInt(p.strength) || 70,
+        parseInt(p.awareness) || 70
+      );
       imported++;
     }
   });
@@ -89,32 +88,15 @@ function importFromMadden() {
   runImport();
 
   console.log(`\nImported: ${imported} players`);
-  console.log(`Skipped:  ${skipped} (punters, special teams, unknown teams)`);
+  console.log(`Skipped:  ${skipped} (punters, long snappers, unknown teams)`);
 
-  // Show breakdown by position
   const breakdown = db.prepare(`
-    SELECT position, COUNT(*) as count
-    FROM players GROUP BY position ORDER BY count DESC
+    SELECT position_label, COUNT(*) as count
+    FROM players GROUP BY position_label ORDER BY count DESC
   `).all();
 
   console.log('\nPlayers by position:');
-  for (const row of breakdown) console.log(`  ${row.position}: ${row.count}`);
-
-  // Show rating distribution
-  const dist = db.prepare(`
-    SELECT
-      CASE
-        WHEN overall_rating >= 90 THEN '90-99 (Elite)'
-        WHEN overall_rating >= 80 THEN '80-89 (Pro Bowl)'
-        WHEN overall_rating >= 70 THEN '70-79 (Starter)'
-        ELSE 'Below 70 (Backup)'
-      END as tier,
-      COUNT(*) as count
-    FROM players GROUP BY tier ORDER BY tier DESC
-  `).all();
-
-  console.log('\nRating distribution:');
-  for (const row of dist) console.log(`  ${row.tier}: ${row.count}`);
+  for (const row of breakdown) console.log(`  ${row.position_label}: ${row.count}`);
 }
 
 importFromMadden();

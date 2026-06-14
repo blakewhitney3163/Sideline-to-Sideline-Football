@@ -81,7 +81,12 @@ db.exec(`
     );
 `);
 
-//seed current season if not already set
+// Migrate: add position_label column if it doesn't exist
+const playerCols = db.prepare("PRAGMA table_info(players)").all();
+if (!playerCols.find(c => c.name === 'position_label')) {
+  db.prepare('ALTER TABLE players ADD COLUMN position_label TEXT').run();
+}
+
 const existingSeason = db.prepare("SELECT value FROM settings WHERE key = 'current_season'").get();
 if (!existingSeason) {
     db.prepare("INSERT INTO settings (key, value) VALUES ('current_season', '2025')").run();

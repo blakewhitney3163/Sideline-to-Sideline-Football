@@ -23,7 +23,6 @@ const createWindow = (): void => {
   mainWindow.webContents.openDevTools();
 };
 
-// Read the current season from the settings table
 function getCurrentSeason(): number {
   const row = db.prepare("SELECT value FROM settings WHERE key = 'current_season'").get() as any;
   return row ? parseInt(row.value) : 2025;
@@ -31,7 +30,6 @@ function getCurrentSeason(): number {
 
 // ─── IPC Handlers ─────────────────────────────────────────────────────────────
 
-// Returns all 32 teams with win/loss record for the given season
 ipcMain.handle('get-standings', (_event: any, season?: number) => {
   const s = season ?? getCurrentSeason();
   const teams = db.prepare('SELECT id, city, name, conference, division FROM teams').all();
@@ -52,15 +50,13 @@ ipcMain.handle('get-standings', (_event: any, season?: number) => {
   });
 });
 
-// Returns all teams sorted by conference, division, and name
 ipcMain.handle('get-teams', () => {
   return db.prepare('SELECT * FROM teams ORDER BY conference, division, name').all();
 });
 
-// Returns the full roster for a given team, sorted by overall rating
 ipcMain.handle('get-roster', (_event: any, teamId: number) => {
   return db.prepare(`
-    SELECT first_name, last_name, position, overall_rating, age, speed, strength, awareness
+    SELECT id, first_name, last_name, position, position_label, overall_rating, age, speed, strength, awareness
     FROM players WHERE team_id = ?
     ORDER BY
       CASE position
@@ -72,7 +68,29 @@ ipcMain.handle('get-roster', (_event: any, teamId: number) => {
   `).all(teamId);
 });
 
-// Returns all games for a given season with team names and scores
+ipcMain.handle('get-player-stats', (_event: any, playerId: number) => {
+  const season = getCurrentSeason();
+  return db.prepare(`
+    SELECT
+      COUNT(DISTINCT s.game_id) as games,
+      SUM(s.pass_attempts) as pass_attempts,
+      SUM(s.completions) as completions,
+      SUM(s.pass_yards) as pass_yards,
+      SUM(s.pass_tds) as pass_tds,
+      SUM(s.interceptions) as interceptions,
+      SUM(s.rush_attempts) as rush_attempts,
+      SUM(s.rush_yards) as rush_yards,
+      SUM(s.rush_tds) as rush_tds,
+      SUM(s.targets) as targets,
+      SUM(s.receptions) as receptions,
+      SUM(s.rec_yards) as rec_yards,
+      SUM(s.rec_tds) as rec_tds
+    FROM stats s
+    JOIN games g ON s.game_id = g.id
+    WHERE s.player_id = ? AND g.season = ?
+  `).get(playerId, season);
+});
+
 ipcMain.handle('get-schedule', (_event: any, season?: number) => {
   const s = season ?? getCurrentSeason();
   return db.prepare(`
@@ -87,7 +105,6 @@ ipcMain.handle('get-schedule', (_event: any, season?: number) => {
   `).all(s);
 });
 
-// Returns dashboard summary: top 5 teams per conference and recent scores
 ipcMain.handle('get-dashboard', (_event: any, season?: number) => {
   const s = season ?? getCurrentSeason();
   const topAFC = db.prepare(`
@@ -125,7 +142,6 @@ ipcMain.handle('get-dashboard', (_event: any, season?: number) => {
   return { topAFC, topNFC, recentGames };
 });
 
-// Returns league leaders grouped by stat category
 ipcMain.handle('get-stats', (_event: any, season?: number) => {
   const s = season ?? getCurrentSeason();
   const passing = db.prepare(`
@@ -168,7 +184,6 @@ ipcMain.handle('get-stats', (_event: any, season?: number) => {
   return { passing, rushing, receiving };
 });
 
-// Simulate the full playoff bracket and save to DB
 ipcMain.handle('simulate-playoffs', (_event: any, season?: number) => {
   const s = season ?? getCurrentSeason();
   db.prepare(`DELETE FROM stats WHERE game_id IN (SELECT id FROM games WHERE season = ? AND is_playoff = 1)`).run(s);
@@ -231,7 +246,6 @@ ipcMain.handle('simulate-playoffs', (_event: any, season?: number) => {
   };
 });
 
-// Fetch existing playoff results
 ipcMain.handle('get-playoffs', (_event: any, season?: number) => {
   const s = season ?? getCurrentSeason();
   return db.prepare(`
@@ -246,10 +260,8 @@ ipcMain.handle('get-playoffs', (_event: any, season?: number) => {
   `).all(s);
 });
 
-// Get the current season year
 ipcMain.handle('get-current-season', () => getCurrentSeason());
 
-// Advance to the next season
 ipcMain.handle('advance-season', () => {
   const next = getCurrentSeason() + 1;
   db.prepare("UPDATE settings SET value = ? WHERE key = 'current_season'").run(String(next));
