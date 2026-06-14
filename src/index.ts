@@ -62,7 +62,13 @@ ipcMain.handle('get-roster', (_event: any, teamId: number) => {
   return db.prepare(`
     SELECT first_name, last_name, position, overall_rating, age, speed, strength, awareness
     FROM players WHERE team_id = ?
-    ORDER BY overall_rating DESC
+    ORDER BY
+      CASE position
+        WHEN 'QB' THEN 1 WHEN 'RB' THEN 2 WHEN 'WR' THEN 3 WHEN 'TE' THEN 4
+        WHEN 'OL' THEN 5 WHEN 'DL' THEN 6 WHEN 'LB' THEN 7 WHEN 'CB' THEN 8
+        WHEN 'S' THEN 9 WHEN 'K' THEN 10 ELSE 11
+      END,
+      overall_rating DESC
   `).all(teamId);
 });
 
