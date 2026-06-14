@@ -442,6 +442,42 @@ ipcMain.handle('reset-dynasty', () => {
   return { success: true };
 });
 
+// Playoff Seeds Handler
+ipcMain.handle('get-playoff-seeds', () => {
+  const season = getCurrentSeason();
+
+  const getConferenceSeeds = (conference: string) => {
+    const teams = db.prepare(
+      'SELECT id, city, name FROM teams WHERE conference = ?'
+    ).all(conference) as any[];
+
+    return teams.map((t: any) => {
+      const wins = (db.prepare(`
+        SELECT COUNT(*) as count FROM games
+        WHERE season = ? AND is_simulated = 1 AND is_playoff = 0
+        AND ((home_team_id = ? AND home_score > away_score)
+          OR (away_team_id = ? AND away_score > home_score))
+      `).get(season, t.id, t.id) as any).count;
+
+      const losses = (db.prepare(`
+        SELECT COUNT(*) as count FROM games
+        WHERE season = ? AND is_simulated = 1 AND is_playoff = 0
+        AND ((home_team_id = ? AND home_score < away_score)
+          OR (away_team_id = ? AND away_score < home_score))
+      `).get(season, t.id, t.id) as any).count;
+
+      return { ...t, wins, losses, team_name: `${t.city} ${t.name}` };
+    })
+    .sort((a: any, b: any) => b.wins - a.wins)
+    .slice(0, 7);
+  };
+
+  return {
+    afc: getConferenceSeeds('AFC'),
+    nfc: getConferenceSeeds('NFC'),
+  };
+});
+
 // ─── App Lifecycle ─────────────────────────────────────────────────────────────
 
 app.on('ready', createWindow);

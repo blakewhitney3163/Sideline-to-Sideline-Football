@@ -5,6 +5,9 @@ contextBridge.exposeInMainWorld('api', {
   resetDynasty: () =>
   ipcRenderer.invoke('reset-dynasty'),
 
+  getPlayoffSeeds: () =>
+  ipcRenderer.invoke('get-playoff-seeds'),
+
   getStandings: (season: number) =>
     ipcRenderer.invoke('get-standings', season),
 
