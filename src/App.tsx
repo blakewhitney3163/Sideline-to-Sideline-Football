@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Standings from './Standings';
 import Teams from './Teams';
 import Schedule from './Schedule';
@@ -6,7 +6,9 @@ import Home from './Home';
 import Stats from './Stats';
 import Playoffs from './Playoffs';
 
-type Tab = 'home' | 'standings' | 'teams' | 'schedule' |'stats' | 'playoffs';
+declare const window: any;
+
+type Tab = 'home' | 'standings' | 'teams' | 'schedule' | 'stats' | 'playoffs';
 
 const tabs: { id: Tab; label: string }[] = [
   { id: 'home', label: 'Home' },
@@ -18,17 +20,31 @@ const tabs: { id: Tab; label: string }[] = [
 ];
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<Tab>('standings');
+  const [activeTab, setActiveTab] = useState<Tab>('home');
   const [playoffData, setPlayoffData] = useState(null);
+  const [currentSeason, setCurrentSeason] = useState<number>(2025);
+
+  useEffect(() => {
+    window.api.getCurrentSeason().then((s: number) => setCurrentSeason(s));
+  }, []);
+
+  const handleSeasonAdvance = (nextSeason: number) => {
+    setCurrentSeason(nextSeason);
+    setPlayoffData(null);
+    setActiveTab('home');
+  };
 
   return (
     <div style={{ fontFamily: 'Arial', background: '#1a1a2e', minHeight: '100vh', color: 'white' }}>
-     
+
       {/* Header */}
-      <div style={{ background: '#0f0f23', padding: '12px 20px', borderBottom: '2px solid #4FC3F7' }}>
+      <div style={{ background: '#0f0f23', padding: '12px 20px', borderBottom: '2px solid #4FC3F7', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <h1 style={{ margin: 0, color: '#4FC3F7', fontSize: '20px', letterSpacing: '2px' }}>
           NFL SIMULATOR
         </h1>
+        <span style={{ color: '#FF8740', fontWeight: 'bold', fontSize: '14px' }}>
+          {currentSeason} Season
+        </span>
       </div>
 
       {/* Tab Bar */}
@@ -56,12 +72,12 @@ export default function App() {
 
       {/* Tab Content */}
       <div>
-        {activeTab === 'home' && <Home />}
-        {activeTab === 'standings' && <Standings />}
+        {activeTab === 'home' && <Home currentSeason={currentSeason} onSeasonAdvance={handleSeasonAdvance} />}
+        {activeTab === 'standings' && <Standings currentSeason={currentSeason} />}
         {activeTab === 'teams' && <Teams />}
-        {activeTab === 'schedule' && <Schedule />}
-        {activeTab === 'stats' && <Stats />}
-        {activeTab === 'playoffs' && <Playoffs data={playoffData} setData={setPlayoffData}/>}
+        {activeTab === 'schedule' && <Schedule currentSeason={currentSeason} />}
+        {activeTab === 'stats' && <Stats currentSeason={currentSeason} />}
+        {activeTab === 'playoffs' && <Playoffs data={playoffData} setData={setPlayoffData} currentSeason={currentSeason} />}
       </div>
     </div>
   );
