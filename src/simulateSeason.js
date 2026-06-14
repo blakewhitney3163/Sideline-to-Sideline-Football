@@ -103,4 +103,6 @@ function simulateSeason(season = 2025) {
     }
 }
 
-simulateSeason(2025);
+const seasonRow = db.prepare("SELECT value FROM settings WHERE key = 'current_season'").get();
+const season = seasonRow ? parseInt(seasonRow.value) : 2025;
+simulateSeason(season);

@@ -44,4 +44,20 @@ contextBridge.exposeInMainWorld('api', {
   advanceSeason: () =>
     ipcRenderer.invoke('advance-season'),
 
+  // Week-by-week simulation
+  generateSchedule: () =>
+    ipcRenderer.invoke('generate-schedule'),
+
+  getCurrentWeek: () =>
+    ipcRenderer.invoke('get-current-week'),
+
+  getWeekMatchups: (week: number) =>
+    ipcRenderer.invoke('get-week-matchups', week),
+
+  simulateWeek: (week: number) =>
+    ipcRenderer.invoke('simulate-week', week),
+
+  getGameBoxScore: (gameId: number) =>
+    ipcRenderer.invoke('get-game-box-score', gameId),
+
 });

@@ -73,18 +73,13 @@ ipcMain.handle('get-player-stats', (_event: any, playerId: number) => {
   return db.prepare(`
     SELECT
       COUNT(DISTINCT s.game_id) as games,
-      SUM(s.pass_attempts) as pass_attempts,
-      SUM(s.completions) as completions,
-      SUM(s.pass_yards) as pass_yards,
-      SUM(s.pass_tds) as pass_tds,
+      SUM(s.pass_attempts) as pass_attempts, SUM(s.completions) as completions,
+      SUM(s.pass_yards) as pass_yards, SUM(s.pass_tds) as pass_tds,
       SUM(s.interceptions) as interceptions,
-      SUM(s.rush_attempts) as rush_attempts,
-      SUM(s.rush_yards) as rush_yards,
+      SUM(s.rush_attempts) as rush_attempts, SUM(s.rush_yards) as rush_yards,
       SUM(s.rush_tds) as rush_tds,
-      SUM(s.targets) as targets,
-      SUM(s.receptions) as receptions,
-      SUM(s.rec_yards) as rec_yards,
-      SUM(s.rec_tds) as rec_tds
+      SUM(s.targets) as targets, SUM(s.receptions) as receptions,
+      SUM(s.rec_yards) as rec_yards, SUM(s.rec_tds) as rec_tds
     FROM stats s
     JOIN games g ON s.game_id = g.id
     WHERE s.player_id = ? AND g.season = ?
@@ -96,18 +91,13 @@ ipcMain.handle('get-player-career-stats', (_event: any, playerId: number) => {
     SELECT
       g.season,
       COUNT(DISTINCT s.game_id) as games,
-      SUM(s.pass_attempts) as pass_attempts,
-      SUM(s.completions) as completions,
-      SUM(s.pass_yards) as pass_yards,
-      SUM(s.pass_tds) as pass_tds,
+      SUM(s.pass_attempts) as pass_attempts, SUM(s.completions) as completions,
+      SUM(s.pass_yards) as pass_yards, SUM(s.pass_tds) as pass_tds,
       SUM(s.interceptions) as interceptions,
-      SUM(s.rush_attempts) as rush_attempts,
-      SUM(s.rush_yards) as rush_yards,
+      SUM(s.rush_attempts) as rush_attempts, SUM(s.rush_yards) as rush_yards,
       SUM(s.rush_tds) as rush_tds,
-      SUM(s.targets) as targets,
-      SUM(s.receptions) as receptions,
-      SUM(s.rec_yards) as rec_yards,
-      SUM(s.rec_tds) as rec_tds
+      SUM(s.targets) as targets, SUM(s.receptions) as receptions,
+      SUM(s.rec_yards) as rec_yards, SUM(s.rec_tds) as rec_tds
     FROM stats s
     JOIN games g ON s.game_id = g.id
     WHERE s.player_id = ?
@@ -135,9 +125,9 @@ ipcMain.handle('get-dashboard', (_event: any, season?: number) => {
   const topAFC = db.prepare(`
     SELECT t.city || ' ' || t.name AS team_name,
       SUM(CASE WHEN (g.home_team_id = t.id AND g.home_score > g.away_score)
-                 OR (g.away_team_id = t.id AND g.away_score > g.home_score) THEN 1 ELSE 0 END) AS wins,
+        OR (g.away_team_id = t.id AND g.away_score > g.home_score) THEN 1 ELSE 0 END) AS wins,
       SUM(CASE WHEN (g.home_team_id = t.id AND g.home_score < g.away_score)
-                 OR (g.away_team_id = t.id AND g.away_score < g.home_score) THEN 1 ELSE 0 END) AS losses
+        OR (g.away_team_id = t.id AND g.away_score < g.home_score) THEN 1 ELSE 0 END) AS losses
     FROM teams t
     JOIN games g ON (g.home_team_id = t.id OR g.away_team_id = t.id)
     WHERE g.season = ? AND g.is_simulated = 1 AND t.conference = 'AFC'
@@ -146,9 +136,9 @@ ipcMain.handle('get-dashboard', (_event: any, season?: number) => {
   const topNFC = db.prepare(`
     SELECT t.city || ' ' || t.name AS team_name,
       SUM(CASE WHEN (g.home_team_id = t.id AND g.home_score > g.away_score)
-                 OR (g.away_team_id = t.id AND g.away_score > g.home_score) THEN 1 ELSE 0 END) AS wins,
+        OR (g.away_team_id = t.id AND g.away_score > g.home_score) THEN 1 ELSE 0 END) AS wins,
       SUM(CASE WHEN (g.home_team_id = t.id AND g.home_score < g.away_score)
-                 OR (g.away_team_id = t.id AND g.away_score < g.home_score) THEN 1 ELSE 0 END) AS losses
+        OR (g.away_team_id = t.id AND g.away_score < g.home_score) THEN 1 ELSE 0 END) AS losses
     FROM teams t
     JOIN games g ON (g.home_team_id = t.id OR g.away_team_id = t.id)
     WHERE g.season = ? AND g.is_simulated = 1 AND t.conference = 'NFC'
@@ -171,10 +161,10 @@ ipcMain.handle('get-stats', (_event: any, season?: number) => {
   const s = season ?? getCurrentSeason();
   const passing = db.prepare(`
     SELECT p.first_name || ' ' || p.last_name AS player_name,
-           t.city || ' ' || t.name AS team_name,
-           SUM(st.pass_yards) AS pass_yards, SUM(st.pass_tds) AS pass_tds,
-           SUM(st.interceptions) AS interceptions, SUM(st.completions) AS completions,
-           SUM(st.pass_attempts) AS pass_attempts
+      t.city || ' ' || t.name AS team_name,
+      SUM(st.pass_yards) AS pass_yards, SUM(st.pass_tds) AS pass_tds,
+      SUM(st.interceptions) AS interceptions, SUM(st.completions) AS completions,
+      SUM(st.pass_attempts) AS pass_attempts
     FROM stats st
     JOIN players p ON st.player_id = p.id
     JOIN teams t ON st.team_id = t.id
@@ -184,9 +174,9 @@ ipcMain.handle('get-stats', (_event: any, season?: number) => {
   `).all(s);
   const rushing = db.prepare(`
     SELECT p.first_name || ' ' || p.last_name AS player_name,
-           t.city || ' ' || t.name AS team_name,
-           SUM(st.rush_yards) AS rush_yards, SUM(st.rush_tds) AS rush_tds,
-           SUM(st.rush_attempts) AS rush_attempts
+      t.city || ' ' || t.name AS team_name,
+      SUM(st.rush_yards) AS rush_yards, SUM(st.rush_tds) AS rush_tds,
+      SUM(st.rush_attempts) AS rush_attempts
     FROM stats st
     JOIN players p ON st.player_id = p.id
     JOIN teams t ON st.team_id = t.id
@@ -196,9 +186,9 @@ ipcMain.handle('get-stats', (_event: any, season?: number) => {
   `).all(s);
   const receiving = db.prepare(`
     SELECT p.first_name || ' ' || p.last_name AS player_name,
-           t.city || ' ' || t.name AS team_name,
-           SUM(st.rec_yards) AS rec_yards, SUM(st.rec_tds) AS rec_tds,
-           SUM(st.receptions) AS receptions, SUM(st.targets) AS targets
+      t.city || ' ' || t.name AS team_name,
+      SUM(st.rec_yards) AS rec_yards, SUM(st.rec_tds) AS rec_tds,
+      SUM(st.receptions) AS receptions, SUM(st.targets) AS targets
     FROM stats st
     JOIN players p ON st.player_id = p.id
     JOIN teams t ON st.team_id = t.id
@@ -264,9 +254,7 @@ ipcMain.handle('simulate-playoffs', (_event: any, season?: number) => {
   const nfcChamp = simGame(nfcDiv[0].winner, nfcDiv[1].winner, 20);
   const superBowl = simGame(afcChamp.winner, nfcChamp.winner, 21);
 
-  // Record champion
-  const championId = superBowl.winner.id;
-  db.prepare('INSERT OR REPLACE INTO champions (season, team_id) VALUES (?, ?)').run(s, championId);
+  db.prepare('INSERT OR REPLACE INTO champions (season, team_id) VALUES (?, ?)').run(s, superBowl.winner.id);
 
   return {
     afc: { seeds: afcTeams, wildCard: afcWC, divisional: afcDiv, championship: afcChamp },
@@ -279,8 +267,8 @@ ipcMain.handle('get-playoffs', (_event: any, season?: number) => {
   const s = season ?? getCurrentSeason();
   return db.prepare(`
     SELECT g.week, g.home_score, g.away_score,
-           ht.city || ' ' || ht.name AS home_team,
-           at.city || ' ' || at.name AS away_team
+      ht.city || ' ' || ht.name AS home_team,
+      at.city || ' ' || at.name AS away_team
     FROM games g
     JOIN teams ht ON g.home_team_id = ht.id
     JOIN teams at ON g.away_team_id = at.id
@@ -309,20 +297,140 @@ ipcMain.handle('get-current-season', () => getCurrentSeason());
 ipcMain.handle('advance-season', () => {
   const current = getCurrentSeason();
   const next = current + 1;
-
-  // Age all players by 1 year
   db.prepare('UPDATE players SET age = age + 1').run();
-
-  // Retire players 39+ with overall rating below 78
   db.prepare(`
-  UPDATE players SET team_id = NULL, is_free_agent = 1
-  WHERE age >= 39 AND overall_rating < 78 AND is_free_agent = 0
-`).run();
-
-  // Advance the season
+    UPDATE players SET team_id = NULL, is_free_agent = 1
+    WHERE age >= 39 AND overall_rating < 78 AND is_free_agent = 0
+  `).run();
   db.prepare("UPDATE settings SET value = ? WHERE key = 'current_season'").run(String(next));
+  return { nextSeason: next };
+});
 
-  return { nextSeason: next, retiredCount: 0 };
+// ─── Week-by-Week Simulation ──────────────────────────────────────────────────
+
+ipcMain.handle('generate-schedule', () => {
+  const season = getCurrentSeason();
+  const existing = (db.prepare(
+    'SELECT COUNT(*) as count FROM games WHERE season = ? AND is_playoff = 0'
+  ).get(season) as any).count;
+
+  if (existing > 0) return { alreadyExists: true, season };
+
+  const teams = db.prepare('SELECT id FROM teams').all() as any[];
+  const insertGame = db.prepare(
+    'INSERT INTO games (season, week, home_team_id, away_team_id, is_simulated) VALUES (?, ?, ?, ?, 0)'
+  );
+
+  const create = db.transaction(() => {
+    for (let week = 1; week <= 17; week++) {
+      const shuffled = [...teams].sort(() => Math.random() - 0.5);
+      for (let i = 0; i < shuffled.length; i += 2) {
+        insertGame.run(season, week, shuffled[i].id, shuffled[i + 1].id);
+      }
+    }
+  });
+  create();
+  return { season, created: true, alreadyExists: false };
+});
+
+ipcMain.handle('get-current-week', () => {
+  const season = getCurrentSeason();
+  const total = (db.prepare(
+    'SELECT COUNT(*) as count FROM games WHERE season = ? AND is_playoff = 0'
+  ).get(season) as any).count;
+
+  if (total === 0) return { hasSchedule: false, currentWeek: null };
+
+  const row = db.prepare(`
+    SELECT MIN(week) as week FROM games
+    WHERE season = ? AND is_simulated = 0 AND is_playoff = 0
+  `).get(season) as any;
+
+  return { hasSchedule: true, currentWeek: row?.week ?? null };
+});
+
+ipcMain.handle('get-week-matchups', (_event: any, week: number) => {
+  const season = getCurrentSeason();
+  return db.prepare(`
+    SELECT g.id, g.week, g.home_score, g.away_score, g.is_simulated,
+      ht.id as home_team_id, ht.city || ' ' || ht.name AS home_team,
+      at.id as away_team_id, at.city || ' ' || at.name AS away_team
+    FROM games g
+    JOIN teams ht ON g.home_team_id = ht.id
+    JOIN teams at ON g.away_team_id = at.id
+    WHERE g.season = ? AND g.week = ? AND g.is_playoff = 0
+    ORDER BY g.id
+  `).all(season, week);
+});
+
+ipcMain.handle('simulate-week', (_event: any, week: number) => {
+  const season = getCurrentSeason();
+  const games = db.prepare(`
+    SELECT id, home_team_id, away_team_id FROM games
+    WHERE season = ? AND week = ? AND is_simulated = 0 AND is_playoff = 0
+  `).all(season, week) as any[];
+
+  if (games.length === 0) return { week, season, gamesSimulated: 0 };
+
+  const updateGame = db.prepare(
+    'UPDATE games SET home_score = ?, away_score = ?, is_simulated = 1 WHERE id = ?'
+  );
+  const insertStat = db.prepare(`
+    INSERT INTO stats (
+      game_id, player_id, team_id,
+      pass_attempts, completions, pass_yards, pass_tds, interceptions,
+      rush_attempts, rush_yards, rush_tds,
+      targets, receptions, rec_yards, rec_tds
+    ) VALUES (
+      @game_id, @player_id, @team_id,
+      @pass_attempts, @completions, @pass_yards, @pass_tds, @interceptions,
+      @rush_attempts, @rush_yards, @rush_tds,
+      @targets, @receptions, @rec_yards, @rec_tds
+    )
+  `);
+
+  const runWeek = db.transaction(() => {
+    for (const game of games) {
+      const result = simulateGame(game.home_team_id, game.away_team_id);
+      updateGame.run(result.homeScore, result.awayScore, game.id);
+      for (const stat of [...result.homePlayerStats, ...result.awayPlayerStats]) {
+        insertStat.run({ game_id: game.id, ...stat });
+      }
+    }
+  });
+  runWeek();
+
+  return { week, season, gamesSimulated: games.length };
+});
+
+ipcMain.handle('get-game-box-score', (_event: any, gameId: number) => {
+  const game = db.prepare(`
+    SELECT g.id, g.week, g.home_score, g.away_score,
+      ht.id as home_team_id, ht.city || ' ' || ht.name AS home_team,
+      at.id as away_team_id, at.city || ' ' || at.name AS away_team
+    FROM games g
+    JOIN teams ht ON g.home_team_id = ht.id
+    JOIN teams at ON g.away_team_id = at.id
+    WHERE g.id = ?
+  `).get(gameId) as any;
+
+  if (!game) return null;
+
+  const players = db.prepare(`
+    SELECT
+      p.first_name || ' ' || p.last_name as player_name,
+      p.position, s.team_id,
+      s.pass_attempts, s.completions, s.pass_yards, s.pass_tds, s.interceptions,
+      s.rush_attempts, s.rush_yards, s.rush_tds,
+      s.targets, s.receptions, s.rec_yards, s.rec_tds
+    FROM stats s
+    JOIN players p ON s.player_id = p.id
+    WHERE s.game_id = ?
+      AND (s.pass_yards > 0 OR s.rush_yards > 0 OR s.rec_yards > 0)
+    ORDER BY s.team_id, s.pass_yards DESC, s.rush_yards DESC, s.rec_yards DESC
+  `).all(gameId);
+
+  return { game, players };
 });
 
 // ─── App Lifecycle ─────────────────────────────────────────────────────────────
