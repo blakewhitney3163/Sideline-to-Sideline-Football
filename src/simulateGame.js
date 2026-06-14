@@ -22,46 +22,59 @@ function getTeamRatings(teamId) {
 
 function generatePlayerStats(teamId, score, offenseRating) {
     const stats = [];
-    const ratingFactor = offenseRating / 75;
+    const teamRatingFactor = offenseRating / 75;
 
-    // Get starters by position
-    const qb  = db.prepare(`SELECT id FROM players WHERE team_id = ? AND position = 'QB' LIMIT 1`).get(teamId);
-    const rbs = db.prepare(`SELECT id FROM players WHERE team_id = ? AND position = 'RB' LIMIT 2`).all(teamId);
-    const wrs = db.prepare(`SELECT id FROM players WHERE team_id = ? AND position = 'WR' LIMIT 4`).all(teamId);
-    const tes = db.prepare(`SELECT id FROM players WHERE team_id = ? AND position = 'TE' LIMIT 2`).all(teamId);
+    const qb  = db.prepare(`SELECT id, overall_rating FROM players WHERE team_id = ? AND position = 'QB' ORDER BY overall_rating DESC LIMIT 1`).get(teamId);
+    const rbs = db.prepare(`SELECT id, overall_rating FROM players WHERE team_id = ? AND position = 'RB' ORDER BY overall_rating DESC LIMIT 2`).all(teamId);
+    const wrs = db.prepare(`SELECT id, overall_rating FROM players WHERE team_id = ? AND position = 'WR' ORDER BY overall_rating DESC LIMIT 4`).all(teamId);
+    const tes = db.prepare(`SELECT id, overall_rating FROM players WHERE team_id = ? AND position = 'TE' ORDER BY overall_rating DESC LIMIT 2`).all(teamId);
 
-    // Estimate TDs from score (~1 TD per 7 pts)
-    const totalTDs  = Math.max(0, Math.round(score / 7));
-    const passTDs   = clamp(Math.round(totalTDs * 0.6), 0, totalTDs);
-    const rushTDs   = totalTDs - passTDs;
+    const totalTDs = Math.max(0, Math.round(score / 7));
+    const passTDs  = clamp(Math.round(totalTDs * 0.6), 0, totalTDs);
+    const rushTDs  = totalTDs - passTDs;
 
-    // Team-level passing totals
-    const passYards    = clamp(randomNormal(260 * ratingFactor, 55), 80, 450);
-    const passAttempts = clamp(randomNormal(34, 5), 20, 50);
-    const completions  = clamp(passAttempts * randomNormal(0.63, 0.06), 10, passAttempts);
-    const ints         = clamp(randomNormal(1.1, 1), 0, 4);
-
-    // QB
+    // QB — scaled by individual rating
+    let passYardsGenerated = 260 * teamRatingFactor;
     if (qb) {
-        const qbCarries = Math.random() > 0.6 ? clamp(randomNormal(4, 2), 0, 8) : 0;
+        const qbRatingFactor = qb.overall_rating / 75;
+        const combinedFactor = (teamRatingFactor + qbRatingFactor) / 2;
+
+        passYardsGenerated = clamp(randomNormal(260 * combinedFactor, 50), 60, 450);
+        const passAttempts = clamp(randomNormal(34, 5), 20, 50);
+        const compPct      = Math.min(0.75, Math.max(0.42, 0.42 + (qb.overall_rating - 50) * 0.0033 + randomNormal(0, 0.04)));
+        const completions  = clamp(passAttempts * compPct, 10, passAttempts);
+        const intMean      = Math.max(0.3, 2.5 - (qb.overall_rating - 50) * 0.04);
+        const ints         = clamp(randomNormal(intMean, 0.9), 0, 5);
+        const qbCarries    = Math.random() > 0.6 ? clamp(randomNormal(4, 2), 0, 8) : 0;
+
         stats.push({
             player_id: qb.id, team_id: teamId,
-            pass_attempts: passAttempts, completions, pass_yards: passYards,
+            pass_attempts: passAttempts, completions, pass_yards: passYardsGenerated,
             pass_tds: passTDs, interceptions: ints,
             rush_attempts: qbCarries, rush_yards: clamp(randomNormal(qbCarries * 5, 8), 0, 50), rush_tds: 0,
             targets: 0, receptions: 0, rec_yards: 0, rec_tds: 0,
         });
     }
 
-    // RBs — split carries
+    // RBs — carries and YPC scaled by individual rating
     const totalRushAttempts = clamp(randomNormal(22, 4), 12, 35);
-    const totalRushYards    = clamp(randomNormal(110 * ratingFactor, 35), 20, 250);
+    const totalRushYards    = clamp(randomNormal(110 * teamRatingFactor, 35), 20, 250);
+
+    // Weight carries toward higher-rated RB
+    const rbRatingWeights = rbs.map(rb => rb.overall_rating / 75);
+    const rbWeightTotal   = rbRatingWeights.reduce((a, b) => a + b, 0) || 1;
 
     rbs.forEach((rb, i) => {
-        const share     = i === 0 ? randomNormal(0.65, 0.08) : 0.35;
-        const carries   = clamp(totalRushAttempts * share, i === 0 ? 8 : 0, 28);
-        const rushYards = clamp(totalRushYards * share, 0, 200);
-        const rbRushTDs = i === 0 && rushTDs > 0 ? rushTDs : 0;
+        const ratingFactor = rb.overall_rating / 75;
+        // Higher rated RB gets a bigger share of carries
+        const baseShare  = rbRatingWeights[i] / rbWeightTotal;
+        const share      = clamp(randomNormal(baseShare * 100, 8), 20, 80) / 100;
+        const carries    = clamp(totalRushAttempts * share, i === 0 ? 6 : 0, 28);
+        // Higher rated RB gets better YPC (base 4.5 ypc, scales with rating)
+        const ypc        = Math.max(2.5, randomNormal(3.5 + (rb.overall_rating - 70) * 0.04, 0.8));
+        const rushYards  = clamp(carries * ypc, 0, 200);
+        const rbRushTDs  = i === 0 && rushTDs > 0 ? rushTDs : 0;
+
         stats.push({
             player_id: rb.id, team_id: teamId,
             pass_attempts: 0, completions: 0, pass_yards: 0, pass_tds: 0, interceptions: 0,
@@ -73,17 +86,24 @@ function generatePlayerStats(teamId, score, offenseRating) {
         });
     });
 
-    // WRs and TEs — distribute receiving yards
+    // WRs and TEs — target share and catch rate scaled by individual rating
     const receivers = [...wrs, ...tes];
-    const recShares = [0.28, 0.20, 0.14, 0.10, 0.10, 0.08];
-    let remainingRecTDs = passTDs;
+    const recRatingWeights = receivers.map(r => r.overall_rating / 75);
+    const recWeightTotal   = recRatingWeights.reduce((a, b) => a + b, 0) || 1;
+    let remainingRecTDs    = passTDs;
 
     receivers.forEach((rec, i) => {
-        const share    = recShares[i] || 0.05;
-        const recYards = clamp(randomNormal(passYards * share, 18), 0, 160);
-        const targets  = clamp(randomNormal(9 - i * 1.2, 2), 1, 14);
-        const recs     = clamp(targets * randomNormal(0.65, 0.08), 0, targets);
-        const recTDs   = remainingRecTDs > 0 && Math.random() > (0.45 + i * 0.12) ? 1 : 0;
+        const ratingFactor = rec.overall_rating / 75;
+        // Target share weighted by rating
+        const baseShare  = recRatingWeights[i] / recWeightTotal;
+        const recYards   = clamp(randomNormal(passYardsGenerated * baseShare, 18), 0, 180);
+        // Higher rated receiver gets more targets and better catch rate
+        const targets    = clamp(randomNormal((9 * ratingFactor) - i * 0.8, 2), 1, 14);
+        const catchRate  = Math.min(0.82, Math.max(0.48, 0.55 + (rec.overall_rating - 70) * 0.004));
+        const recs       = clamp(targets * randomNormal(catchRate, 0.06), 0, targets);
+        // Elite receivers more likely to score
+        const tdThreshold = 0.6 - (rec.overall_rating - 70) * 0.005;
+        const recTDs     = remainingRecTDs > 0 && Math.random() > tdThreshold ? 1 : 0;
         if (recTDs) remainingRecTDs--;
 
         stats.push({

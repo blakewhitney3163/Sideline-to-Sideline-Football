@@ -10,7 +10,10 @@
     "package": "electron-forge package",
     "make": "electron-forge make",
     "publish": "electron-forge publish",
-    "lint": "eslint --ext .ts,.tsx ."
+    "lint": "eslint --ext .ts,.tsx .",
+    "simulate": "npm rebuild better-sqlite3 && node src/simulateSeason.js && .\\node_modules\\.bin\\electron-rebuild -v 42.4.0 --force && Remove-Item -Recurse -Force .webpack && npm start",
+    "update-ratings": "npm rebuild better-sqlite3 && node src/updateRatings.js && .\\node_modules\\.bin\\electron-rebuild",
+    "import-players": "npm rebuild better-sqlite3 && node src/importPlayers.js && .\\node_modules\\.bin\\electron-rebuild"
   },
   "keywords": [],
   "author": {
@@ -43,7 +46,9 @@
     "typescript": "~4.5.4"
   },
   "dependencies": {
+    "better": "^0.1.0",
     "better-sqlite3": "^12.10.1",
-    "electron-squirrel-startup": "^1.0.1"
+    "electron-squirrel-startup": "^1.0.1",
+    "sqlite3": "^6.0.1"
   }
 }
