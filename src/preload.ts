@@ -2,6 +2,9 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('api', {
 
+  resetDynasty: () =>
+  ipcRenderer.invoke('reset-dynasty'),
+
   getStandings: (season: number) =>
     ipcRenderer.invoke('get-standings', season),
 

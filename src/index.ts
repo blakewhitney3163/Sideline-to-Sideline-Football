@@ -433,6 +433,15 @@ ipcMain.handle('get-game-box-score', (_event: any, gameId: number) => {
   return { game, players };
 });
 
+// Reset Dynasty handler
+ipcMain.handle('reset-dynasty', () => {
+  db.prepare('DELETE FROM stats').run();
+  db.prepare('DELETE FROM games').run();
+  db.prepare('DELETE FROM champions').run();
+  db.prepare("UPDATE settings SET value = '2025' WHERE key = 'current_season'").run();
+  return { success: true };
+});
+
 // ─── App Lifecycle ─────────────────────────────────────────────────────────────
 
 app.on('ready', createWindow);

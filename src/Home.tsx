@@ -77,6 +77,17 @@ const btn = (bg: string, fg: string, disabled: boolean, border = 'none'): React.
   fontSize: 13,
 });
 
+const smallBtn = (bg: string, fg: string, disabled: boolean): React.CSSProperties => ({
+  padding: '5px 12px',
+  background: disabled ? '#2a2a2a' : bg,
+  border: 'none',
+  borderRadius: 4,
+  color: disabled ? '#555' : fg,
+  fontWeight: 'bold',
+  cursor: disabled ? 'not-allowed' : 'pointer',
+  fontSize: 12,
+});
+
 // ─── Home ─────────────────────────────────────────────────────────────────────
 
 export default function Home({ currentSeason, onSeasonAdvance }: Props) {
@@ -94,6 +105,8 @@ export default function Home({ currentSeason, onSeasonAdvance }: Props) {
   const [champions, setChampions] = useState<Champion[]>([]);
   const [confirming, setConfirming] = useState(false);
   const [advancing, setAdvancing] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   const refreshSidebar = async () => {
     const [dashboard, champs] = await Promise.all([
@@ -110,6 +123,8 @@ export default function Home({ currentSeason, onSeasonAdvance }: Props) {
     const init = async () => {
       setLoading(true);
       setBoxScore(null);
+      setConfirmReset(false);
+      setConfirming(false);
 
       const status = await window.api.getCurrentWeek();
       if (cancelled) return;
@@ -184,6 +199,14 @@ export default function Home({ currentSeason, onSeasonAdvance }: Props) {
     onSeasonAdvance(result.nextSeason);
   };
 
+  const handleReset = async () => {
+    setResetting(true);
+    await window.api.resetDynasty();
+    setResetting(false);
+    setConfirmReset(false);
+    onSeasonAdvance(2025);
+  };
+
   const allWeeksDone = hasSchedule && currentWeek === null;
   const weekIsPlayed = matchups.length > 0 && matchups.every(m => m.is_simulated === 1);
 
@@ -196,23 +219,58 @@ export default function Home({ currentSeason, onSeasonAdvance }: Props) {
 
       {/* ─── Header ─────────────────────────────────── */}
       <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
         marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid #1e1e1e',
       }}>
+        {/* Left: season title + reset */}
         <div>
           <div style={{ fontSize: 22, fontWeight: 'bold', color: '#FF8740' }}>
             {currentSeason} NFL Season
           </div>
-          <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
-            {!hasSchedule
-              ? 'No schedule generated yet'
-              : allWeeksDone
-              ? 'Regular season complete'
-              : `Week ${currentWeek} of 17 up next`}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 4 }}>
+            <div style={{ fontSize: 12, color: '#666' }}>
+              {!hasSchedule
+                ? 'No schedule generated yet'
+                : allWeeksDone
+                ? 'Regular season complete'
+                : `Week ${currentWeek} of 17 up next`}
+            </div>
+            {!confirmReset && (
+              <button
+                onClick={() => setConfirmReset(true)}
+                style={{
+                  fontSize: 11, color: '#4a4a4a', background: 'none',
+                  border: 'none', cursor: 'pointer', padding: 0,
+                  textDecoration: 'underline',
+                }}
+              >
+                ↺ reset dynasty
+              </button>
+            )}
           </div>
+
+          {/* Reset confirmation inline */}
+          {confirmReset && (
+            <div style={{
+              marginTop: 10, display: 'flex', alignItems: 'center', gap: 10,
+              padding: '10px 14px', background: '#1a0a0a',
+              border: '1px solid #4a1a1a', borderRadius: 6,
+            }}>
+              <span style={{ fontSize: 12, color: '#e57373' }}>
+                ⚠ Deletes all games, stats & champions. Resets to 2025. Player ages are preserved.
+              </span>
+              <button onClick={handleReset} disabled={resetting} style={smallBtn('#c0392b', '#fff', resetting)}>
+                {resetting ? 'Resetting...' : 'Confirm Reset'}
+              </button>
+              <button onClick={() => setConfirmReset(false)} style={smallBtn('#222', '#777', false)}>
+                Cancel
+              </button>
+            </div>
+          )}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {/* Right: main action buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           {!hasSchedule && (
             <button onClick={handleGenerateSchedule} disabled={generatingSchedule} style={btn('#FF8740', '#000', generatingSchedule)}>
               {generatingSchedule ? 'Generating...' : `▶ Start ${currentSeason} Season`}
@@ -453,7 +511,6 @@ function BoxScore({ data }: { data: BoxScoreData }) {
 
   return (
     <div>
-      {/* Score header */}
       <div style={{
         display: 'flex', justifyContent: 'center', gap: 40,
         marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid #1a1a1a',
@@ -471,7 +528,6 @@ function BoxScore({ data }: { data: BoxScoreData }) {
           </div>
         ))}
       </div>
-      {/* Two-column stats */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <TeamStats
           players={players.filter(p => p.team_id === game.home_team_id)}
@@ -498,33 +554,24 @@ function TeamStats({ teamName, players }: { teamName: string; players: BoxScoreP
       {passers.length > 0 && (
         <StatSection title="PASSING">
           {passers.map((p, i) => (
-            <StatRow
-              key={i}
-              name={p.player_name}
-              line={`${p.completions}/${p.pass_attempts} · ${p.pass_yards} yds · ${p.pass_tds} TD${p.interceptions ? ` · ${p.interceptions} INT` : ''}`}
-            />
+            <StatRow key={i} name={p.player_name}
+              line={`${p.completions}/${p.pass_attempts} · ${p.pass_yards} yds · ${p.pass_tds} TD${p.interceptions ? ` · ${p.interceptions} INT` : ''}`} />
           ))}
         </StatSection>
       )}
       {rushers.length > 0 && (
         <StatSection title="RUSHING">
           {rushers.map((p, i) => (
-            <StatRow
-              key={i}
-              name={p.player_name}
-              line={`${p.rush_attempts} car · ${p.rush_yards} yds${p.rush_tds ? ` · ${p.rush_tds} TD` : ''}`}
-            />
+            <StatRow key={i} name={p.player_name}
+              line={`${p.rush_attempts} car · ${p.rush_yards} yds${p.rush_tds ? ` · ${p.rush_tds} TD` : ''}`} />
           ))}
         </StatSection>
       )}
       {receivers.length > 0 && (
         <StatSection title="RECEIVING">
           {receivers.map((p, i) => (
-            <StatRow
-              key={i}
-              name={p.player_name}
-              line={`${p.receptions}/${p.targets} · ${p.rec_yards} yds${p.rec_tds ? ` · ${p.rec_tds} TD` : ''}`}
-            />
+            <StatRow key={i} name={p.player_name}
+              line={`${p.receptions}/${p.targets} · ${p.rec_yards} yds${p.rec_tds ? ` · ${p.rec_tds} TD` : ''}`} />
           ))}
         </StatSection>
       )}
