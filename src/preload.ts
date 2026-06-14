@@ -93,4 +93,7 @@ contextBridge.exposeInMainWorld('api', {
   releasePlayer: (playerId: number) =>
     ipcRenderer.invoke('release-player', playerId),
 
+  importOtcContracts: (filePath?: string) =>
+    ipcRenderer.invoke('import-otc-contracts', filePath),
+
 });

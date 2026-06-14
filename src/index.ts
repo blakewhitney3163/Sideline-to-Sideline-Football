@@ -503,7 +503,9 @@ ipcMain.handle('get-team-contracts', (_event: any, teamId: number) => {
   return db.prepare(`
     SELECT p.id, p.first_name, p.last_name, p.position, p.position_label,
            p.overall_rating, p.age, p.dev_trait,
-           c.annual_salary, c.years_remaining, c.years_total, c.id as contract_id
+           c.annual_salary, c.years_remaining, c.years_total,
+           c.guaranteed_amount, c.guaranteed_pct,
+           c.id as contract_id
     FROM contracts c
     JOIN players p ON c.player_id = p.id
     WHERE c.team_id = ?
@@ -512,7 +514,7 @@ ipcMain.handle('get-team-contracts', (_event: any, teamId: number) => {
 });
 
 ipcMain.handle('get-cap-summary', (_event: any, teamId: number) => {
-  const SALARY_CAP = 255.0;
+  const SALARY_CAP = 279.2; // 2026 NFL salary cap (millions)
   const result = db.prepare('SELECT COALESCE(SUM(annual_salary), 0) as used_cap FROM contracts WHERE team_id = ?').get(teamId) as any;
   const usedCap = Math.round(result.used_cap * 10) / 10;
   return {
@@ -527,7 +529,10 @@ ipcMain.handle('extend-player', (_event: any, { playerId, years, salary }: {
 }) => {
   const contract = db.prepare('SELECT * FROM contracts WHERE player_id = ?').get(playerId) as any;
   if (!contract) return { success: false, reason: 'No contract found.' };
-  db.prepare('UPDATE contracts SET years_total = ?, years_remaining = ?, annual_salary = ? WHERE player_id = ?').run(years, years, salary, playerId);
+  const guaranteedPct = Math.round(40 + Math.random() * 20); // 40–60% on extensions
+  const guaranteedAmount = Math.round(salary * years * (guaranteedPct / 100) * 10) / 10;
+  db.prepare('UPDATE contracts SET years_total = ?, years_remaining = ?, annual_salary = ?, guaranteed_amount = ?, guaranteed_pct = ? WHERE player_id = ?')
+    .run(years, years, salary, guaranteedAmount, guaranteedPct, playerId);
   return { success: true };
 });
 
@@ -535,6 +540,82 @@ ipcMain.handle('release-player', (_event: any, playerId: number) => {
   db.prepare('DELETE FROM contracts WHERE player_id = ?').run(playerId);
   db.prepare('UPDATE players SET team_id = NULL, is_free_agent = 1 WHERE id = ?').run(playerId);
   return { success: true };
+});
+
+// ─── OTC Contract Import ──────────────────────────────────────────────────────
+// Reads a saved copy of the overthecap.com/contracts markdown export.
+// Usage from DevTools: window.api.importOtcContracts('/path/to/contracts-0.md')
+
+ipcMain.handle('import-otc-contracts', (_event: any, filePath?: string) => {
+  const fs = require('fs');
+  const pathModule = require('path');
+
+  const otcPath = filePath ?? pathModule.join(process.cwd(), 'otc-contracts.md');
+
+  if (!fs.existsSync(otcPath)) {
+    return { success: false, reason: `File not found at: ${otcPath}` };
+  }
+
+  const content: string = fs.readFileSync(otcPath, 'utf8');
+
+  const parseMoney = (s: string): number => parseFloat(s.replace(/[$,]/g, '')) || 0;
+
+  const rows: any[] = [];
+  for (const line of content.split('\n')) {
+    if (!line.startsWith('|')) continue;
+    if (line.includes('---') || line.includes('Player') || line.includes('Pos.')) continue;
+
+    const cols = line.split('|').map((c: string) => c.trim()).filter(Boolean);
+    if (cols.length < 7) continue;
+
+    const nameMatch = cols[0].match(/\[([^\]]+)\]/);
+    if (!nameMatch) continue;
+
+    const totalValue      = parseMoney(cols[3]);
+    const apy             = parseMoney(cols[4]);
+    const totalGuaranteed = parseMoney(cols[5]);
+    const pctGuaranteed   = parseFloat((cols[7] ?? '0').replace('%', '')) || 0;
+
+    if (apy <= 0) continue;
+
+    rows.push({
+      name:              nameMatch[1],
+      yearsRemaining:    Math.max(1, Math.round(totalValue / apy)),
+      apyMillions:       Math.round(apy / 100_000) / 10,
+      guaranteedMillions: Math.round(totalGuaranteed / 100_000) / 10,
+      pctGuaranteed,
+    });
+  }
+
+  const updateContract = db.prepare(`
+    UPDATE contracts
+    SET years_remaining   = ?,
+        years_total       = MAX(years_total, ?),
+        annual_salary     = ?,
+        guaranteed_amount = ?,
+        guaranteed_pct    = ?
+    WHERE player_id = (
+      SELECT id FROM players
+      WHERE first_name || ' ' || last_name = ?
+      LIMIT 1
+    )
+  `);
+
+  let matched = 0, skipped = 0;
+  const importTx = db.transaction(() => {
+    for (const row of rows) {
+      const result = updateContract.run(
+        row.yearsRemaining, row.yearsRemaining,
+        row.apyMillions, row.guaranteedMillions, row.pctGuaranteed,
+        row.name
+      );
+      if (result.changes > 0) matched++;
+      else skipped++;
+    }
+  });
+  importTx();
+
+  return { success: true, matched, skipped, total: rows.length };
 });
 
 // ─── Dev Trait Seeding ────────────────────────────────────────────────────────

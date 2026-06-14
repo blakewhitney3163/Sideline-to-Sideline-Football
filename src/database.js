@@ -87,14 +87,14 @@ db.exec(`
   );
 `);
 
+// ─── Player Column Migrations ─────────────────────────────────────────────────
+
 const playerCols = db.prepare("PRAGMA table_info(players)").all();
 
-// Migrate: add position_label column if it doesn't exist
 if (!playerCols.find(c => c.name === 'position_label')) {
   db.prepare('ALTER TABLE players ADD COLUMN position_label TEXT').run();
 }
 
-// Migrate: add dev_trait column and assign traits if it doesn't exist
 if (!playerCols.find(c => c.name === 'dev_trait')) {
   db.prepare("ALTER TABLE players ADD COLUMN dev_trait TEXT DEFAULT 'Normal'").run();
 
@@ -122,59 +122,90 @@ if (!playerCols.find(c => c.name === 'dev_trait')) {
   console.log('Dev traits assigned to all players');
 }
 
-// Migrate: generate contracts for all rostered players if contracts table is empty
+// ─── Contract Column Migrations ───────────────────────────────────────────────
+
+const contractCols = db.prepare("PRAGMA table_info(contracts)").all();
+
+if (!contractCols.find(c => c.name === 'guaranteed_amount')) {
+  db.prepare('ALTER TABLE contracts ADD COLUMN guaranteed_amount REAL DEFAULT 0').run();
+}
+if (!contractCols.find(c => c.name === 'guaranteed_pct')) {
+  db.prepare('ALTER TABLE contracts ADD COLUMN guaranteed_pct REAL DEFAULT 0').run();
+}
+
+// ─── Contract Generation ──────────────────────────────────────────────────────
+// Runs only when the contracts table is empty (fresh start or after reset-dynasty).
+
 const contractCount = (db.prepare('SELECT COUNT(*) as count FROM contracts').get()).count;
+
 if (contractCount === 0) {
   const players = db.prepare(
     'SELECT id, overall_rating, age, position, dev_trait, team_id FROM players WHERE team_id IS NOT NULL AND is_free_agent = 0'
   ).all();
 
   const insertContract = db.prepare(`
-    INSERT INTO contracts (player_id, team_id, years_total, years_remaining, annual_salary)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO contracts (player_id, team_id, years_total, years_remaining, annual_salary, guaranteed_amount, guaranteed_pct)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
 
+  // Salary ceilings ($ millions/yr). X-Factor trait adds 1.5x multiplier:
+  //   QB X-Factor OVR99 ≈ $63M | WR ≈ $42M | DL ≈ $48M
   const salaryRanges = {
-  QB:  [0.8, 12],
-  WR:  [0.5,  8],
-  DL:  [0.5,  7],
-  LB:  [0.5,  6],
-  CB:  [0.5,  6],
-  TE:  [0.5,  6],
-  OL:  [0.5,  6],
-  S:   [0.4,  5],
-  RB:  [0.4,  4],
-  K:   [0.3,  2],
-};
+    QB:  [0.9, 42],
+    WR:  [0.9, 28],
+    DL:  [0.9, 32],
+    LB:  [0.9, 18],
+    CB:  [0.9, 22],
+    TE:  [0.9, 16],
+    OL:  [0.9, 22],
+    S:   [0.9, 18],
+    RB:  [0.9, 16],
+    K:   [0.9,  4],
+  };
 
-  const traitPremium = { Normal: 1.0, Star: 1.15, Superstar: 1.3, 'X-Factor': 1.5 };
+  const traitPremium   = { Normal: 1.0, Star: 1.15, Superstar: 1.3, 'X-Factor': 1.5 };
+  // Guaranteed % range per trait — higher stars get more security
+  const traitGuarantee = { Normal: [10, 35], Star: [25, 50], Superstar: [40, 65], 'X-Factor': [55, 85] };
 
   const generateContracts = db.transaction(() => {
     for (const player of players) {
-      const [minSal, maxSal] = salaryRanges[player.position] ?? [0.5, 10];
-      const ovrFactor = Math.max(0, (player.overall_rating - 50)) / 49;
+      const [minSal, maxSal] = salaryRanges[player.position] ?? [0.9, 15];
+
+      // Quadratic OVR curve: only elite OVRs get elite money
+      const ovrFactor = Math.pow(Math.max(0, (player.overall_rating - 50)) / 49, 2);
       let salary = minSal + ovrFactor * (maxSal - minSal);
       salary *= (traitPremium[player.dev_trait] ?? 1.0);
       salary = Math.round(salary * 10) / 10;
 
+      // Contract length by age tier
       const yearsTotal =
-        player.age <= 24 ? 5 :
-        player.age <= 27 ? 4 :
-        player.age <= 30 ? 3 :
-        player.age <= 33 ? 2 : 1;
+        player.age <= 24 ? (Math.random() < 0.5 ? 5 : 4) :
+        player.age <= 27 ? (Math.random() < 0.4 ? 5 : Math.random() < 0.6 ? 4 : 3) :
+        player.age <= 30 ? (Math.random() < 0.4 ? 4 : Math.random() < 0.6 ? 3 : 2) :
+        player.age <= 33 ? (Math.random() < 0.4 ? 3 : Math.random() < 0.5 ? 2 : 1) :
+        (Math.random() < 0.3 ? 2 : 1);
 
-      const yearsRemaining = Math.ceil(Math.random() * yearsTotal);
-      insertContract.run(player.id, player.team_id, yearsTotal, yearsRemaining, salary);
+      // Uniform spread across contract so not everyone expires at once
+      const yearsRemaining = Math.floor(Math.random() * yearsTotal) + 1;
+
+      // Guarantee % tied to trait (higher trait = better job security)
+      const [gMin, gMax] = traitGuarantee[player.dev_trait] ?? [10, 35];
+      const guaranteedPct = Math.round(gMin + Math.random() * (gMax - gMin));
+      const guaranteedAmount = Math.round(salary * yearsTotal * (guaranteedPct / 100) * 10) / 10;
+
+      insertContract.run(player.id, player.team_id, yearsTotal, yearsRemaining, salary, guaranteedAmount, guaranteedPct);
     }
   });
   generateContracts();
   console.log(`Contracts generated for ${players.length} players`);
 }
 
+// ─── Settings Defaults ────────────────────────────────────────────────────────
+
 const existingSeason = db.prepare("SELECT value FROM settings WHERE key = 'current_season'").get();
 if (!existingSeason) {
   db.prepare("INSERT INTO settings (key, value) VALUES ('current_season', '2025')").run();
 }
 
-console.log("Database and tables created successfully");
+console.log('Database ready');
 module.exports = db;
