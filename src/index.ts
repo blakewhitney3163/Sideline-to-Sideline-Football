@@ -122,6 +122,56 @@ ipcMain.handle('get-dashboard', (_event: any, season: number = 2024) => {
   return { topAFC, topNFC, recentGames };
 });
 
+// Returns league leaders for a given season, grouped by stat category
+ipcMain.handle('get-stats', (_event: any, season: number = 2024) => {
+  const passing = db.prepare(`
+    SELECT p.first_name || ' ' || p.last_name AS player_name,
+           t.city || ' ' || t.name AS team_name,
+           SUM(s.pass_yards) AS pass_yards,
+           SUM(s.pass_tds) AS pass_tds,
+           SUM(s.interceptions) AS interceptions,
+           SUM(s.completions) AS completions,
+           SUM(s.pass_attempts) AS pass_attempts
+    FROM stats s
+    JOIN players p ON s.player_id = p.id
+    JOIN teams t ON s.team_id = t.id
+    JOIN games g ON s.game_id = g.id
+    WHERE g.season = ? AND g.is_simulated = 1 AND s.pass_attempts > 0
+    GROUP BY p.id ORDER BY pass_yards DESC LIMIT 15
+  `).all(season);
+
+  const rushing = db.prepare(`
+    SELECT p.first_name || ' ' || p.last_name AS player_name,
+           t.city || ' ' || t.name AS team_name,
+           SUM(s.rush_yards) AS rush_yards,
+           SUM(s.rush_tds) AS rush_tds,
+           SUM(s.rush_attempts) AS rush_attempts
+    FROM stats s
+    JOIN players p ON s.player_id = p.id
+    JOIN teams t ON s.team_id = t.id
+    JOIN games g ON s.game_id = g.id
+    WHERE g.season = ? AND g.is_simulated = 1 AND s.rush_attempts > 0
+    GROUP BY p.id ORDER BY rush_yards DESC LIMIT 15
+  `).all(season);
+
+  const receiving = db.prepare(`
+    SELECT p.first_name || ' ' || p.last_name AS player_name,
+           t.city || ' ' || t.name AS team_name,
+           SUM(s.rec_yards) AS rec_yards,
+           SUM(s.rec_tds) AS rec_tds,
+           SUM(s.receptions) AS receptions,
+           SUM(s.targets) AS targets
+    FROM stats s
+    JOIN players p ON s.player_id = p.id
+    JOIN teams t ON s.team_id = t.id
+    JOIN games g ON s.game_id = g.id
+    WHERE g.season = ? AND g.is_simulated = 1 AND s.targets > 0
+    GROUP BY p.id ORDER BY rec_yards DESC LIMIT 15
+  `).all(season);
+
+  return { passing, rushing, receiving };
+});
+
 // ─── App Lifecycle ─────────────────────────────────────────────────────────────
 
 app.on('ready', createWindow);

@@ -24,4 +24,8 @@ contextBridge.exposeInMainWorld('api', {
   getDashboard: (season: number) =>
     ipcRenderer.invoke('get-dashboard', season),
 
+  //Fetch season stat leaders by category
+  getStats: (season: number) =>
+    ipcRenderer.invoke('get-stats', season),
+
 });

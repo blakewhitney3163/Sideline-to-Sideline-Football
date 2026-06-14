@@ -3,14 +3,16 @@ import Standings from './Standings';
 import Teams from './Teams';
 import Schedule from './Schedule';
 import Home from './Home';
+import Stats from './Stats';
 
-type Tab = 'home' | 'standings' | 'teams' | 'schedule' | 'playoffs';
+type Tab = 'home' | 'standings' | 'teams' | 'schedule' |'stats' | 'playoffs';
 
 const tabs: { id: Tab; label: string }[] = [
   { id: 'home', label: 'Home' },
   { id: 'standings', label: 'Standings' },
   { id: 'teams', label: 'Teams' },
   { id: 'schedule', label: 'Schedule' },
+  { id: 'stats', label: 'Stats' },
   { id: 'playoffs', label: 'Playoffs' },
 ];
 
@@ -56,6 +58,7 @@ export default function App() {
         {activeTab === 'standings' && <Standings />}
         {activeTab === 'teams' && <Teams />}
         {activeTab === 'schedule' && <Schedule />}
+        {activeTab === 'stats' && <Stats />}
         {activeTab === 'playoffs' && (
           <div style={{ padding: '40px', textAlign: 'center', color: '#aaa' }}>
             <h2 style={{ color: '#4FC3F7' }}>Playoffs</h2>
