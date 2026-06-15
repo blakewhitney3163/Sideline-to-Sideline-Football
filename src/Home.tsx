@@ -87,6 +87,8 @@ interface Props {
   currentSeason: number;
   onSeasonAdvance: (nextSeason: number) => void;
   userTeam: UserTeam;
+  onNavigate: (tab: string) => void;
+  onPlayoffsComplete: () => void;
 }
 
 // ─── Style helpers ────────────────────────────────────────────────────────────
@@ -115,33 +117,30 @@ const smallBtn = (bg: string, fg: string, disabled: boolean): React.CSSPropertie
 
 // ─── Home ─────────────────────────────────────────────────────────────────────
 
-export default function Home({ currentSeason, onSeasonAdvance, userTeam }: Props) {
-  const [loading, setLoading] = useState(true);
-  const [hasSchedule, setHasSchedule] = useState(false);
-  const [currentWeek, setCurrentWeek] = useState<number | null>(null);
-  const [viewWeek, setViewWeek] = useState(1);
-  const [matchups, setMatchups] = useState<Matchup[]>([]);
-  const [simulating, setSimulating] = useState(false);
+export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavigate, onPlayoffsComplete }: Props) {
+  const [loading,            setLoading]            = useState(true);
+  const [hasSchedule,        setHasSchedule]        = useState(false);
+  const [currentWeek,        setCurrentWeek]        = useState<number | null>(null);
+  const [viewWeek,           setViewWeek]           = useState(1);
+  const [matchups,           setMatchups]           = useState<Matchup[]>([]);
+  const [simulating,         setSimulating]         = useState(false);
   const [generatingSchedule, setGeneratingSchedule] = useState(false);
-  const [boxScore, setBoxScore] = useState<BoxScoreData | null>(null);
-  const [boxScoreLoading, setBoxScoreLoading] = useState(false);
-  const [topAFC, setTopAFC] = useState<StandingEntry[]>([]);
-  const [topNFC, setTopNFC] = useState<StandingEntry[]>([]);
-  const [champions, setChampions] = useState<Champion[]>([]);
-  const [confirming, setConfirming] = useState(false);
-  const [advancing, setAdvancing] = useState(false);
-  const [confirmReset, setConfirmReset] = useState(false);
-  const [resetting, setResetting] = useState(false);
-  const [playoffSeeds, setPlayoffSeeds] = useState<{ afc: SeedEntry[]; nfc: SeedEntry[] } | null>(null);
-  const [playoffResults, setPlayoffResults] = useState<PlayoffGame[] | null>(null);
+  const [boxScore,           setBoxScore]           = useState<BoxScoreData | null>(null);
+  const [boxScoreLoading,    setBoxScoreLoading]    = useState(false);
+  const [topAFC,             setTopAFC]             = useState<StandingEntry[]>([]);
+  const [topNFC,             setTopNFC]             = useState<StandingEntry[]>([]);
+  const [champions,          setChampions]          = useState<Champion[]>([]);
+  const [confirming,         setConfirming]         = useState(false);
+  const [advancing,          setAdvancing]          = useState(false);
+  const [confirmReset,       setConfirmReset]       = useState(false);
+  const [resetting,          setResetting]          = useState(false);
+  const [playoffSeeds,       setPlayoffSeeds]       = useState<{ afc: SeedEntry[]; nfc: SeedEntry[] } | null>(null);
+  const [playoffResults,     setPlayoffResults]     = useState<PlayoffGame[] | null>(null);
   const [simulatingPlayoffs, setSimulatingPlayoffs] = useState(false);
-  const [userRecord, setUserRecord] = useState<{ wins: number; losses: number } | null>(null);
-
-  const refreshUserRecord = async () => {
-    const standings = await window.api.getStandings(currentSeason);
-    const mine = standings.find((t: any) => t.id === userTeam.id);
-    if (mine) setUserRecord({ wins: mine.wins, losses: mine.losses });
-  };
+  const [userRecord,         setUserRecord]         = useState<{ wins: number; losses: number } | null>(null);
+  const [pendingResigns,     setPendingResigns]     = useState(0);
+  const [draftComplete,      setDraftComplete]      = useState(false);
+  const [draftGenerated,     setDraftGenerated]     = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -154,16 +153,17 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam }: Props
       setPlayoffResults(null);
       setUserRecord(null);
 
-      const [status, dashboard, champs, standings] = await Promise.all([
+      const [status, dashboard, champs, standings, offseason] = await Promise.all([
         window.api.getCurrentWeek(),
         window.api.getDashboard(currentSeason),
         window.api.getChampions(),
         window.api.getStandings(currentSeason),
+        window.api.getOffseasonStatus(),
       ]);
 
       if (cancelled) return;
 
-      const seasonDone = status.hasSchedule && status.currentWeek === null;
+      const seasonDone     = status.hasSchedule && status.currentWeek === null;
       const champForSeason = champs.find((c: Champion) => c.season === currentSeason);
 
       setHasSchedule(status.hasSchedule);
@@ -171,6 +171,11 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam }: Props
       setTopAFC(dashboard.topAFC);
       setTopNFC(dashboard.topNFC);
       setChampions(champs);
+      setPendingResigns(offseason.pendingResigns ?? 0);
+      setDraftComplete(offseason.draftComplete ?? false);
+      setDraftGenerated(offseason.draftGenerated ?? false);
+
+      if (offseason.playoffsComplete) onPlayoffsComplete();
 
       const myTeam = standings.find((t: any) => t.id === userTeam.id);
       if (myTeam) setUserRecord({ wins: myTeam.wins, losses: myTeam.losses });
@@ -199,6 +204,13 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam }: Props
     init();
     return () => { cancelled = true; };
   }, [currentSeason]);
+
+  const refreshOffseasonStatus = async () => {
+    const offseason = await window.api.getOffseasonStatus();
+    setPendingResigns(offseason.pendingResigns ?? 0);
+    setDraftComplete(offseason.draftComplete ?? false);
+    setDraftGenerated(offseason.draftGenerated ?? false);
+  };
 
   const handleGenerateSchedule = async () => {
     setGeneratingSchedule(true);
@@ -241,6 +253,8 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam }: Props
     setChampions(champs);
     setPlayoffResults(results);
     setPlayoffSeeds(null);
+    onPlayoffsComplete();
+    await refreshOffseasonStatus();
     setSimulatingPlayoffs(false);
   };
 
@@ -277,56 +291,46 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam }: Props
     onSeasonAdvance(2025);
   };
 
-  const allWeeksDone = hasSchedule && currentWeek === null;
+  const allWeeksDone    = hasSchedule && currentWeek === null;
   const currentChampion = champions.find(c => c.season === currentSeason);
   const playoffsComplete = !!currentChampion;
-  const weekIsPlayed = matchups.length > 0 && matchups.every(m => m.is_simulated === 1);
+  const weekIsPlayed    = matchups.length > 0 && matchups.every(m => m.is_simulated === 1);
 
   if (loading) {
-    return <div style={{ padding: 40, color: '#444', textAlign: 'center' }}>Loading...</div>;
+    return <div style={{ color: '#555', padding: 40, fontFamily: 'monospace' }}>Loading...</div>;
   }
 
   return (
-    <div style={{ padding: 20, color: '#fff', fontFamily: 'sans-serif', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
+    <div style={{ padding: '24px 32px', fontFamily: 'monospace', color: '#ccc', background: '#0d0d0d', minHeight: '100vh' }}>
 
       {/* ─── Header ─────────────────────────────────── */}
-      <div style={{
-        display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-        marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid #1e1e1e',
-      }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <div style={{ fontSize: 22, fontWeight: 'bold', color: '#FF8740' }}>
-            {currentSeason} NFL Season
+          <div style={{ fontSize: 20, fontWeight: 'bold', color: '#fff' }}>{currentSeason} NFL Season</div>
+          <div style={{ fontSize: 12, color: '#555', marginTop: 4 }}>
+            {!hasSchedule
+              ? 'No schedule generated yet'
+              : allWeeksDone && playoffsComplete
+              ? `${currentSeason} season complete`
+              : allWeeksDone
+              ? 'Regular season complete — playoffs ready'
+              : `Week ${currentWeek} of 17 up next`}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 4 }}>
-            <div style={{ fontSize: 12, color: '#555' }}>
-              {!hasSchedule
-                ? 'No schedule generated yet'
-                : allWeeksDone && playoffsComplete
-                ? `${currentSeason} season complete`
-                : allWeeksDone
-                ? 'Regular season complete — playoffs ready'
-                : `Week ${currentWeek} of 17 up next`}
+          {userRecord && (
+            <div style={{ fontSize: 12, color: '#FF8740', marginTop: 4 }}>
+              {userTeam.name}: {userRecord.wins}-{userRecord.losses}
             </div>
-            {userRecord && (
-              <div style={{ fontSize: 12, color: '#4FC3F7', fontWeight: 'bold' }}>
-                {userTeam.name}: {userRecord.wins}-{userRecord.losses}
-              </div>
-            )}
-            {!confirmReset && (
-              <button
-                onClick={() => setConfirmReset(true)}
-                style={{ fontSize: 11, color: '#3a3a3a', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
-              >
-                ↺ reset dynasty
-              </button>
-            )}
-          </div>
-
+          )}
+          {!confirmReset && (
+            <button onClick={() => setConfirmReset(true)}
+              style={{ fontSize: 11, color: '#3a3a3a', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline', marginTop: 8 }}>
+              ↺ reset dynasty
+            </button>
+          )}
           {confirmReset && (
-            <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#1a0a0a', border: '1px solid #4a1a1a', borderRadius: 6 }}>
-              <span style={{ fontSize: 12, color: '#e57373' }}>⚠ Deletes all games, stats & champions. Resets to 2025.</span>
-              <button onClick={handleReset} disabled={resetting} style={smallBtn('#c0392b', '#fff', resetting)}>
+            <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 11, color: '#555' }}>⚠ Deletes all games, stats & champions. Resets to 2025.</span>
+              <button onClick={handleReset} disabled={resetting} style={smallBtn('#3a0a0a', '#e57373', resetting)}>
                 {resetting ? 'Resetting...' : 'Confirm Reset'}
               </button>
               <button onClick={() => setConfirmReset(false)} style={smallBtn('#222', '#777', false)}>Cancel</button>
@@ -334,49 +338,131 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam }: Props
           )}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+        {/* Action buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           {!hasSchedule && (
-            <button onClick={handleGenerateSchedule} disabled={generatingSchedule} style={btn('#FF8740', '#000', generatingSchedule)}>
+            <button onClick={handleGenerateSchedule} disabled={generatingSchedule} style={btn('#1a2a1a', '#4caf50', generatingSchedule)}>
               {generatingSchedule ? 'Generating...' : `▶ Start ${currentSeason} Season`}
             </button>
           )}
           {hasSchedule && currentWeek !== null && (
-            <button onClick={handleSimulateWeek} disabled={simulating} style={btn('#FF8740', '#000', simulating)}>
+            <button onClick={handleSimulateWeek} disabled={simulating} style={btn('#1a2a1a', '#4caf50', simulating)}>
               {simulating ? `Simulating Week ${currentWeek}...` : `▶ Simulate Week ${currentWeek}`}
             </button>
           )}
           {allWeeksDone && !playoffsComplete && (
-            <button onClick={handleSimulatePlayoffs} disabled={simulatingPlayoffs} style={btn('#FF8740', '#000', simulatingPlayoffs)}>
+            <button onClick={handleSimulatePlayoffs} disabled={simulatingPlayoffs} style={btn('#1a2a2a', '#4FC3F7', simulatingPlayoffs)}>
               {simulatingPlayoffs ? 'Simulating Playoffs...' : '▶ Simulate Playoffs'}
             </button>
           )}
-          {allWeeksDone && playoffsComplete && !confirming && (
-            <button onClick={() => setConfirming(true)} style={btn('#1a1a1a', '#ccc', false, '1px solid #333')}>
-              Advance to {currentSeason + 1} →
-            </button>
-          )}
-          {allWeeksDone && playoffsComplete && confirming && (
+          {allWeeksDone && playoffsComplete && (
             <>
-              <span style={{ fontSize: 12, color: '#777' }}>Ages players + retires veterans. Confirm?</span>
-              <button onClick={handleAdvance} disabled={advancing} style={btn('#FF8740', '#000', advancing)}>
-                {advancing ? 'Advancing...' : 'Confirm'}
-              </button>
-              <button onClick={() => setConfirming(false)} style={btn('#1a1a1a', '#666', false)}>Cancel</button>
+              {!confirming && (
+                <button
+                  onClick={() => setConfirming(true)}
+                  style={btn('#1a1a1a', pendingResigns > 0 ? '#FF8740' : '#ccc', false, '1px solid #333')}
+                >
+                  {pendingResigns > 0
+                    ? `⚠ ${pendingResigns} pending — Advance anyway?`
+                    : `Advance to ${currentSeason + 1} →`}
+                </button>
+              )}
+              {confirming && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 12, color: '#555' }}>Ages players + retires veterans. Confirm?</span>
+                  <button onClick={handleAdvance} disabled={advancing} style={btn('#1a4a1a', '#4caf50', advancing)}>
+                    {advancing ? 'Advancing...' : 'Confirm'}
+                  </button>
+                  <button onClick={() => setConfirming(false)} style={btn('#1a1a1a', '#666', false)}>Cancel</button>
+                </div>
+              )}
             </>
           )}
         </div>
       </div>
 
+      {/* ─── Offseason Checklist ─────────────────────── */}
+      {allWeeksDone && playoffsComplete && (
+        <div style={{ background: '#111', border: '1px solid #1e1e1e', borderRadius: 8, padding: '16px 20px', marginBottom: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div style={{ fontSize: 10, color: '#FF8740', letterSpacing: 2 }}>OFFSEASON CHECKLIST</div>
+            <button onClick={refreshOffseasonStatus}
+              style={{ fontSize: 10, color: '#333', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+              ↺ refresh
+            </button>
+          </div>
+
+          {/* Re-signing */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid #1a1a1a' }}>
+            <span style={{ fontSize: 16, width: 20, textAlign: 'center', color: pendingResigns === 0 ? '#4caf50' : '#FF8740' }}>
+              {pendingResigns === 0 ? '✓' : '⚠'}
+            </span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 12, color: pendingResigns === 0 ? '#4caf50' : '#FF8740' }}>
+                Re-signing Window {pendingResigns > 0 ? `— ${pendingResigns} decision${pendingResigns !== 1 ? 's' : ''} pending` : '— Complete'}
+              </div>
+              <div style={{ fontSize: 10, color: '#444', marginTop: 2 }}>
+                {pendingResigns > 0
+                  ? 'Players on expiring contracts need a decision before the season ends'
+                  : 'All expiring contracts addressed'}
+              </div>
+            </div>
+            <button onClick={() => onNavigate('franchise')} style={{
+              padding: '4px 12px', background: '#141414', border: '1px solid #2a2a2a',
+              borderRadius: 3, color: '#555', fontSize: 10, cursor: 'pointer',
+            }}>→ Franchise</button>
+          </div>
+
+          {/* Free Agency */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid #1a1a1a' }}>
+            <span style={{ fontSize: 16, width: 20, textAlign: 'center', color: '#555' }}>○</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 12, color: '#666' }}>Free Agency</div>
+              <div style={{ fontSize: 10, color: '#444', marginTop: 2 }}>Sign replacements for departing players</div>
+            </div>
+            <button onClick={() => onNavigate('franchise')} style={{
+              padding: '4px 12px', background: '#141414', border: '1px solid #2a2a2a',
+              borderRadius: 3, color: '#555', fontSize: 10, cursor: 'pointer',
+            }}>→ Free Agents</button>
+          </div>
+
+          {/* Draft */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0' }}>
+            <span style={{ fontSize: 16, width: 20, textAlign: 'center', color: draftComplete ? '#4caf50' : '#555' }}>
+              {draftComplete ? '✓' : '○'}
+            </span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 12, color: draftComplete ? '#4caf50' : '#666' }}>
+                NFL Draft {draftComplete ? '— Complete' : draftGenerated ? '— In Progress' : '— Not Started'}
+              </div>
+              <div style={{ fontSize: 10, color: '#444', marginTop: 2 }}>
+                {draftComplete
+                  ? '7 rounds complete — rookies added to rosters'
+                  : '7 rounds · reverse standings order · CPU auto-picks'}
+              </div>
+            </div>
+            <button onClick={() => onNavigate('draft')} style={{
+              padding: '4px 12px',
+              background: draftComplete ? '#141414' : '#0a1a0a',
+              border: `1px solid ${draftComplete ? '#2a2a2a' : '#1a4a1a'}`,
+              borderRadius: 3, color: draftComplete ? '#555' : '#4caf50', fontSize: 10, cursor: 'pointer',
+            }}>
+              {draftComplete ? '→ View' : '→ Draft'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ─── Body ───────────────────────────────────── */}
-      <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 24 }}>
 
         {/* Main panel */}
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div>
           {!hasSchedule ? (
-            <div style={{ textAlign: 'center', padding: '80px 20px', color: '#2a2a2a' }}>
-              <div style={{ fontSize: 44, marginBottom: 12 }}>🏈</div>
-              <div style={{ fontSize: 15 }}>No schedule for {currentSeason} yet.</div>
-              <div style={{ fontSize: 12, marginTop: 6 }}>Click "Start {currentSeason} Season" to generate all 17 weeks.</div>
+            <div style={{ textAlign: 'center', padding: '48px 0', color: '#333' }}>
+              <div style={{ fontSize: 32, marginBottom: 12 }}>🏈</div>
+              <div style={{ fontSize: 14, marginBottom: 6 }}>No schedule for {currentSeason} yet.</div>
+              <div style={{ fontSize: 12 }}>Click "Start {currentSeason} Season" to generate all 17 weeks.</div>
             </div>
           ) : allWeeksDone && playoffsComplete ? (
             <PlayoffResultsView results={playoffResults} champion={currentChampion} />
@@ -385,63 +471,55 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam }: Props
           ) : (
             <>
               {/* Week nav */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                <button
-                  onClick={() => handleViewWeek(viewWeek - 1)}
-                  disabled={viewWeek <= 1}
-                  style={{ padding: '4px 12px', background: '#141414', border: '1px solid #2a2a2a', borderRadius: 4, color: viewWeek <= 1 ? '#333' : '#888', cursor: viewWeek <= 1 ? 'not-allowed' : 'pointer', fontSize: 12 }}
-                >←</button>
-                <span style={{ fontWeight: 'bold', fontSize: 14, width: 72, textAlign: 'center' }}>
-                  WEEK {viewWeek}
-                </span>
-                <button
-                  onClick={() => handleViewWeek(viewWeek + 1)}
-                  disabled={viewWeek >= 17}
-                  style={{ padding: '4px 12px', background: '#141414', border: '1px solid #2a2a2a', borderRadius: 4, color: viewWeek >= 17 ? '#333' : '#888', cursor: viewWeek >= 17 ? 'not-allowed' : 'pointer', fontSize: 12 }}
-                >→</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                <button onClick={() => handleViewWeek(viewWeek - 1)} disabled={viewWeek <= 1}
+                  style={{ padding: '4px 12px', background: '#141414', border: '1px solid #2a2a2a', borderRadius: 4, color: viewWeek <= 1 ? '#333' : '#888', cursor: viewWeek <= 1 ? 'not-allowed' : 'pointer', fontSize: 12 }}>←</button>
+                <span style={{ fontSize: 13, color: '#888', letterSpacing: 1 }}>WEEK {viewWeek}</span>
+                <button onClick={() => handleViewWeek(viewWeek + 1)} disabled={viewWeek >= 17}
+                  style={{ padding: '4px 12px', background: '#141414', border: '1px solid #2a2a2a', borderRadius: 4, color: viewWeek >= 17 ? '#333' : '#888', cursor: viewWeek >= 17 ? 'not-allowed' : 'pointer', fontSize: 12 }}>→</button>
                 {matchups.length > 0 && (
-                  <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, marginLeft: 4, letterSpacing: 0.5, background: weekIsPlayed ? '#0a160a' : '#160e00', color: weekIsPlayed ? '#4caf50' : '#FF8740' }}>
-                    {weekIsPlayed ? '● FINAL' : '● UPCOMING'}
+                  <span style={{ fontSize: 10, color: weekIsPlayed ? '#4caf50' : '#FF8740', letterSpacing: 1 }}>
+                    ● {weekIsPlayed ? 'FINAL' : 'UPCOMING'}
                   </span>
                 )}
               </div>
 
               {/* Game cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {matchups.map(game => {
-                  const played = game.is_simulated === 1;
-                  const homeWon = played && (game.home_score ?? 0) > (game.away_score ?? 0);
-                  const awayWon = played && (game.away_score ?? 0) > (game.home_score ?? 0);
+                  const played   = game.is_simulated === 1;
+                  const homeWon  = played && (game.home_score ?? 0) > (game.away_score ?? 0);
+                  const awayWon  = played && (game.away_score ?? 0) > (game.home_score ?? 0);
                   const expanded = boxScore?.game?.id === game.id;
                   const isUserGame = game.home_team_id === userTeam.id || game.away_team_id === userTeam.id;
 
                   return (
-                    <div key={game.id} style={{
-                      background: expanded ? '#101a10' : isUserGame ? '#0a0e18' : '#161616',
-                      border: `1px solid ${expanded ? '#1a381a' : isUserGame ? '#1c2e4a' : played ? '#1c1c1c' : '#1e1e30'}`,
-                      borderRadius: 6, padding: '9px 10px',
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
-                        <span style={{ fontSize: 11, fontWeight: homeWon ? '700' : '400', color: homeWon ? '#fff' : played ? '#777' : '#c0c0c0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: played ? '73%' : '100%' }}>
-                          {homeWon && <span style={{ color: '#FF8740' }}>▸ </span>}
-                          {game.home_team}
-                        </span>
-                        {played && <span style={{ fontSize: 15, fontWeight: homeWon ? '700' : '400', color: homeWon ? '#fff' : '#666', flexShrink: 0 }}>{game.home_score}</span>}
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: played ? 7 : 4 }}>
-                        <span style={{ fontSize: 11, fontWeight: awayWon ? '700' : '400', color: awayWon ? '#fff' : played ? '#777' : '#c0c0c0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: played ? '73%' : '100%' }}>
-                          {awayWon && <span style={{ color: '#FF8740' }}>▸ </span>}
-                          {game.away_team}
-                        </span>
-                        {played && <span style={{ fontSize: 15, fontWeight: awayWon ? '700' : '400', color: awayWon ? '#fff' : '#666', flexShrink: 0 }}>{game.away_score}</span>}
-                      </div>
-                      {!played && (
-                        <div style={{ fontSize: 9, color: isUserGame ? '#4FC3F7' : '#404040', letterSpacing: 0.5 }}>
-                          {isUserGame ? '◆ YOUR GAME' : 'PREVIEW'}
+                    <div key={game.id} style={{ background: '#111', border: `1px solid ${isUserGame ? '#1e2e1e' : '#1a1a1a'}`, borderRadius: 6, overflow: 'hidden' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr auto', gap: 8, padding: '10px 14px', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {homeWon && <span style={{ color: '#4caf50', fontSize: 10 }}>▸</span>}
+                          <span style={{ color: played ? (homeWon ? '#fff' : '#555') : '#ccc', fontSize: 12 }}>{game.home_team}</span>
                         </div>
-                      )}
+                        {played && <span style={{ fontSize: 15, fontWeight: 'bold', color: homeWon ? '#fff' : '#555' }}>{game.home_score}</span>}
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+                          <span style={{ color: played ? (awayWon ? '#fff' : '#555') : '#ccc', fontSize: 12 }}>{game.away_team}</span>
+                          {awayWon && <span style={{ color: '#4caf50', fontSize: 10 }}>▸</span>}
+                        </div>
+                        {played && <span style={{ fontSize: 15, fontWeight: 'bold', color: awayWon ? '#fff' : '#555' }}>{game.away_score}</span>}
+
+                        {!played && (
+                          <span style={{ fontSize: 9, color: isUserGame ? '#4caf50' : '#333', letterSpacing: 1, gridColumn: '2 / 5' }}>
+                            {isUserGame ? '◆ YOUR GAME' : 'PREVIEW'}
+                          </span>
+                        )}
+                      </div>
                       {played && (
-                        <button onClick={() => handleBoxScore(game.id)} style={{ width: '100%', padding: '3px 0', background: expanded ? '#142014' : '#111', border: `1px solid ${expanded ? '#1a381a' : '#222'}`, borderRadius: 3, color: expanded ? '#4caf50' : '#555', cursor: 'pointer', fontSize: 9, letterSpacing: 0.5 }}>
+                        <button onClick={() => handleBoxScore(game.id)} style={{
+                          width: '100%', padding: '3px 0', background: expanded ? '#142014' : '#111',
+                          border: 'none', borderTop: `1px solid ${expanded ? '#1a381a' : '#161616'}`,
+                          color: expanded ? '#4caf50' : '#333', cursor: 'pointer', fontSize: 9, letterSpacing: 0.5,
+                        }}>
                           {expanded ? '▲ BOX SCORE' : '▼ BOX SCORE'}
                         </button>
                       )}
@@ -451,9 +529,9 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam }: Props
               </div>
 
               {(boxScore || boxScoreLoading) && (
-                <div style={{ marginTop: 12, background: '#0a0a0a', border: '1px solid #1a381a', borderRadius: 8, padding: 16 }}>
+                <div style={{ marginTop: 16 }}>
                   {boxScoreLoading
-                    ? <div style={{ color: '#444', textAlign: 'center', padding: 20 }}>Loading box score...</div>
+                    ? <div style={{ color: '#333', fontSize: 12 }}>Loading box score...</div>
                     : boxScore ? <BoxScore data={boxScore} /> : null}
                 </div>
               )}
@@ -462,26 +540,24 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam }: Props
         </div>
 
         {/* Sidebar */}
-        <div style={{ width: 196, flexShrink: 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {topAFC.length > 0 && (
             <SidebarBlock title="AFC LEADERS">
-              {topAFC.map((t, i) => <SidebarRow key={i} left={`${i + 1}. ${t.team_name}`} right={`${t.wins}-${t.losses}`} />)}
+              {topAFC.map((t, i) => <SidebarRow key={i} left={t.team_name} right={`${t.wins}-${t.losses}`} />)}
             </SidebarBlock>
           )}
           {topNFC.length > 0 && (
             <SidebarBlock title="NFC LEADERS">
-              {topNFC.map((t, i) => <SidebarRow key={i} left={`${i + 1}. ${t.team_name}`} right={`${t.wins}-${t.losses}`} />)}
+              {topNFC.map((t, i) => <SidebarRow key={i} left={t.team_name} right={`${t.wins}-${t.losses}`} />)}
             </SidebarBlock>
           )}
           {champions.length > 0 && (
-            <SidebarBlock title="SB CHAMPIONS">
+            <SidebarBlock title="CHAMPIONS">
               {champions.slice(0, 6).map((c, i) => <SidebarRow key={i} left={String(c.season)} right={c.team_name} dimLeft />)}
             </SidebarBlock>
           )}
           {topAFC.length === 0 && topNFC.length === 0 && (
-            <div style={{ color: '#2a2a2a', fontSize: 12, textAlign: 'center', paddingTop: 30 }}>
-              Simulate games<br />to see standings
-            </div>
+            <div style={{ color: '#333', fontSize: 12 }}>Simulate games to see standings</div>
           )}
         </div>
       </div>
@@ -492,11 +568,11 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam }: Props
 // ─── Playoff Seedings ─────────────────────────────────────────────────────────
 
 function PlayoffSeedingsView({ seeds }: { seeds: { afc: SeedEntry[]; nfc: SeedEntry[] } | null }) {
-  if (!seeds) return <div style={{ color: '#444', textAlign: 'center', padding: 40 }}>Loading seeds...</div>;
+  if (!seeds) return <div style={{ color: '#333', fontSize: 12 }}>Loading seeds...</div>;
   return (
     <div>
-      <div style={{ fontSize: 10, color: '#444', letterSpacing: 1, marginBottom: 14 }}>PLAYOFF SEEDINGS — TOP 7 PER CONFERENCE</div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      <div style={{ fontSize: 11, color: '#555', letterSpacing: 2, marginBottom: 16 }}>PLAYOFF SEEDINGS — TOP 7 PER CONFERENCE</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
         <SeedingList title="AFC" seeds={seeds.afc} />
         <SeedingList title="NFC" seeds={seeds.nfc} />
       </div>
@@ -507,13 +583,13 @@ function PlayoffSeedingsView({ seeds }: { seeds: { afc: SeedEntry[]; nfc: SeedEn
 function SeedingList({ title, seeds }: { title: string; seeds: SeedEntry[] }) {
   return (
     <div>
-      <div style={{ fontSize: 10, fontWeight: 'bold', color: '#FF8740', letterSpacing: 1, marginBottom: 8 }}>{title}</div>
+      <div style={{ fontSize: 10, color: '#444', letterSpacing: 2, marginBottom: 8 }}>{title}</div>
       {seeds.map((team, i) => (
-        <div key={team.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', marginBottom: 4, background: i === 0 ? '#111100' : '#141414', border: `1px solid ${i === 0 ? '#222200' : '#1e1e1e'}`, borderRadius: 5 }}>
-          <span style={{ fontSize: 12, color: '#444', fontWeight: 'bold', width: 14, flexShrink: 0 }}>{i + 1}</span>
-          <span style={{ flex: 1, fontSize: 12, color: '#ccc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{team.team_name}</span>
-          <span style={{ fontSize: 12, color: '#666', flexShrink: 0 }}>{team.wins}-{team.losses}</span>
-          {i === 0 && <span style={{ fontSize: 9, color: '#666', background: '#1a1a00', padding: '1px 6px', borderRadius: 3, flexShrink: 0 }}>BYE</span>}
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0', borderBottom: '1px solid #111', fontSize: 12 }}>
+          <span style={{ color: '#444', width: 16, textAlign: 'right' }}>{i + 1}</span>
+          <span style={{ color: '#ccc', flex: 1 }}>{team.team_name}</span>
+          <span style={{ color: '#555' }}>{team.wins}-{team.losses}</span>
+          {i === 0 && <span style={{ fontSize: 9, color: '#FF8740', letterSpacing: 1 }}>BYE</span>}
         </div>
       ))}
     </div>
@@ -523,21 +599,21 @@ function SeedingList({ title, seeds }: { title: string; seeds: SeedEntry[] }) {
 // ─── Playoff Results ──────────────────────────────────────────────────────────
 
 function PlayoffResultsView({ results, champion }: { results: PlayoffGame[] | null; champion?: Champion }) {
-  if (!results || results.length === 0) return <div style={{ color: '#444', textAlign: 'center', padding: 40 }}>Loading playoff results...</div>;
+  if (!results || results.length === 0) return <div style={{ color: '#333', fontSize: 12 }}>Loading playoff results...</div>;
 
   const rounds = [
-    { week: 18, label: 'WILD CARD', cols: 'repeat(3, 1fr)' },
-    { week: 19, label: 'DIVISIONAL', cols: 'repeat(4, 1fr)' },
+    { week: 18, label: 'WILD CARD',                cols: 'repeat(3, 1fr)' },
+    { week: 19, label: 'DIVISIONAL',               cols: 'repeat(4, 1fr)' },
     { week: 20, label: 'CONFERENCE CHAMPIONSHIPS', cols: 'repeat(2, 1fr)' },
-    { week: 21, label: 'SUPER BOWL', cols: '1fr' },
+    { week: 21, label: 'SUPER BOWL',               cols: '1fr' },
   ];
 
   return (
     <div>
       {champion && (
-        <div style={{ textAlign: 'center', padding: '16px 20px', marginBottom: 20, background: '#120f00', border: '1px solid #3a2e00', borderRadius: 8 }}>
-          <div style={{ fontSize: 10, color: '#666', letterSpacing: 2, marginBottom: 6 }}>{champion.season} SUPER BOWL CHAMPION</div>
-          <div style={{ fontSize: 22, fontWeight: 'bold', color: '#FFD700' }}>🏆 {champion.team_name}</div>
+        <div style={{ background: '#111', border: '1px solid #2a2a1a', borderRadius: 8, padding: '16px 20px', marginBottom: 20, textAlign: 'center' }}>
+          <div style={{ fontSize: 10, color: '#FF8740', letterSpacing: 2, marginBottom: 6 }}>{champion.season} SUPER BOWL CHAMPION</div>
+          <div style={{ fontSize: 20, fontWeight: 'bold', color: '#FFD700' }}>🏆 {champion.team_name}</div>
         </div>
       )}
       {rounds.map(({ week, label, cols }) => {
@@ -545,24 +621,24 @@ function PlayoffResultsView({ results, champion }: { results: PlayoffGame[] | nu
         if (games.length === 0) return null;
         const isSB = week === 21;
         return (
-          <div key={week} style={{ marginBottom: 18 }}>
-            <div style={{ fontSize: 10, fontWeight: 'bold', color: '#FF8740', letterSpacing: 1, marginBottom: 8 }}>{label}</div>
+          <div key={week} style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 10, color: '#444', letterSpacing: 2, marginBottom: 10 }}>{label}</div>
             <div style={{ display: 'grid', gridTemplateColumns: cols, gap: 8 }}>
               {games.map((game, i) => {
                 const homeWon = game.home_score > game.away_score;
                 return (
-                  <div key={i} style={{ background: isSB ? '#120f00' : '#161616', border: `1px solid ${isSB ? '#3a2e00' : '#1e1e1e'}`, borderRadius: 6, padding: isSB ? '12px 14px' : '9px 10px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
-                      <span style={{ fontSize: isSB ? 13 : 11, fontWeight: homeWon ? '700' : '400', color: homeWon ? '#fff' : '#666', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '75%' }}>
-                        {homeWon && <span style={{ color: '#FF8740' }}>▸ </span>}{game.home_team}
+                  <div key={i} style={{ background: '#111', border: `1px solid ${isSB ? '#2a2a1a' : '#1a1a1a'}`, borderRadius: 6, padding: '10px 14px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <span style={{ color: homeWon ? '#fff' : '#555', fontSize: 12 }}>
+                        {homeWon && <span style={{ color: '#4caf50', marginRight: 4 }}>▸</span>}{game.home_team}
                       </span>
-                      <span style={{ fontSize: isSB ? 18 : 15, fontWeight: homeWon ? '700' : '400', color: homeWon ? '#fff' : '#555', flexShrink: 0 }}>{game.home_score}</span>
+                      <span style={{ fontWeight: 'bold', color: homeWon ? '#fff' : '#555' }}>{game.home_score}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: isSB ? 13 : 11, fontWeight: !homeWon ? '700' : '400', color: !homeWon ? '#fff' : '#666', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '75%' }}>
-                        {!homeWon && <span style={{ color: '#FF8740' }}>▸ </span>}{game.away_team}
+                      <span style={{ color: !homeWon ? '#fff' : '#555', fontSize: 12 }}>
+                        {!homeWon && <span style={{ color: '#4caf50', marginRight: 4 }}>▸</span>}{game.away_team}
                       </span>
-                      <span style={{ fontSize: isSB ? 18 : 15, fontWeight: !homeWon ? '700' : '400', color: !homeWon ? '#fff' : '#555', flexShrink: 0 }}>{game.away_score}</span>
+                      <span style={{ fontWeight: 'bold', color: !homeWon ? '#fff' : '#555' }}>{game.away_score}</span>
                     </div>
                   </div>
                 );
@@ -579,8 +655,8 @@ function PlayoffResultsView({ results, champion }: { results: PlayoffGame[] | nu
 
 function SidebarBlock({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{ marginBottom: 22 }}>
-      <div style={{ fontSize: 10, fontWeight: 'bold', color: '#FF8740', letterSpacing: 1, marginBottom: 8 }}>{title}</div>
+    <div style={{ background: '#111', border: '1px solid #1a1a1a', borderRadius: 6, padding: '12px 14px' }}>
+      <div style={{ fontSize: 10, color: '#444', letterSpacing: 2, marginBottom: 10 }}>{title}</div>
       {children}
     </div>
   );
@@ -588,9 +664,9 @@ function SidebarBlock({ title, children }: { title: string; children: React.Reac
 
 function SidebarRow({ left, right, dimLeft }: { left: string; right: string; dimLeft?: boolean }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, padding: '3px 0', borderBottom: '1px solid #111', fontSize: 11 }}>
-      <span style={{ color: dimLeft ? '#555' : '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 }}>{left}</span>
-      <span style={{ color: dimLeft ? '#999' : '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'right', flex: 1 }}>{right}</span>
+    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 11, borderBottom: '1px solid #141414' }}>
+      <span style={{ color: dimLeft ? '#555' : '#888' }}>{left}</span>
+      <span style={{ color: '#ccc' }}>{right}</span>
     </div>
   );
 }
@@ -601,48 +677,48 @@ function BoxScore({ data }: { data: BoxScoreData }) {
   const { game, players } = data;
   const homeWon = game.home_score > game.away_score;
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'center', gap: 40, marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid #1a1a1a' }}>
+    <div style={{ background: '#0f0f0f', border: '1px solid #1a1a1a', borderRadius: 6, padding: '14px' }}>
+      <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
         {[
-          { name: game.home_team, score: game.home_score, won: homeWon, side: 'HOME' },
+          { name: game.home_team, score: game.home_score, won: homeWon,  side: 'HOME' },
           { name: game.away_team, score: game.away_score, won: !homeWon, side: 'AWAY' },
         ].map((t, i) => (
-          <div key={i} style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 9, color: '#444', letterSpacing: 1, marginBottom: 3 }}>{t.side}</div>
-            <div style={{ fontSize: 12, color: t.won ? '#ccc' : '#555', marginBottom: 2 }}>{t.name}</div>
-            <div style={{ fontSize: 30, fontWeight: 'bold', color: t.won ? '#FF8740' : '#444' }}>{t.score}</div>
+          <div key={i} style={{ flex: 1, background: '#111', borderRadius: 4, padding: '10px 14px', textAlign: 'center' }}>
+            <div style={{ fontSize: 9, color: '#444', letterSpacing: 1, marginBottom: 4 }}>{t.side}</div>
+            <div style={{ fontSize: 12, color: '#888' }}>{t.name}</div>
+            <div style={{ fontSize: 24, fontWeight: 'bold', color: t.won ? '#fff' : '#444' }}>{t.score}</div>
           </div>
         ))}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        <TeamStats players={players.filter(p => p.team_id === game.home_team_id)} teamName={game.home_team} />
-        <TeamStats players={players.filter(p => p.team_id === game.away_team_id)} teamName={game.away_team} />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <TeamStats teamName={game.home_team} players={players.filter(p => p.team_id === game.home_team_id)} />
+        <TeamStats teamName={game.away_team} players={players.filter(p => p.team_id === game.away_team_id)} />
       </div>
     </div>
   );
 }
 
 function TeamStats({ teamName, players }: { teamName: string; players: BoxScorePlayer[] }) {
-  const passers = players.filter(p => p.pass_attempts > 0).sort((a, b) => b.pass_yards - a.pass_yards);
-  const rushers = players.filter(p => p.rush_attempts > 0).sort((a, b) => b.rush_yards - a.rush_yards).slice(0, 3);
+  const passers   = players.filter(p => p.pass_attempts > 0).sort((a, b) => b.pass_yards - a.pass_yards);
+  const rushers   = players.filter(p => p.rush_attempts > 0).sort((a, b) => b.rush_yards - a.rush_yards).slice(0, 3);
   const receivers = players.filter(p => p.targets > 0).sort((a, b) => b.rec_yards - a.rec_yards).slice(0, 4);
-  const nickname = teamName.split(' ').pop()?.toUpperCase() ?? teamName;
+  const nickname  = teamName.split(' ').pop()?.toUpperCase() ?? teamName;
   return (
     <div>
-      <div style={{ fontSize: 11, fontWeight: 'bold', color: '#FF8740', marginBottom: 8 }}>{nickname}</div>
+      <div style={{ fontSize: 10, color: '#444', letterSpacing: 1, marginBottom: 8 }}>{nickname}</div>
       {passers.length > 0 && (
         <StatSection title="PASSING">
-          {passers.map((p, i) => <StatRow key={i} name={p.player_name} line={`${p.completions}/${p.pass_attempts} · ${p.pass_yards} yds · ${p.pass_tds} TD${p.interceptions ? ` · ${p.interceptions} INT` : ''}`} />)}
+          {passers.map((p, i) => <StatRow key={i} name={p.player_name} line={`${p.completions}/${p.pass_attempts} ${p.pass_yards}yd ${p.pass_tds}td`} />)}
         </StatSection>
       )}
       {rushers.length > 0 && (
         <StatSection title="RUSHING">
-          {rushers.map((p, i) => <StatRow key={i} name={p.player_name} line={`${p.rush_attempts} car · ${p.rush_yards} yds${p.rush_tds ? ` · ${p.rush_tds} TD` : ''}`} />)}
+          {rushers.map((p, i) => <StatRow key={i} name={p.player_name} line={`${p.rush_attempts}car ${p.rush_yards}yd ${p.rush_tds}td`} />)}
         </StatSection>
       )}
       {receivers.length > 0 && (
         <StatSection title="RECEIVING">
-          {receivers.map((p, i) => <StatRow key={i} name={p.player_name} line={`${p.receptions}/${p.targets} · ${p.rec_yards} yds${p.rec_tds ? ` · ${p.rec_tds} TD` : ''}`} />)}
+          {receivers.map((p, i) => <StatRow key={i} name={p.player_name} line={`${p.receptions}/${p.targets} ${p.rec_yards}yd ${p.rec_tds}td`} />)}
         </StatSection>
       )}
     </div>
@@ -652,7 +728,7 @@ function TeamStats({ teamName, players }: { teamName: string; players: BoxScoreP
 function StatSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 10 }}>
-      <div style={{ fontSize: 9, color: '#4a4a4a', letterSpacing: 1, marginBottom: 4 }}>{title}</div>
+      <div style={{ fontSize: 9, color: '#333', letterSpacing: 1, marginBottom: 4 }}>{title}</div>
       {children}
     </div>
   );
@@ -660,9 +736,9 @@ function StatSection({ title, children }: { title: string; children: React.React
 
 function StatRow({ name, line }: { name: string; line: string }) {
   return (
-    <div style={{ marginBottom: 4 }}>
-      <div style={{ fontSize: 11, color: '#bbb', fontWeight: '600' }}>{name}</div>
-      <div style={{ fontSize: 10, color: '#666' }}>{line}</div>
+    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, padding: '2px 0', borderBottom: '1px solid #111' }}>
+      <span style={{ color: '#777' }}>{name}</span>
+      <span style={{ color: '#555' }}>{line}</span>
     </div>
   );
 }

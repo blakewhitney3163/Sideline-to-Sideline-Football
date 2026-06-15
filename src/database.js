@@ -85,6 +85,21 @@ db.exec(`
     team_id INTEGER NOT NULL,
     FOREIGN KEY (team_id) REFERENCES teams(id)
   );
+
+  CREATE TABLE IF NOT EXISTS draft_prospects (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    season INTEGER NOT NULL,
+    first_name TEXT NOT NULL,
+    last_name TEXT NOT NULL,
+    position TEXT NOT NULL,
+    overall_rating INTEGER NOT NULL,
+    dev_trait TEXT DEFAULT 'Normal',
+    age INTEGER DEFAULT 22,
+    is_drafted INTEGER DEFAULT 0,
+    draft_round INTEGER,
+    draft_pick INTEGER,
+    drafted_by_team_id INTEGER
+  );
 `);
 
 // ─── Player Column Migrations ─────────────────────────────────────────────────

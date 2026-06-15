@@ -293,12 +293,17 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
     setWorking(false);
   };
 
-  const handleLetWalk = (playerId: number) => {
-    setPlayerDecisions(prev => ({ ...prev, [playerId]: 'walking' }));
-    setResigningId(null);
-    const player = expiringPlayers.find(p => p.id === playerId);
-    showToast(`${player?.first_name} ${player?.last_name} will hit free agency.`, 'error');
-  };
+  const handleLetWalk = async (playerId: number) => {
+  const player = expiringPlayers.find(p => p.id === playerId);
+  setWorking(true);
+  await window.api.releasePlayer(playerId);
+  setPlayerDecisions(prev => ({ ...prev, [playerId]: 'walking' }));
+  setResigningId(null);
+  showToast(`${player?.first_name} ${player?.last_name} released to free agency.`, 'error');
+  await loadData();
+  await loadExpiringContracts();
+  setWorking(false);
+};
 
   const filtered = contracts
     .filter(c => posFilter === 'ALL' || c.position === posFilter)

@@ -114,4 +114,25 @@ contextBridge.exposeInMainWorld('api', {
   resignPlayer: (payload: { playerId: number; years: number; salary: number }) =>
     ipcRenderer.invoke('resign-player', payload),
 
+   getOffseasonStatus: () =>
+    ipcRenderer.invoke('get-offseason-status'),
+
+  generateDraftClass: () =>
+    ipcRenderer.invoke('generate-draft-class'),
+
+  getDraftClass: () =>
+    ipcRenderer.invoke('get-draft-class'),
+
+  getDraftOrder: () =>
+    ipcRenderer.invoke('get-draft-order'),
+
+  makeDraftPick: (payload: { prospectId: number; teamId: number; round: number; pick: number }) =>
+    ipcRenderer.invoke('make-draft-pick', payload),
+
+  runCpuRound: (payload: { round: number; userTeamId: number }) =>
+    ipcRenderer.invoke('run-cpu-round', payload),
+
+  completeDraft: () =>
+    ipcRenderer.invoke('complete-draft'),
+
 });

@@ -777,6 +777,186 @@ ipcMain.handle('resign-player', (_event: any, { playerId, years, salary }: {
   return { success: true };
 });
 
+ipcMain.handle('get-offseason-status', () => {
+  const teamRow = db.prepare("SELECT value FROM settings WHERE key = 'user_team_id'").get() as any;
+  const season = getCurrentSeason();
+  const champion = db.prepare('SELECT team_id FROM champions WHERE season = ?').get(season);
+  const draftGenerated = champion
+    ? (db.prepare('SELECT COUNT(*) as count FROM draft_prospects WHERE season = ?').get(season) as any).count > 0
+    : false;
+  const draftComplete = draftGenerated
+    ? (db.prepare('SELECT COUNT(*) as count FROM draft_prospects WHERE season = ? AND is_drafted = 0').get(season) as any).count === 0
+    : false;
+  if (!teamRow) return { playoffsComplete: !!champion, pendingResigns: 0, draftGenerated, draftComplete };
+  const teamId = parseInt(teamRow.value);
+  const pending = (db.prepare(`
+    SELECT COUNT(*) as count FROM contracts c
+    JOIN players p ON c.player_id = p.id
+    WHERE c.team_id = ? AND p.roster_status = 'active' AND c.years_remaining = 1
+  `).get(teamId) as any).count;
+  return { playoffsComplete: !!champion, pendingResigns: pending, draftGenerated, draftComplete };
+});
+
+ipcMain.handle('generate-draft-class', () => {
+  const season = getCurrentSeason();
+  const existing = (db.prepare('SELECT COUNT(*) as count FROM draft_prospects WHERE season = ?').get(season) as any).count;
+  if (existing > 0) return { already: true, count: existing };
+
+  const FIRST = ['James','John','Robert','Michael','David','William','Joseph','Thomas','Charles','Christopher','Daniel','Matthew','Anthony','Mark','Steven','Paul','Andrew','Joshua','Kenneth','Kevin','Brian','Timothy','Jason','Jeffrey','Ryan','Jacob','Gary','Nicholas','Eric','Jonathan','Justin','Scott','Brandon','Benjamin','Samuel','Nathan','Zachary','Peter','Kyle','Noah','Ethan','Jeremy','Austin','Sean','Dylan','Jordan','Jesse','Bryan','Gabriel','Logan','Marcus','Malik','Darius','Terrell','Jamal','Xavier','Darnell','Lamar','Kendall','Jaylen','Jalen','Devonte','Trey','Kameron','Zion','Isaiah','Damien','Dominic','Julian','Elijah','Tyrese','DeAndre','Rashad','Corey','Marquise','Deon','Alonzo','Deshawn','Marquez','Keanu','Trevon','Devin','Javon','Treylon','Brock','Bryce','Drake','Garrett','Caleb','Quinton','Jaylon','Dontae','Tariq','Amon','Romeo','Tyjae'];
+  const LAST = ['Smith','Johnson','Williams','Jones','Brown','Davis','Miller','Wilson','Moore','Taylor','Anderson','Thomas','Jackson','White','Harris','Martin','Thompson','Garcia','Robinson','Clark','Lewis','Lee','Walker','Hall','Allen','Young','King','Wright','Hill','Scott','Green','Adams','Baker','Nelson','Carter','Mitchell','Roberts','Turner','Phillips','Campbell','Parker','Evans','Edwards','Collins','Stewart','Morris','Rogers','Reed','Cook','Morgan','Bell','Murphy','Bailey','Cooper','Richardson','Cox','Howard','Ward','Peterson','Gray','James','Watson','Brooks','Kelly','Sanders','Price','Bennett','Wood','Barnes','Ross','Henderson','Coleman','Jenkins','Perry','Powell','Long','Patterson','Hughes','Washington','Butler','Simmons','Foster','Bryant','Alexander','Russell','Griffin','Hayes','Ford','Hamilton','Graham','Sullivan','Wallace','Woods','Cole','West','Jordan','Owens','Reynolds','Fisher','Harrison','Gibson','McDonald','Marshall','Murray','Freeman','Wells','Tucker','Porter','Hunter','Hicks','Henry','Boyd','Mason','Kennedy','Warren','Burns','Gordon','Shaw','Holmes','Rice','Robertson','Hunt','Daniels','Palmer','Nichols','Grant','Knight','Ferguson','Stone','Hawkins','Perkins','Hudson','Spencer','Gardner','Payne','Pierce','Berry','Matthews','Willis','Ray','Watkins','Carroll','Duncan','Hart','Cunningham','Bradley','Andrews','Harper','Fox','Riley','Armstrong','Greene','Lawrence','Elliott','Sims','Morrow','Ingram','Bates','Flowers','Moss','Lamb'];
+  const POS_POOL = ['QB','RB','WR','WR','WR','TE','OL','OL','OL','DL','DL','DL','LB','LB','CB','CB','S','K'];
+
+  const getDevTrait = (ovr: number): string => {
+    const r = Math.random();
+    if (ovr >= 78) return r < 0.02 ? 'X-Factor' : r < 0.08 ? 'Superstar' : r < 0.40 ? 'Star' : 'Normal';
+    if (ovr >= 74) return r < 0.01 ? 'X-Factor' : r < 0.05 ? 'Superstar' : r < 0.25 ? 'Star' : 'Normal';
+    if (ovr >= 70) return r < 0.005 ? 'Superstar' : r < 0.12 ? 'Star' : 'Normal';
+    return r < 0.05 ? 'Star' : 'Normal';
+  };
+
+  const prospects: any[] = [];
+  for (let i = 0; i < 280; i++) {
+    let ovr: number;
+    if      (i < 10)  ovr = Math.floor(Math.random() * 7)  + 76;
+    else if (i < 32)  ovr = Math.floor(Math.random() * 7)  + 71;
+    else if (i < 64)  ovr = Math.floor(Math.random() * 6)  + 67;
+    else if (i < 96)  ovr = Math.floor(Math.random() * 6)  + 64;
+    else if (i < 128) ovr = Math.floor(Math.random() * 5)  + 61;
+    else if (i < 160) ovr = Math.floor(Math.random() * 5)  + 59;
+    else if (i < 224) ovr = Math.floor(Math.random() * 5)  + 57;
+    else              ovr = Math.floor(Math.random() * 6)  + 52;
+
+    prospects.push({
+      season,
+      first_name: FIRST[Math.floor(Math.random() * FIRST.length)],
+      last_name:  LAST[Math.floor(Math.random() * LAST.length)],
+      position:   POS_POOL[Math.floor(Math.random() * POS_POOL.length)],
+      overall_rating: ovr,
+      dev_trait: getDevTrait(ovr),
+      age: Math.random() < 0.6 ? 21 : Math.random() < 0.6 ? 22 : 23,
+    });
+  }
+
+  const ins = db.prepare(`INSERT INTO draft_prospects (season,first_name,last_name,position,overall_rating,dev_trait,age) VALUES (@season,@first_name,@last_name,@position,@overall_rating,@dev_trait,@age)`);
+  const run = db.transaction(() => { for (const p of prospects) ins.run(p); });
+  run();
+  return { generated: prospects.length };
+});
+
+ipcMain.handle('get-draft-class', () => {
+  const season = getCurrentSeason();
+  return db.prepare('SELECT * FROM draft_prospects WHERE season = ? ORDER BY overall_rating DESC').all(season);
+});
+
+ipcMain.handle('get-draft-order', () => {
+  const season = getCurrentSeason();
+  return db.prepare(`
+    SELECT t.id, t.city, t.name, t.abbreviation,
+      COALESCE((
+        SELECT COUNT(*) FROM games g
+        WHERE g.season = ? AND g.is_simulated = 1 AND g.is_playoff = 0
+        AND ((g.home_team_id = t.id AND g.home_score > g.away_score)
+          OR (g.away_team_id = t.id AND g.away_score > g.home_score))
+      ), 0) as wins
+    FROM teams t ORDER BY wins ASC
+  `).all(season);
+});
+
+ipcMain.handle('make-draft-pick', (_event: any, { prospectId, teamId, round, pick }: {
+  prospectId: number; teamId: number; round: number; pick: number;
+}) => {
+  const prospect = db.prepare('SELECT * FROM draft_prospects WHERE id = ?').get(prospectId) as any;
+  if (!prospect || prospect.is_drafted) return { success: false, reason: 'Not available.' };
+
+  db.prepare('UPDATE draft_prospects SET is_drafted=1, draft_round=?, draft_pick=?, drafted_by_team_id=? WHERE id=?')
+    .run(round, pick, teamId, prospectId);
+
+  const rookie = db.prepare(`
+    INSERT INTO players (first_name,last_name,position,age,overall_rating,speed,strength,awareness,team_id,is_free_agent,dev_trait,roster_status)
+    VALUES (?,?,?,?,?,?,?,?,?,0,?,'active')
+  `).run(
+    prospect.first_name, prospect.last_name, prospect.position, prospect.age, prospect.overall_rating,
+    Math.floor(60 + Math.random() * 30), Math.floor(50 + Math.random() * 30), Math.floor(40 + Math.random() * 30),
+    teamId, prospect.dev_trait
+  ) as any;
+
+  const sal = Math.round((0.9 + (prospect.overall_rating - 60) * 0.05) * 10) / 10;
+  db.prepare(`INSERT INTO contracts (player_id,team_id,years_total,years_remaining,annual_salary,guaranteed_amount,guaranteed_pct) VALUES (?,?,4,4,?,?,50)`)
+    .run(rookie.lastInsertRowid, teamId, sal, sal * 4 * 0.5);
+
+  return { success: true };
+});
+
+ipcMain.handle('run-cpu-round', (_event: any, { round, userTeamId }: { round: number; userTeamId: number }) => {
+  const season = getCurrentSeason();
+  const teams = db.prepare(`
+    SELECT t.id,
+      COALESCE((SELECT COUNT(*) FROM games g WHERE g.season=? AND g.is_simulated=1 AND g.is_playoff=0
+        AND ((g.home_team_id=t.id AND g.home_score>g.away_score) OR (g.away_team_id=t.id AND g.away_score>g.home_score))),0) as wins
+    FROM teams t ORDER BY wins ASC
+  `).all(season) as any[];
+
+  const results: any[] = [];
+  const THRESHOLDS: Record<string, number> = { QB:2, RB:3, WR:5, TE:2, OL:5, DL:4, LB:4, CB:4, S:2, K:1 };
+
+  const runPicks = db.transaction(() => {
+    let pickNum = 1;
+    for (const team of teams) {
+      if (team.id === userTeamId) { pickNum++; continue; }
+
+      const counts = db.prepare(`SELECT position, COUNT(*) as cnt FROM players WHERE team_id=? GROUP BY position`).all(team.id) as any[];
+      const byPos: Record<string, number> = {};
+      for (const r of counts) byPos[r.position] = r.cnt;
+
+      const needs = Object.keys(THRESHOLDS).filter(pos => (byPos[pos] ?? 0) < THRESHOLDS[pos]);
+
+      let prospect: any = null;
+      if (needs.length > 0) {
+        const ph = needs.map(() => '?').join(',');
+        prospect = db.prepare(`SELECT * FROM draft_prospects WHERE season=? AND is_drafted=0 AND position IN (${ph}) ORDER BY overall_rating DESC LIMIT 1`).get(season, ...needs);
+      }
+      if (!prospect) {
+        prospect = db.prepare('SELECT * FROM draft_prospects WHERE season=? AND is_drafted=0 ORDER BY overall_rating DESC LIMIT 1').get(season);
+      }
+      if (!prospect) { pickNum++; continue; }
+
+      const overallPick = (round - 1) * 32 + pickNum;
+      db.prepare('UPDATE draft_prospects SET is_drafted=1, draft_round=?, draft_pick=?, drafted_by_team_id=? WHERE id=?')
+        .run(round, overallPick, team.id, prospect.id);
+
+      const r = db.prepare(`INSERT INTO players (first_name,last_name,position,age,overall_rating,speed,strength,awareness,team_id,is_free_agent,dev_trait,roster_status) VALUES (?,?,?,?,?,?,?,?,?,0,?,'active')`).run(
+        prospect.first_name, prospect.last_name, prospect.position, prospect.age, prospect.overall_rating,
+        Math.floor(60 + Math.random() * 30), Math.floor(50 + Math.random() * 30), Math.floor(40 + Math.random() * 30),
+        team.id, prospect.dev_trait
+      ) as any;
+      const sal = Math.round((0.9 + (prospect.overall_rating - 60) * 0.05) * 10) / 10;
+      db.prepare(`INSERT INTO contracts (player_id,team_id,years_total,years_remaining,annual_salary,guaranteed_amount,guaranteed_pct) VALUES (?,?,4,4,?,?,50)`).run(r.lastInsertRowid, team.id, sal, sal * 4 * 0.5);
+
+      results.push({ round, pickInRound: pickNum, teamId: team.id, prospect });
+      pickNum++;
+    }
+  });
+  runPicks();
+  return results;
+});
+
+ipcMain.handle('complete-draft', () => {
+  const season = getCurrentSeason();
+  const undrafted = db.prepare('SELECT * FROM draft_prospects WHERE season=? AND is_drafted=0').all(season) as any[];
+  const run = db.transaction(() => {
+    for (const p of undrafted) {
+      db.prepare(`INSERT INTO players (first_name,last_name,position,age,overall_rating,speed,strength,awareness,team_id,is_free_agent,dev_trait,roster_status) VALUES (?,?,?,?,?,?,?,?,NULL,1,?,'free_agent')`).run(
+        p.first_name, p.last_name, p.position, p.age, p.overall_rating,
+        Math.floor(60 + Math.random() * 30), Math.floor(50 + Math.random() * 30), Math.floor(40 + Math.random() * 30),
+        p.dev_trait
+      );
+      db.prepare('UPDATE draft_prospects SET is_drafted=1 WHERE id=?').run(p.id);
+    }
+  });
+  run();
+  return { undrafted: undrafted.length };
+});
+
 ipcMain.handle('import-otc-contracts', (_event: any, filePath?: string) => {
   const fs         = require('fs');
   const pathModule = require('path');
