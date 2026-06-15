@@ -138,7 +138,7 @@ export default function App() {
         )}
         {activeTab === 'trades'    && <Trades userTeam={userTeam} />}
         {activeTab === 'franchise' && <Franchise userTeam={userTeam} currentSeason={currentSeason} />}
-        {actuveTab === 'depth' && <DepthChart userTeam={userTeam} />}
+        {activeTab === 'depth' && <DepthChart userTeam={userTeam} />}
         {activeTab === 'draft'     && (
           <Draft
             userTeam={userTeam}
