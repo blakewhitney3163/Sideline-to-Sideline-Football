@@ -24,20 +24,20 @@ interface UserTeam {
 }
 
 const BASE_TABS: { id: Tab; label: string }[] = [
-  { id: 'home',       label: 'Home' },
-  { id: 'standings',  label: 'Standings' },
-  { id: 'teams',      label: 'Teams' },
-  { id: 'schedule',   label: 'Schedule' },
-  { id: 'stats',      label: 'Stats' },
-  { id: 'playoffs',   label: 'Playoffs' },
-  { id: 'trades',     label: 'Trades' },
-  { id: 'franchise',  label: 'Franchise' },
+  { id: 'home',      label: 'Home' },
+  { id: 'standings', label: 'Standings' },
+  { id: 'teams',     label: 'Teams' },
+  { id: 'schedule',  label: 'Schedule' },
+  { id: 'stats',     label: 'Stats' },
+  { id: 'playoffs',  label: 'Playoffs' },
+  { id: 'trades',    label: 'Trades' },
+  { id: 'franchise', label: 'Franchise' },
 ];
 
 export default function App() {
-  const [activeTab,     setActiveTab]     = useState<Tab>('home');
-  const [currentSeason, setCurrentSeason] = useState<number>(2025);
-  const [userTeam,      setUserTeam]      = useState<UserTeam | null | undefined>(undefined);
+  const [activeTab,        setActiveTab]        = useState<Tab>('home');
+  const [currentSeason,    setCurrentSeason]    = useState<number>(2025);
+  const [userTeam,         setUserTeam]         = useState<UserTeam | null | undefined>(undefined);
   const [playoffsComplete, setPlayoffsComplete] = useState(false);
 
   useEffect(() => {
@@ -48,17 +48,13 @@ export default function App() {
     ]).then(([season, team, offseason]: [number, UserTeam | null, any]) => {
       setCurrentSeason(season);
       setUserTeam(team);
-      setPlayoffsComplete(offseason.playoffsComplete);
+      setPlayoffsComplete(offseason.playoffsComplete ?? false);
     });
   }, []);
 
   const handleSeasonAdvance = (nextSeason: number) => {
     setCurrentSeason(nextSeason);
     setPlayoffsComplete(false);
-    setActiveTab('home');
-  };
-
-  const handleDraftComplete = () => {
     setActiveTab('home');
   };
 
@@ -75,57 +71,72 @@ export default function App() {
   }
 
   return (
-    <div style={{ background: '#0a0a0a', minHeight: '100vh', fontFamily: 'monospace' }}>
+    <div style={{ background: '#0d0d0d', minHeight: '100vh', fontFamily: 'monospace' }}>
+
       {/* App Header */}
-      <div style={{ background: '#0d0d0d', borderBottom: '1px solid #1a1a1a', padding: '10px 24px', display: 'flex', alignItems: 'center', gap: 16 }}>
-        <span style={{ fontSize: 13, fontWeight: 'bold', color: '#FF8740', letterSpacing: 2 }}>NFL SIMULATOR</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 20px', borderBottom: '1px solid #1a1a1a', background: '#0a0a0a' }}>
+        <span style={{ fontSize: 12, fontWeight: 'bold', color: '#FF8740', letterSpacing: 2 }}>NFL SIMULATOR</span>
         <span style={{ color: '#2a2a2a' }}>|</span>
-        <span style={{ fontSize: 13, color: '#ccc' }}>{userTeam.city} {userTeam.name}</span>
-        <button onClick={() => setUserTeam(null)} style={{ fontSize: 10, color: '#333', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>change</button>
-        <span style={{ marginLeft: 'auto', fontSize: 11, color: '#444' }}>{currentSeason} Season</span>
+        <span style={{ fontSize: 12, color: '#ccc' }}>{userTeam.city} {userTeam.name}</span>
+        <button
+          onClick={() => setUserTeam(null)}
+          style={{ fontSize: 10, color: '#333', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>
+          change
+        </button>
+        <span style={{ marginLeft: 'auto', fontSize: 11, color: '#333' }}>{currentSeason} Season</span>
       </div>
 
       {/* Tab Bar */}
-      <div style={{ background: '#0d0d0d', borderBottom: '1px solid #1a1a1a', display: 'flex', overflowX: 'auto' }}>
+      <div style={{ display: 'flex', borderBottom: '1px solid #1a1a1a', background: '#0a0a0a', overflowX: 'auto' }}>
         {tabs.map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
-            padding: '11px 22px', background: 'none', border: 'none', cursor: 'pointer',
-            color: activeTab === tab.id ? '#4FC3F7' : tab.id === 'draft' ? '#FF8740' : '#555',
-            borderBottom: activeTab === tab.id ? '2px solid #4FC3F7' : '2px solid transparent',
-            fontWeight: activeTab === tab.id ? 'bold' : 'normal',
-            fontSize: 13, transition: 'color 0.2s', whiteSpace: 'nowrap',
-          }}>
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            style={{
+              padding: '11px 22px',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              color: activeTab === tab.id ? '#4FC3F7' : tab.id === 'draft' ? '#FF8740' : '#555',
+              borderBottom: activeTab === tab.id ? '2px solid #4FC3F7' : '2px solid transparent',
+              fontWeight: activeTab === tab.id ? 'bold' : 'normal',
+              fontSize: 13,
+              transition: 'color 0.2s',
+              whiteSpace: 'nowrap',
+              fontFamily: 'monospace',
+            }}>
             {tab.label}
           </button>
         ))}
       </div>
 
       {/* Tab Content */}
-      <div style={{ flex: 1 }}>
+      <div>
         {activeTab === 'home' && (
           <Home
             currentSeason={currentSeason}
             onSeasonAdvance={handleSeasonAdvance}
             userTeam={userTeam}
-            onNavigate={(tab: string) => setActiveTab(tab as Tab)}
+            onNavigate={(tab) => setActiveTab(tab as Tab)}
             onPlayoffsComplete={() => setPlayoffsComplete(true)}
           />
         )}
-        {activeTab === 'standings'  && <Standings currentSeason={currentSeason} />}
-        {activeTab === 'teams'      && <Teams />}
-        {activeTab === 'schedule'   && <Schedule currentSeason={currentSeason} />}
-        {activeTab === 'stats'      && <Stats currentSeason={currentSeason} />}
-        {activeTab === 'playoffs'   && <Playoffs currentSeason={currentSeason} />}
-        {activeTab === 'trades'     && <Trades userTeam={userTeam} />}
-        {activeTab === 'franchise'  && <Franchise userTeam={userTeam} currentSeason={currentSeason} />}
-        {activeTab === 'draft'      && (
+        {activeTab === 'standings' && <Standings currentSeason={currentSeason} />}
+        {activeTab === 'teams'     && <Teams currentSeason={currentSeason} />}
+        {activeTab === 'schedule'  && <Schedule currentSeason={currentSeason} />}
+        {activeTab === 'stats'     && <Stats currentSeason={currentSeason} />}
+        {activeTab === 'playoffs'  && <Playoffs currentSeason={currentSeason} />}
+        {activeTab === 'trades'    && <Trades userTeam={userTeam} />}
+        {activeTab === 'franchise' && <Franchise userTeam={userTeam} currentSeason={currentSeason} />}
+        {activeTab === 'draft'     && (
           <Draft
             userTeam={userTeam}
             currentSeason={currentSeason}
-            onDraftComplete={handleDraftComplete}
+            onDraftComplete={() => setActiveTab('home')}
           />
         )}
       </div>
+
     </div>
   );
 }
