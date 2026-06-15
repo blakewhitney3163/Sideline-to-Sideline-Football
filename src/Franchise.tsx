@@ -123,6 +123,13 @@ function fairMarketValue(pos: string, ovr: number, devTrait: string = 'Normal'):
   return Math.round(interpolateMarket(pos, ovr) * (TRAIT_MUL[devTrait] ?? 1.0) * 10) / 10;
 }
 
+// Asking price = market value adjusted for age leverage
+function askingPrice(pos: string, ovr: number, devTrait: string, age: number): number {
+  const mv = fairMarketValue(pos, ovr, devTrait);
+  const ageMul = age <= 28 ? 1.10 : age <= 32 ? 1.00 : 0.90;
+  return Math.round(mv * ageMul * 10) / 10;
+}
+
 function contractGrade(salary: number, pos: string, ovr: number, devTrait: string = 'Normal'): { label: string; color: string } | null {
   if (devTrait === 'X-Factor' || devTrait === 'Superstar') return null;
   const fairValue = interpolateMarket(pos, ovr);
@@ -132,30 +139,38 @@ function contractGrade(salary: number, pos: string, ovr: number, devTrait: strin
   return null;
 }
 
+type Decision = 'pending' | 'resigned' | 'walking';
+
 export default function Franchise({ userTeam, currentSeason }: Props) {
-  const [contracts,     setContracts]     = useState<Contract[]>([]);
-  const [practiceSquad, setPracticeSquad] = useState<PracticePlayer[]>([]);
-  const [freeAgents,    setFreeAgents]    = useState<FreeAgent[]>([]);
-  const [cap,           setCap]           = useState<CapSummary | null>(null);
-  const [rosterSpots,   setRosterSpots]   = useState<RosterSpots | null>(null);
-  const [posFilter,     setPosFilter]     = useState('ALL');
-  const [faPos,         setFaPos]         = useState('ALL');
-  const [sortBy,        setSortBy]        = useState<'salary' | 'years' | 'ovr' | 'age'>('salary');
-  const [activeTab,     setActiveTab]     = useState<'roster' | 'ps' | 'fa'>('roster');
-  const [extendingId,   setExtendingId]   = useState<number | null>(null);
-  const [extendYears,   setExtendYears]   = useState(3);
-  const [extendSalary,  setExtendSalary]  = useState('');
-  const [releasingId,   setReleasingId]   = useState<number | null>(null);
-  const [signingId,     setSigningId]     = useState<number | null>(null);
-  const [signYears,     setSignYears]     = useState(2);
-  const [signSalary,    setSignSalary]    = useState('');
-  const [working,       setWorking]       = useState(false);
-  const [toast,         setToast]         = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [contracts,       setContracts]       = useState<Contract[]>([]);
+  const [practiceSquad,   setPracticeSquad]   = useState<PracticePlayer[]>([]);
+  const [freeAgents,      setFreeAgents]      = useState<FreeAgent[]>([]);
+  const [expiringPlayers, setExpiringPlayers] = useState<Contract[]>([]);
+  const [cap,             setCap]             = useState<CapSummary | null>(null);
+  const [rosterSpots,     setRosterSpots]     = useState<RosterSpots | null>(null);
+  const [posFilter,       setPosFilter]       = useState('ALL');
+  const [faPos,           setFaPos]           = useState('ALL');
+  const [sortBy,          setSortBy]          = useState<'salary' | 'years' | 'ovr' | 'age'>('salary');
+  const [activeTab,       setActiveTab]       = useState<'roster' | 'ps' | 'fa' | 'offseason'>('roster');
+  const [extendingId,     setExtendingId]     = useState<number | null>(null);
+  const [extendYears,     setExtendYears]     = useState(3);
+  const [extendSalary,    setExtendSalary]    = useState('');
+  const [releasingId,     setReleasingId]     = useState<number | null>(null);
+  const [signingId,       setSigningId]       = useState<number | null>(null);
+  const [signYears,       setSignYears]       = useState(2);
+  const [signSalary,      setSignSalary]      = useState('');
+  const [resigningId,     setResigningId]     = useState<number | null>(null);
+  const [resignYears,     setResignYears]     = useState(3);
+  const [resignSalary,    setResignSalary]    = useState('');
+  const [playerDecisions, setPlayerDecisions] = useState<Record<number, Decision>>({});
+  const [working,         setWorking]         = useState(false);
+  const [toast,           setToast]           = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   useEffect(() => { loadData(); }, [userTeam.id]);
 
   useEffect(() => {
     if (activeTab === 'fa') loadFreeAgents();
+    if (activeTab === 'offseason') loadExpiringContracts();
   }, [activeTab, faPos]);
 
   const showToast = (message: string, type: 'success' | 'error') => {
@@ -181,6 +196,14 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
     setFreeAgents(fa);
   };
 
+  const loadExpiringContracts = async () => {
+    const exp = await window.api.getExpiringContracts();
+    setExpiringPlayers(exp);
+    const decisions: Record<number, Decision> = {};
+    exp.forEach((p: Contract) => { decisions[p.id] = 'pending'; });
+    setPlayerDecisions(decisions);
+  };
+
   const openExtend = (contract: Contract) => {
     setExtendingId(contract.id);
     setReleasingId(null);
@@ -193,6 +216,13 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
     const mv = fairMarketValue(fa.position, fa.overall_rating, fa.dev_trait);
     setSignYears(fa.age <= 26 ? 3 : fa.age <= 30 ? 2 : 1);
     setSignSalary(mv.toFixed(1));
+  };
+
+  const openResign = (player: Contract) => {
+    setResigningId(player.id);
+    const ap = askingPrice(player.position, player.overall_rating, player.dev_trait, player.age);
+    setResignYears(player.age <= 26 ? 4 : player.age <= 30 ? 3 : player.age <= 33 ? 2 : 1);
+    setResignSalary(ap.toFixed(1));
   };
 
   const handleExtend = async () => {
@@ -244,6 +274,32 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
     setWorking(false);
   };
 
+  const handleResign = async () => {
+    if (!resigningId || working) return;
+    const salary = parseFloat(resignSalary);
+    if (isNaN(salary) || salary <= 0) return;
+    const player = expiringPlayers.find(p => p.id === resigningId);
+    setWorking(true);
+    const result = await window.api.resignPlayer({ playerId: resigningId, years: resignYears, salary });
+    if (!result.success) {
+      showToast(result.reason ?? 'Player declined the offer.', 'error');
+      setWorking(false);
+      return;
+    }
+    setPlayerDecisions(prev => ({ ...prev, [resigningId]: 'resigned' }));
+    setResigningId(null);
+    showToast(`${player?.first_name} ${player?.last_name} re-signed — ${resignYears}yr / ${fmtSalary(salary)}`, 'success');
+    await loadData();
+    setWorking(false);
+  };
+
+  const handleLetWalk = (playerId: number) => {
+    setPlayerDecisions(prev => ({ ...prev, [playerId]: 'walking' }));
+    setResigningId(null);
+    const player = expiringPlayers.find(p => p.id === playerId);
+    showToast(`${player?.first_name} ${player?.last_name} will hit free agency.`, 'error');
+  };
+
   const filtered = contracts
     .filter(c => posFilter === 'ALL' || c.position === posFilter)
     .sort((a, b) => {
@@ -255,7 +311,7 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
     });
 
   const filteredFa    = freeAgents.filter(f => faPos === 'ALL' || f.position === faPos);
-  const expiring      = contracts.filter(c => c.years_remaining === 1).length;
+  const expiringCount = contracts.filter(c => c.years_remaining === 1).length;
   const capPct        = cap ? (cap.used_cap / cap.total_cap) * 100 : 0;
   const capColor      = capPct > 100 ? '#e57373' : capPct > 90 ? '#FF8740' : '#4caf50';
   const totalGuaranteed = contracts.reduce((s, c) => s + (c.guaranteed_amount ?? 0), 0);
@@ -266,6 +322,9 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
   const signingPlayer   = signingId ? freeAgents.find(f => f.id === signingId) : null;
   const signSalaryNum   = parseFloat(signSalary) || 0;
   const signCapLeft     = cap ? cap.available_cap - signSalaryNum : 0;
+  const resignSalaryNum = parseFloat(resignSalary) || 0;
+  const resignCapLeft   = cap ? cap.available_cap - resignSalaryNum : 0;
+  const pendingCount    = Object.values(playerDecisions).filter(d => d === 'pending').length;
 
   return (
     <div style={{ padding: '24px 32px', fontFamily: 'monospace', color: '#ccc', background: '#0d0d0d', minHeight: '100vh' }}>
@@ -310,25 +369,26 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
           </div>
           <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 11, color: '#444' }}>
             <span>Guaranteed on books: <span style={{ color: '#666' }}>{fmtSalary(totalGuaranteed)}</span></span>
-            {expiring > 0 && <span style={{ color: '#FF8740' }}>⚠ {expiring} expiring this offseason</span>}
+            {expiringCount > 0 && <span style={{ color: '#FF8740' }}>⚠ {expiringCount} expiring this offseason</span>}
             {rosterSpots && <span style={{ marginLeft: 'auto' }}>{rosterSpots.active}/53 active · {rosterSpots.ps}/16 PS</span>}
           </div>
         </div>
       )}
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
         {([
-          { key: 'roster', label: `ACTIVE ROSTER (${contracts.length})` },
-          { key: 'ps',     label: `PRACTICE SQUAD (${practiceSquad.length})` },
-          { key: 'fa',     label: 'FREE AGENTS' },
+          { key: 'roster',    label: `ACTIVE ROSTER (${contracts.length})`,  warn: false },
+          { key: 'ps',        label: `PRACTICE SQUAD (${practiceSquad.length})`, warn: false },
+          { key: 'fa',        label: 'FREE AGENTS',                           warn: false },
+          { key: 'offseason', label: expiringCount > 0 ? `OFFSEASON ⚠ ${expiringCount}` : 'OFFSEASON', warn: expiringCount > 0 },
         ] as const).map(tab => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{
             padding: '5px 16px', fontSize: 11, letterSpacing: 1, cursor: 'pointer', borderRadius: 4,
-            background: activeTab === tab.key ? '#FF8740' : '#111',
-            border: `1px solid ${activeTab === tab.key ? '#FF8740' : '#222'}`,
-            color: activeTab === tab.key ? '#000' : '#555',
-            fontWeight: activeTab === tab.key ? 'bold' : 'normal',
+            background: activeTab === tab.key ? (tab.warn ? '#FF8740' : '#FF8740') : (tab.warn ? '#1a1000' : '#111'),
+            border: `1px solid ${activeTab === tab.key ? '#FF8740' : tab.warn ? '#FF8740' : '#222'}`,
+            color: activeTab === tab.key ? '#000' : tab.warn ? '#FF8740' : '#555',
+            fontWeight: activeTab === tab.key || tab.warn ? 'bold' : 'normal',
           }}>{tab.label}</button>
         ))}
       </div>
@@ -622,10 +682,170 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
               </div>
             );
           })}
-
           <div style={{ marginTop: 12, fontSize: 11, color: '#333', textAlign: 'right' }}>
             {filteredFa.length} free agent{filteredFa.length !== 1 ? 's' : ''} shown (top 200 by OVR)
           </div>
+        </div>
+      )}
+
+      {/* ── Offseason / Re-signing ── */}
+      {activeTab === 'offseason' && (
+        <div>
+          {/* Header */}
+          <div style={{ background: '#111', border: '1px solid #1e1e1e', borderRadius: 8, padding: '14px 18px', marginBottom: 20 }}>
+            <div style={{ fontSize: 13, color: '#FF8740', fontWeight: 'bold', marginBottom: 4 }}>
+              RE-SIGNING WINDOW
+            </div>
+            <div style={{ fontSize: 11, color: '#555' }}>
+              {expiringPlayers.length === 0
+                ? 'No players entering the final year of their contract.'
+                : `${expiringPlayers.length} player${expiringPlayers.length !== 1 ? 's' : ''} in the final year of their contract. Make your decisions before advancing the season.`}
+            </div>
+            {expiringPlayers.length > 0 && (
+              <div style={{ display: 'flex', gap: 16, marginTop: 10, fontSize: 11 }}>
+                <span style={{ color: '#4caf50' }}>✓ {Object.values(playerDecisions).filter(d => d === 'resigned').length} re-signed</span>
+                <span style={{ color: '#e57373' }}>→ {Object.values(playerDecisions).filter(d => d === 'walking').length} letting walk</span>
+                <span style={{ color: '#FF8740' }}>⏳ {pendingCount} pending decision</span>
+              </div>
+            )}
+          </div>
+
+          {expiringPlayers.length === 0 ? (
+            <div style={{ color: '#333', padding: 24, textAlign: 'center' }}>
+              No expiring contracts — you're good to advance the season.
+            </div>
+          ) : expiringPlayers.map(player => {
+            const decision    = playerDecisions[player.id] ?? 'pending';
+            const trait       = TRAIT_META[player.dev_trait] ?? TRAIT_META['Normal'];
+            const traj        = trajectory(player.age);
+            const ap          = askingPrice(player.position, player.overall_rating, player.dev_trait, player.age);
+            const isResigning = resigningId === player.id;
+
+            const decisionColor =
+              decision === 'resigned' ? '#4caf50' :
+              decision === 'walking'  ? '#e57373' : '#FF8740';
+
+            const decisionLabel =
+              decision === 'resigned' ? 'RE-SIGNED' :
+              decision === 'walking'  ? 'LETTING WALK' : 'PENDING';
+
+            return (
+              <div key={player.id} style={{
+                borderBottom: '1px solid #111',
+                background: isResigning ? '#0a0f0a' : 'transparent',
+                opacity: decision === 'resigned' ? 0.6 : 1,
+              }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 100px 90px 130px 110px 160px', gap: 8, padding: '10px 12px', alignItems: 'center' }}>
+                  {/* Player */}
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ color: '#ddd', fontWeight: 'bold', fontSize: 13 }}>{player.first_name} {player.last_name}</span>
+                      {trait.short && <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: trait.color + '22', color: trait.color, fontWeight: 'bold', letterSpacing: 1 }}>{trait.short}</span>}
+                    </div>
+                    <div style={{ fontSize: 10, color: '#444', marginTop: 1 }}>{player.position_label || player.position}</div>
+                  </div>
+
+                  {/* Age / OVR */}
+                  <div>
+                    <span style={{ color: traj.color, fontSize: 12 }}>{player.age} {traj.label}</span>
+                    <span style={{ display: 'inline-block', marginLeft: 6, fontSize: 12, fontWeight: 'bold', color: ratingColor(player.overall_rating) }}>{player.overall_rating}</span>
+                  </div>
+
+                  {/* Dev */}
+                  <div style={{ fontSize: 11, color: trait.color }}>{player.dev_trait === 'Normal' ? '—' : player.dev_trait}</div>
+
+                  {/* Current salary */}
+                  <div>
+                    <div style={{ fontSize: 11, color: '#444' }}>Current</div>
+                    <div style={{ fontSize: 13, color: '#888' }}>{fmtSalary(player.annual_salary)}/yr</div>
+                  </div>
+
+                  {/* Asking price */}
+                  <div>
+                    <div style={{ fontSize: 11, color: '#444' }}>Asking ~</div>
+                    <div style={{ fontSize: 13, color: '#FF8740', fontWeight: 'bold' }}>{fmtSalary(ap)}/yr</div>
+                  </div>
+
+                  {/* Decision status + actions */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 3, background: decisionColor + '22', color: decisionColor, fontWeight: 'bold', letterSpacing: 1 }}>
+                      {decisionLabel}
+                    </span>
+                    {decision === 'pending' && (
+                      <>
+                        <button onClick={() => isResigning ? setResigningId(null) : openResign(player)} style={{
+                          padding: '3px 9px', fontSize: 10, cursor: 'pointer', borderRadius: 3,
+                          background: isResigning ? '#1a3a1a' : '#141414',
+                          border: `1px solid ${isResigning ? '#4caf50' : '#2a2a2a'}`,
+                          color: isResigning ? '#4caf50' : '#555',
+                        }}>{isResigning ? 'Cancel' : 'Re-Sign'}</button>
+                        <button onClick={() => handleLetWalk(player.id)} style={{
+                          padding: '3px 9px', fontSize: 10, cursor: 'pointer', borderRadius: 3,
+                          background: '#141414', border: '1px solid #2a2a2a', color: '#555',
+                        }}>Let Walk</button>
+                      </>
+                    )}
+                    {decision === 'walking' && (
+                      <button onClick={() => setPlayerDecisions(prev => ({ ...prev, [player.id]: 'pending' }))} style={{
+                        padding: '3px 9px', fontSize: 10, cursor: 'pointer', borderRadius: 3,
+                        background: '#141414', border: '1px solid #2a2a2a', color: '#555',
+                      }}>Undo</button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Re-sign offer panel */}
+                {isResigning && decision === 'pending' && (
+                  <div style={{ margin: '0 12px 14px', padding: '14px 18px', background: '#081a08', border: '1px solid #1a4a1a', borderRadius: 6 }}>
+                    <div style={{ fontSize: 10, color: '#4caf50', letterSpacing: 2, marginBottom: 12 }}>
+                      RE-SIGN OFFER — {player.first_name} {player.last_name}
+                    </div>
+                    <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                      <div>
+                        <div style={{ fontSize: 10, color: '#444', marginBottom: 6 }}>YEARS</div>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          {[1,2,3,4,5].map(y => (
+                            <button key={y} onClick={() => setResignYears(y)} style={{ width: 32, height: 32, background: resignYears === y ? '#4caf50' : '#141414', border: `1px solid ${resignYears === y ? '#4caf50' : '#2a2a2a'}`, borderRadius: 4, color: resignYears === y ? '#000' : '#555', fontWeight: 'bold', fontSize: 12, cursor: 'pointer' }}>{y}</button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, color: '#444', marginBottom: 6 }}>ANNUAL SALARY (M)</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ color: '#555' }}>$</span>
+                          <input type="number" value={resignSalary} onChange={e => setResignSalary(e.target.value)} min="0.9" step="0.5"
+                            style={{ background: '#141414', border: '1px solid #2a2a2a', borderRadius: 4, color: '#ccc', padding: '6px 10px', fontSize: 13, width: 80 }} />
+                          <span style={{ color: '#555' }}>M</span>
+                        </div>
+                        <div style={{ fontSize: 10, color: '#444', marginTop: 4 }}>Asking: ~{fmtSalary(ap)}/yr</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, color: '#444', marginBottom: 6 }}>CAP AFTER SIGNING</div>
+                        <div style={{ fontSize: 13, color: resignCapLeft < 0 ? '#e57373' : '#4caf50' }}>{fmtSalary(resignCapLeft)} remaining</div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                        <button onClick={handleResign} disabled={working || resignCapLeft < 0} style={{
+                          padding: '8px 20px', borderRadius: 4, fontSize: 12, fontWeight: 'bold',
+                          cursor: resignCapLeft < 0 ? 'not-allowed' : 'pointer',
+                          background: resignCapLeft < 0 ? '#1a1a1a' : '#081a08',
+                          border: `1px solid ${resignCapLeft < 0 ? '#2a2a2a' : '#4caf50'}`,
+                          color: resignCapLeft < 0 ? '#333' : '#4caf50',
+                        }}>
+                          {working ? '...' : resignCapLeft < 0 ? 'OVER CAP' : 'Confirm Re-Sign'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {expiringPlayers.length > 0 && (
+            <div style={{ marginTop: 20, padding: '12px 16px', background: '#111', borderRadius: 6, fontSize: 11, color: '#555' }}>
+              Once you've made your decisions, advance the season from the main menu. Players marked "Letting Walk" will automatically become free agents when the season advances.
+            </div>
+          )}
         </div>
       )}
 

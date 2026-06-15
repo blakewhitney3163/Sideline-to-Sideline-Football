@@ -108,4 +108,10 @@ contextBridge.exposeInMainWorld('api', {
   importOtcContracts: (filePath?: string) =>
     ipcRenderer.invoke('import-otc-contracts', filePath),
 
+   getExpiringContracts: () =>
+    ipcRenderer.invoke('get-expiring-contracts'),
+
+  resignPlayer: (payload: { playerId: number; years: number; salary: number }) =>
+    ipcRenderer.invoke('resign-player', payload),
+
 });

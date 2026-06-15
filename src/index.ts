@@ -698,6 +698,85 @@ ipcMain.handle('sign-free-agent', (_event: any, { playerId, years, salary }: {
   return { success: true };
 });
 
+ipcMain.handle('get-expiring-contracts', () => {
+  const teamRow = db.prepare("SELECT value FROM settings WHERE key = 'user_team_id'").get() as any;
+  if (!teamRow) return [];
+  const teamId = parseInt(teamRow.value);
+  return db.prepare(`
+    SELECT p.id, p.first_name, p.last_name, p.position, p.position_label,
+           p.overall_rating, p.age, p.dev_trait,
+           c.annual_salary, c.years_remaining, c.years_total,
+           c.guaranteed_amount, c.guaranteed_pct, c.id as contract_id
+    FROM contracts c
+    JOIN players p ON c.player_id = p.id
+    WHERE c.team_id = ? AND p.roster_status = 'active' AND c.years_remaining = 1
+    ORDER BY c.annual_salary DESC
+  `).all(teamId);
+});
+
+ipcMain.handle('resign-player', (_event: any, { playerId, years, salary }: {
+  playerId: number; years: number; salary: number;
+}) => {
+  const player = db.prepare('SELECT id, overall_rating, age, position, dev_trait FROM players WHERE id = ?').get(playerId) as any;
+  if (!player) return { success: false, reason: 'Player not found.' };
+
+  const marketRates: Record<string, [number, number][]> = {
+    QB: [[99,65],[93,50],[88,35],[83,20],[78,10],[73,4],[70,1.5]],
+    WR: [[99,45],[93,35],[88,25],[83,16],[78,8],[73,3],[70,1.5]],
+    DL: [[99,38],[93,30],[88,22],[83,14],[78,7],[73,3],[70,1.5]],
+    CB: [[99,32],[93,25],[88,18],[83,11],[78,5],[73,2.5],[70,1.5]],
+    OL: [[99,36],[93,30],[88,24],[83,18],[78,9],[73,3],[70,1.5]],
+    LB: [[99,26],[93,20],[88,15],[83,9],[78,4.5],[73,2],[70,1.5]],
+    TE: [[99,24],[93,19],[88,14],[83,8],[78,4],[73,2],[70,1.5]],
+    S:  [[99,22],[93,17],[88,12],[83,7],[78,3.5],[73,1.8],[70,1.5]],
+    RB: [[99,18],[93,14],[88,10],[83,6],[78,3],[73,1.5],[70,1.2]],
+    K:  [[99,8],[93,6],[88,5],[83,4],[78,3],[73,2],[70,1]],
+  };
+  const traitMul: Record<string, number> = { Normal: 1.0, Star: 1.1, Superstar: 1.25, 'X-Factor': 1.45 };
+  const rates = marketRates[player.position] ?? marketRates['LB'];
+  let baseMarket = rates[rates.length - 1][1];
+  for (let i = 0; i < rates.length - 1; i++) {
+    const [highOvr, highSal] = rates[i];
+    const [lowOvr, lowSal]   = rates[i + 1];
+    if (player.overall_rating >= lowOvr) {
+      const t = (player.overall_rating - lowOvr) / (highOvr - lowOvr);
+      baseMarket = lowSal + t * (highSal - lowSal);
+      break;
+    }
+  }
+  const fairMarket = Math.round(baseMarket * (traitMul[player.dev_trait] ?? 1.0) * 10) / 10;
+  const ratio = salary / Math.max(fairMarket, 1);
+
+  // Loyalty bonus — slightly more willing to stay vs testing open market
+  let acceptChance =
+    ratio >= 1.00 ? 1.00 :
+    ratio >= 0.85 ? 0.95 :
+    ratio >= 0.70 ? 0.70 :
+    ratio >= 0.50 ? 0.25 : 0.00;
+
+  if (player.age >= 33) acceptChance = Math.min(1, acceptChance + 0.15);
+  if (player.age >= 36) acceptChance = Math.min(1, acceptChance + 0.15);
+  if (player.dev_trait === 'X-Factor')  acceptChance = Math.max(0, acceptChance - 0.15);
+  if (player.dev_trait === 'Superstar') acceptChance = Math.max(0, acceptChance - 0.08);
+
+  const accepted = Math.random() < acceptChance;
+
+  if (!accepted) {
+    const reason =
+      ratio < 0.50 ? `Insulted by the offer. Looking for around ${fairMarket.toFixed(1)}M/yr.` :
+      ratio < 0.70 ? `Not enough to stay. Asking price is closer to ${fairMarket.toFixed(1)}M/yr.` :
+      ratio < 0.85 ? `Wants to test the market. Try offering closer to ${fairMarket.toFixed(1)}M/yr.` :
+      `Decided to explore other options despite the offer.`;
+    return { success: false, reason, willHitFA: true };
+  }
+
+  const guaranteedPct = Math.round(35 + Math.random() * 25);
+  const guaranteedAmount = Math.round(salary * years * (guaranteedPct / 100) * 10) / 10;
+  db.prepare('UPDATE contracts SET years_total = ?, years_remaining = ?, annual_salary = ?, guaranteed_amount = ?, guaranteed_pct = ? WHERE player_id = ?')
+    .run(years, years, salary, guaranteedAmount, guaranteedPct, playerId);
+  return { success: true };
+});
+
 ipcMain.handle('import-otc-contracts', (_event: any, filePath?: string) => {
   const fs         = require('fs');
   const pathModule = require('path');
