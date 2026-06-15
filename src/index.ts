@@ -19,6 +19,28 @@ db.exec(`
   )
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS career_stats_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    player_id INTEGER NOT NULL,
+    season INTEGER NOT NULL,
+    games INTEGER DEFAULT 0,
+    completions INTEGER DEFAULT 0,
+    pass_attempts INTEGER DEFAULT 0,
+    pass_yards INTEGER DEFAULT 0,
+    pass_tds INTEGER DEFAULT 0,
+    interceptions INTEGER DEFAULT 0,
+    rush_attempts INTEGER DEFAULT 0,
+    rush_yards INTEGER DEFAULT 0,
+    rush_tds INTEGER DEFAULT 0,
+    targets INTEGER DEFAULT 0,
+    receptions INTEGER DEFAULT 0,
+    rec_yards INTEGER DEFAULT 0,
+    rec_tds INTEGER DEFAULT 0,
+    UNIQUE(player_id, season)
+  )
+`);
+
 const POSITION_TO_GROUP: Record<string, string> = {
   QB: 'QB',
   RB: 'RB', HB: 'RB', FB: 'RB',
@@ -209,15 +231,33 @@ ipcMain.handle('get-player-stats', (_event: any, playerId: number) => {
 });
 
 ipcMain.handle('get-player-career-stats', (_event: any, playerId: number) => {
-  return db.prepare(`
-    SELECT g.season, COUNT(DISTINCT s.game_id) as games,
-      SUM(s.pass_attempts) as pass_attempts, SUM(s.completions) as completions,
-      SUM(s.pass_yards) as pass_yards, SUM(s.pass_tds) as pass_tds, SUM(s.interceptions) as interceptions,
-      SUM(s.rush_attempts) as rush_attempts, SUM(s.rush_yards) as rush_yards, SUM(s.rush_tds) as rush_tds,
-      SUM(s.targets) as targets, SUM(s.receptions) as receptions, SUM(s.rec_yards) as rec_yards, SUM(s.rec_tds) as rec_tds
-    FROM stats s JOIN games g ON s.game_id = g.id WHERE s.player_id = ?
-    GROUP BY g.season ORDER BY g.season DESC
-  `).all(playerId);
+  const live = db.prepare(`
+    SELECT g.season,
+      COUNT(DISTINCT s.game_id) as games,
+      SUM(s.completions) as completions, SUM(s.pass_attempts) as pass_attempts,
+      SUM(s.pass_yards) as pass_yards, SUM(s.pass_tds) as pass_tds,
+      SUM(s.interceptions) as interceptions,
+      SUM(s.rush_attempts) as rush_attempts, SUM(s.rush_yards) as rush_yards,
+      SUM(s.rush_tds) as rush_tds,
+      SUM(s.targets) as targets, SUM(s.receptions) as receptions,
+      SUM(s.rec_yards) as rec_yards, SUM(s.rec_tds) as rec_tds
+    FROM stats s JOIN games g ON s.game_id = g.id
+    WHERE s.player_id = ? GROUP BY g.season
+  `).all(playerId) as any[];
+
+  const history = db.prepare(`
+    SELECT season, games, completions, pass_attempts, pass_yards, pass_tds, interceptions,
+      rush_attempts, rush_yards, rush_tds, targets, receptions, rec_yards, rec_tds
+    FROM career_stats_history WHERE player_id = ?
+  `).all(playerId) as any[];
+
+  const liveSeasons = new Set(live.map((r: any) => r.season));
+  const combined = [
+    ...live,
+    ...history.filter((r: any) => !liveSeasons.has(r.season)),
+  ].sort((a: any, b: any) => b.season - a.season);
+
+  return combined;
 });
 
 ipcMain.handle('get-schedule', (_event: any, season?: number) => {
@@ -1179,6 +1219,108 @@ ipcMain.handle('import-otc-contracts', (_event: any, filePath?: string) => {
   });
   tx();
   return { success: true, matched, skipped, total: rows.length, file: otcPath, sampleNames: rows.slice(0, 8).map(r => r.name) };
+});
+
+ipcMain.handle('import-nflverse-stats', async () => {
+  const https = require('https');
+  const url = 'https://github.com/nflverse/nflverse-data/releases/download/player_stats/player_stats_season.csv';
+
+  const csvText: string = await new Promise((resolve, reject) => {
+    https.get(url, { headers: { 'User-Agent': 'NFLSimulator/1.0' } }, (res: any) => {
+      if (res.statusCode === 302 || res.statusCode === 301) {
+        https.get(res.headers.location, { headers: { 'User-Agent': 'NFLSimulator/1.0' } }, (res2: any) => {
+          const chunks: Buffer[] = [];
+          res2.on('data', (c: Buffer) => chunks.push(c));
+          res2.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+          res2.on('error', reject);
+        });
+      } else {
+        const chunks: Buffer[] = [];
+        res.on('data', (c: Buffer) => chunks.push(c));
+        res.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+        res.on('error', reject);
+      }
+    }).on('error', reject);
+  });
+
+  const lines = csvText.split('\n');
+  const headers = lines[0].split(',');
+
+  const col = (name: string) => headers.indexOf(name);
+  const iSeason      = col('season');
+  const iSeasonType  = col('season_type');
+  const iName        = col('player_display_name');
+  const iGames       = col('games');
+  const iComp        = col('completions');
+  const iAtt         = col('attempts');
+  const iPYds        = col('passing_yards');
+  const iPTDs        = col('passing_tds');
+  const iINT         = col('interceptions');
+  const iCarries     = col('carries');
+  const iRYds        = col('rushing_yards');
+  const iRTDs        = col('rushing_tds');
+  const iRec         = col('receptions');
+  const iTgt         = col('targets');
+  const iRecYds      = col('receiving_yards');
+  const iRecTDs      = col('receiving_tds');
+
+  const MIN_SEASON = 2020;
+  const MAX_SEASON = 2024;
+
+  const insert = db.prepare(`
+    INSERT OR IGNORE INTO career_stats_history
+      (player_id, season, games, completions, pass_attempts, pass_yards, pass_tds, interceptions,
+       rush_attempts, rush_yards, rush_tds, targets, receptions, rec_yards, rec_tds)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  let matched = 0, skipped = 0;
+
+  const run = db.transaction(() => {
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+
+      const cols = line.split(',');
+      const season = parseInt(cols[iSeason]);
+      if (isNaN(season) || season < MIN_SEASON || season > MAX_SEASON) continue;
+      if (cols[iSeasonType] !== 'REG') continue;
+
+      const name = cols[iName]?.trim();
+      if (!name) continue;
+
+      const parts = name.split(' ');
+      if (parts.length < 2) continue;
+      const firstName = parts[0];
+      const lastName  = parts.slice(1).join(' ');
+
+      const player = db.prepare(
+        `SELECT id FROM players WHERE first_name = ? AND last_name = ? LIMIT 1`
+      ).get(firstName, lastName) as any;
+
+      if (!player) { skipped++; continue; }
+
+      const g   = parseInt(cols[iGames])   || 0;
+      const cmp = parseInt(cols[iComp])    || 0;
+      const att = parseInt(cols[iAtt])     || 0;
+      const pyd = parseInt(cols[iPYds])    || 0;
+      const ptd = parseInt(cols[iPTDs])    || 0;
+      const int = parseInt(cols[iINT])     || 0;
+      const car = parseInt(cols[iCarries]) || 0;
+      const ryd = parseInt(cols[iRYds])    || 0;
+      const rtd = parseInt(cols[iRTDs])    || 0;
+      const rec = parseInt(cols[iRec])     || 0;
+      const tgt = parseInt(cols[iTgt])     || 0;
+      const reyd = parseInt(cols[iRecYds]) || 0;
+      const retd = parseInt(cols[iRecTDs]) || 0;
+
+      insert.run(player.id, season, g, cmp, att, pyd, ptd, int, car, ryd, rtd, tgt, rec, reyd, retd);
+      matched++;
+    }
+  });
+  run();
+
+  return { success: true, matched, skipped };
 });
 
 // ─── Depth Chart ──────────────────────────────────────────────────────────────

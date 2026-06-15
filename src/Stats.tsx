@@ -77,9 +77,9 @@ function ovrColor(r: number): string {
   return '#aaa';
 }
 
-function isQB(pos: string) { return pos === 'QB'; }
-function isRB(pos: string) { return ['RB','HB','FB'].includes(pos); }
-function isWRTE(pos: string) { return ['WR','TE'].includes(pos); }
+function isQB(pos: string)   { return pos === 'QB'; }
+function isRB(pos: string)   { return ['RB', 'HB', 'FB'].includes(pos); }
+function isWRTE(pos: string) { return ['WR', 'TE'].includes(pos); }
 
 // ─── Player Card ──────────────────────────────────────────────────────────────
 
@@ -92,9 +92,9 @@ function PlayerCard({
   currentSeason: number;
   onClose: () => void;
 }) {
-  const [seasonStats,  setSeasonStats]  = useState<SeasonStats | null>(null);
-  const [careerStats,  setCareerStats]  = useState<CareerSeasonStats[]>([]);
-  const [loading,      setLoading]      = useState(true);
+  const [seasonStats, setSeasonStats] = useState<SeasonStats | null>(null);
+  const [careerStats, setCareerStats] = useState<CareerSeasonStats[]>([]);
+  const [loading,     setLoading]     = useState(true);
 
   useEffect(() => {
     setLoading(true);
@@ -108,22 +108,15 @@ function PlayerCard({
     });
   }, [player.player_id]);
 
-  const trait = TRAIT_META[player.dev_trait] ?? TRAIT_META['Normal'];
-  const pos   = player.position;
-
+  const trait       = TRAIT_META[player.dev_trait] ?? TRAIT_META['Normal'];
+  const pos         = player.position;
   const showPassing   = isQB(pos);
   const showRushing   = isQB(pos) || isRB(pos);
   const showReceiving = isRB(pos) || isWRTE(pos);
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 100,
-      display: 'flex', alignItems: 'stretch', justifyContent: 'flex-end',
-    }}>
-      {/* Backdrop */}
+    <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'stretch', justifyContent: 'flex-end' }}>
       <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)' }} />
-
-      {/* Panel */}
       <div style={{
         position: 'relative', width: 420, background: '#0d0d0d',
         borderLeft: '1px solid #1e1e1e', overflowY: 'auto',
@@ -140,9 +133,9 @@ function PlayerCard({
                 {player.position} · {player.team_name} · Age {player.age}
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <span style={{
-                  fontSize: 20, fontWeight: 'bold', color: ovrColor(player.overall_rating),
-                }}>{player.overall_rating}</span>
+                <span style={{ fontSize: 20, fontWeight: 'bold', color: ovrColor(player.overall_rating) }}>
+                  {player.overall_rating}
+                </span>
                 <span style={{ fontSize: 9, color: '#333' }}>OVR</span>
                 {trait.label && (
                   <span style={{
@@ -153,8 +146,8 @@ function PlayerCard({
               </div>
             </div>
             <button onClick={onClose} style={{
-              background: 'none', border: 'none', color: '#444', fontSize: 20,
-              cursor: 'pointer', padding: '0 4px', lineHeight: 1,
+              background: 'none', border: 'none', color: '#444',
+              fontSize: 20, cursor: 'pointer', padding: '0 4px', lineHeight: 1,
             }}>×</button>
           </div>
         </div>
@@ -171,29 +164,29 @@ function PlayerCard({
 
             {seasonStats && (
               <div style={{ marginBottom: 24 }}>
-                {showPassing && seasonStats.pass_attempts > 0 && (
+                {showPassing && (seasonStats.pass_attempts ?? 0) > 0 && (
                   <StatGroup label="PASSING">
-                    <StatRow label="Yards"       value={seasonStats.pass_yards ?? 0} />
-                    <StatRow label="TDs"         value={seasonStats.pass_tds ?? 0} color="#81C784" />
-                    <StatRow label="INTs"        value={seasonStats.interceptions ?? 0} color="#e57373" />
-                    <StatRow label="Completions" value={`${seasonStats.completions ?? 0}/${seasonStats.pass_attempts ?? 0}`} />
-                    <StatRow label="Comp %"      value={seasonStats.pass_attempts > 0 ? ((seasonStats.completions / seasonStats.pass_attempts) * 100).toFixed(1) + '%' : '-'} />
+                    <StatRow label="Yards"        value={seasonStats.pass_yards ?? 0} />
+                    <StatRow label="TDs"          value={seasonStats.pass_tds ?? 0}   color="#81C784" />
+                    <StatRow label="INTs"         value={seasonStats.interceptions ?? 0} color="#e57373" />
+                    <StatRow label="Completions"  value={`${seasonStats.completions ?? 0}/${seasonStats.pass_attempts ?? 0}`} />
+                    <StatRow label="Comp %"       value={(seasonStats.pass_attempts ?? 0) > 0 ? ((seasonStats.completions / seasonStats.pass_attempts) * 100).toFixed(1) + '%' : '-'} />
                   </StatGroup>
                 )}
                 {showRushing && (seasonStats.rush_attempts ?? 0) > 0 && (
                   <StatGroup label="RUSHING">
-                    <StatRow label="Yards"  value={seasonStats.rush_yards ?? 0} />
-                    <StatRow label="TDs"    value={seasonStats.rush_tds ?? 0} color="#81C784" />
+                    <StatRow label="Yards"   value={seasonStats.rush_yards ?? 0} />
+                    <StatRow label="TDs"     value={seasonStats.rush_tds ?? 0} color="#81C784" />
                     <StatRow label="Carries" value={seasonStats.rush_attempts ?? 0} />
-                    <StatRow label="YPC"    value={(seasonStats.rush_attempts ?? 0) > 0 ? ((seasonStats.rush_yards ?? 0) / seasonStats.rush_attempts).toFixed(1) : '-'} />
+                    <StatRow label="YPC"     value={(seasonStats.rush_attempts ?? 0) > 0 ? ((seasonStats.rush_yards ?? 0) / seasonStats.rush_attempts).toFixed(1) : '-'} />
                   </StatGroup>
                 )}
                 {showReceiving && (seasonStats.targets ?? 0) > 0 && (
                   <StatGroup label="RECEIVING">
-                    <StatRow label="Yards"    value={seasonStats.rec_yards ?? 0} />
-                    <StatRow label="TDs"      value={seasonStats.rec_tds ?? 0} color="#81C784" />
-                    <StatRow label="Rec/Tgt"  value={`${seasonStats.receptions ?? 0}/${seasonStats.targets ?? 0}`} />
-                    <StatRow label="YPR"      value={(seasonStats.receptions ?? 0) > 0 ? ((seasonStats.rec_yards ?? 0) / seasonStats.receptions).toFixed(1) : '-'} />
+                    <StatRow label="Yards"   value={seasonStats.rec_yards ?? 0} />
+                    <StatRow label="TDs"     value={seasonStats.rec_tds ?? 0} color="#81C784" />
+                    <StatRow label="Rec/Tgt" value={`${seasonStats.receptions ?? 0}/${seasonStats.targets ?? 0}`} />
+                    <StatRow label="YPR"     value={(seasonStats.receptions ?? 0) > 0 ? ((seasonStats.rec_yards ?? 0) / seasonStats.receptions).toFixed(1) : '-'} />
                   </StatGroup>
                 )}
                 {(seasonStats.pass_attempts ?? 0) === 0 &&
@@ -216,16 +209,16 @@ function PlayerCard({
                       <tr style={{ color: '#333', borderBottom: '1px solid #1a1a1a', textAlign: 'right' }}>
                         <th style={{ textAlign: 'left', padding: '4px 6px' }}>YR</th>
                         <th style={{ padding: '4px 6px' }}>G</th>
-                        {(showPassing) && <>
+                        {showPassing && <>
                           <th style={{ padding: '4px 6px' }}>PYDS</th>
                           <th style={{ padding: '4px 6px' }}>PTD</th>
                           <th style={{ padding: '4px 6px' }}>INT</th>
                         </>}
-                        {(showRushing) && <>
+                        {showRushing && <>
                           <th style={{ padding: '4px 6px' }}>RYDS</th>
                           <th style={{ padding: '4px 6px' }}>RTD</th>
                         </>}
-                        {(showReceiving) && <>
+                        {showReceiving && <>
                           <th style={{ padding: '4px 6px' }}>RECYDS</th>
                           <th style={{ padding: '4px 6px' }}>RECTD</th>
                           <th style={{ padding: '4px 6px' }}>REC</th>
@@ -294,6 +287,8 @@ export default function Stats({ currentSeason }: Props) {
   const [viewSeason,       setViewSeason]       = useState<number>(currentSeason);
   const [availableSeasons, setAvailableSeasons] = useState<number[]>([]);
   const [selectedPlayer,   setSelectedPlayer]   = useState<SelectedPlayer | null>(null);
+  const [importing,        setImporting]        = useState(false);
+  const [importResult,     setImportResult]     = useState<{ matched: number; skipped: number } | null>(null);
 
   useEffect(() => {
     window.api.getSeasons().then((seasons: number[]) => setAvailableSeasons(seasons));
@@ -304,6 +299,14 @@ export default function Stats({ currentSeason }: Props) {
   useEffect(() => {
     window.api.getStats(viewSeason).then((data: StatsData) => setStats(data));
   }, [viewSeason]);
+
+  const handleImport = async () => {
+    setImporting(true);
+    setImportResult(null);
+    const result = await window.api.importNflverseStats();
+    setImportResult(result);
+    setImporting(false);
+  };
 
   if (!stats) return <div style={{ padding: 40, color: '#555', fontFamily: 'monospace' }}>Loading...</div>;
 
@@ -317,7 +320,6 @@ export default function Stats({ currentSeason }: Props) {
     borderBottom: '1px solid #111',
     background: selectedPlayer?.player_id === p.player_id ? '#0f1a0f' : i % 2 === 0 ? '#080808' : 'transparent',
     cursor: 'pointer',
-    transition: 'background 0.1s',
   });
 
   const tdBase: React.CSSProperties = { padding: '9px 10px', fontFamily: 'monospace', fontSize: 12 };
@@ -334,26 +336,47 @@ export default function Stats({ currentSeason }: Props) {
       )}
 
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <div style={{ fontSize: 20, fontWeight: 'bold', color: '#fff' }}>{viewSeason} Season Leaders</div>
           <div style={{ fontSize: 11, color: '#555', marginTop: 4 }}>Click any player to view their full stats</div>
         </div>
-        {availableSeasons.length > 1 && (
-          <select
-            value={viewSeason}
-            onChange={e => setViewSeason(Number(e.target.value))}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            onClick={handleImport}
+            disabled={importing}
             style={{
-              background: '#111', color: '#ccc', border: '1px solid #2a2a2a',
-              borderRadius: 4, padding: '6px 12px', fontSize: 12,
-              cursor: 'pointer', fontFamily: 'monospace',
+              padding: '5px 14px', background: '#111',
+              border: '1px solid #1a2a1a',
+              borderRadius: 4,
+              color: importing ? '#333' : '#4caf50',
+              cursor: importing ? 'not-allowed' : 'pointer',
+              fontSize: 11, fontFamily: 'monospace',
             }}
           >
-            {availableSeasons.map(s => (
-              <option key={s} value={s}>{s} Season</option>
-            ))}
-          </select>
-        )}
+            {importing ? 'Importing...' : '↓ Import NFL History'}
+          </button>
+          {importResult && (
+            <span style={{ fontSize: 10, color: '#4caf50' }}>
+              ✓ {importResult.matched} players matched
+            </span>
+          )}
+          {availableSeasons.length > 1 && (
+            <select
+              value={viewSeason}
+              onChange={e => setViewSeason(Number(e.target.value))}
+              style={{
+                background: '#111', color: '#ccc', border: '1px solid #1a1a1a',
+                borderRadius: 4, padding: '5px 12px', fontSize: 11,
+                cursor: 'pointer', fontFamily: 'monospace',
+              }}
+            >
+              {availableSeasons.map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          )}
+        </div>
       </div>
 
       {/* Category Tabs */}
@@ -364,7 +387,8 @@ export default function Stats({ currentSeason }: Props) {
             background: category === cat.id ? '#1a2a1a' : '#111',
             color: category === cat.id ? '#4caf50' : '#555',
             border: `1px solid ${category === cat.id ? '#2a4a2a' : '#1a1a1a'}`,
-            borderRadius: 4, cursor: 'pointer', fontWeight: category === cat.id ? 'bold' : 'normal',
+            borderRadius: 4, cursor: 'pointer',
+            fontWeight: category === cat.id ? 'bold' : 'normal',
             fontSize: 12, fontFamily: 'monospace',
           }}>
             {cat.label}
@@ -372,7 +396,7 @@ export default function Stats({ currentSeason }: Props) {
         ))}
       </div>
 
-      {/* Tables */}
+      {/* Passing Table */}
       {category === 'passing' && (
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
@@ -410,6 +434,7 @@ export default function Stats({ currentSeason }: Props) {
         </table>
       )}
 
+      {/* Rushing Table */}
       {category === 'rushing' && (
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
@@ -443,6 +468,7 @@ export default function Stats({ currentSeason }: Props) {
         </table>
       )}
 
+      {/* Receiving Table */}
       {category === 'receiving' && (
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>

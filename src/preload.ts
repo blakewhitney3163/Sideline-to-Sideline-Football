@@ -145,6 +145,9 @@ contextBridge.exposeInMainWorld('api', {
   resetDepthChart: (teamId: number) =>
     ipcRenderer.invoke('reset-depth-chart', teamId),
 
+  importNflverseStats: () =>
+  ipcRenderer.invoke('import-nflverse-stats'),
+
   // Injuries
   getInjuryReport: (teamId: number) =>
     ipcRenderer.invoke('get-injury-report', teamId),
