@@ -69,17 +69,41 @@ function fmtSalary(m: number): string {
   return `$${m.toFixed(1)}M`;
 }
 
-// Matches the same OVR curve used in contract generation (70-floor, ^2.5 exponent)
-function contractGrade(salary: number, pos: string, ovr: number): { label: string; color: string } | null {
-  const marketMax: Record<string, number> = {
-    QB: 55, WR: 38, DL: 45, LB: 22, CB: 28, TE: 20, OL: 26, S: 22, RB: 18, K: 5,
+// Real 2026 NFL market rates by position and OVR tier
+function contractGrade(salary: number, pos: string, ovr: number, devTrait: string = 'Normal'): { label: string; color: string } | null {
+  // X-Factor players are franchise cornerstones — big contracts are expected
+  if (devTrait === 'X-Factor') return null;
+
+  const marketRates: Record<string, [number, number][]> = {
+    //  [OVR floor, fair annual $M] pairs — interpolated between tiers
+    QB: [[99,65],[93,50],[88,35],[83,20],[78,10],[73,4],[70,1.5]],
+    WR: [[99,45],[93,35],[88,25],[83,16],[78,8],[73,3],[70,1.5]],
+    DL: [[99,38],[93,30],[88,22],[83,14],[78,7],[73,3],[70,1.5]],
+    CB: [[99,32],[93,25],[88,18],[83,11],[78,5],[73,2.5],[70,1.5]],
+    OL: [[99,32],[93,26],[88,20],[83,13],[78,6],[73,2.5],[70,1.5]],
+    LB: [[99,26],[93,20],[88,15],[83,9],[78,4.5],[73,2],[70,1.5]],
+    TE: [[99,24],[93,19],[88,14],[83,8],[78,4],[73,2],[70,1.5]],
+    S:  [[99,22],[93,17],[88,12],[83,7],[78,3.5],[73,1.8],[70,1.5]],
+    RB: [[99,18],[93,14],[88,10],[83,6],[78,3],[73,1.5],[70,1.2]],
+    K:  [[99,8],[93,6],[88,5],[83,4],[78,3],[73,2],[70,1]],
   };
-  const max = marketMax[pos] ?? 20;
-  const ovrFactor = Math.pow(Math.max(0, (ovr - 70)) / 29, 2.5);
-  const expectedAtOvr = (1 + ovrFactor * (max - 1)) * 1.15;
-  const ratio = salary / Math.max(expectedAtOvr, 1);
-  if (ratio < 0.72) return { label: 'TEAM DEAL', color: '#4caf50' };
-  if (ratio > 1.40) return { label: 'OVERPAID',  color: '#e57373' };
+
+  const rates = marketRates[pos] ?? marketRates['LB'];
+  let fairValue = rates[rates.length - 1][1];
+
+  for (let i = 0; i < rates.length - 1; i++) {
+    const [highOvr, highSal] = rates[i];
+    const [lowOvr, lowSal]   = rates[i + 1];
+    if (ovr >= lowOvr) {
+      const t = (ovr - lowOvr) / (highOvr - lowOvr);
+      fairValue = lowSal + t * (highSal - lowSal);
+      break;
+    }
+  }
+
+  const ratio = salary / Math.max(fairValue, 1);
+  if (ratio < 0.70) return { label: 'TEAM DEAL', color: '#4caf50' };
+  if (ratio > 2.00) return { label: 'OVERPAID',  color: '#e57373' };
   return null;
 }
 
@@ -260,7 +284,7 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
               const traj        = trajectory(contract.age);
               const isExtending = extendingId === contract.id;
               const isReleasing = releasingId === contract.id;
-              const grade       = contractGrade(contract.annual_salary, contract.position, contract.overall_rating);
+              const grade = contractGrade(contract.annual_salary, contract.position, contract.overall_rating, contract.dev_trait);
               const gtdPct      = contract.guaranteed_pct ?? 0;
 
               return (
