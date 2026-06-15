@@ -123,7 +123,6 @@ function fairMarketValue(pos: string, ovr: number, devTrait: string = 'Normal'):
   return Math.round(interpolateMarket(pos, ovr) * (TRAIT_MUL[devTrait] ?? 1.0) * 10) / 10;
 }
 
-// Asking price = market value adjusted for age leverage
 function askingPrice(pos: string, ovr: number, devTrait: string, age: number): number {
   const mv = fairMarketValue(pos, ovr, devTrait);
   const ageMul = age <= 28 ? 1.10 : age <= 32 ? 1.00 : 0.90;
@@ -150,6 +149,7 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
   const [rosterSpots,     setRosterSpots]     = useState<RosterSpots | null>(null);
   const [posFilter,       setPosFilter]       = useState('ALL');
   const [faPos,           setFaPos]           = useState('ALL');
+  const [faSortBy,        setFaSortBy]        = useState<'ovr' | 'age' | 'value'>('ovr');
   const [sortBy,          setSortBy]          = useState<'salary' | 'years' | 'ovr' | 'age'>('salary');
   const [activeTab,       setActiveTab]       = useState<'roster' | 'ps' | 'fa' | 'offseason'>('roster');
   const [extendingId,     setExtendingId]     = useState<number | null>(null);
@@ -294,16 +294,16 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
   };
 
   const handleLetWalk = async (playerId: number) => {
-  const player = expiringPlayers.find(p => p.id === playerId);
-  setWorking(true);
-  await window.api.releasePlayer(playerId);
-  setPlayerDecisions(prev => ({ ...prev, [playerId]: 'walking' }));
-  setResigningId(null);
-  showToast(`${player?.first_name} ${player?.last_name} released to free agency.`, 'error');
-  await loadData();
-  await loadExpiringContracts();
-  setWorking(false);
-};
+    const player = expiringPlayers.find(p => p.id === playerId);
+    setWorking(true);
+    await window.api.releasePlayer(playerId);
+    setPlayerDecisions(prev => ({ ...prev, [playerId]: 'walking' }));
+    setResigningId(null);
+    showToast(`${player?.first_name} ${player?.last_name} released to free agency.`, 'error');
+    await loadData();
+    await loadExpiringContracts();
+    setWorking(false);
+  };
 
   const filtered = contracts
     .filter(c => posFilter === 'ALL' || c.position === posFilter)
@@ -315,10 +315,17 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
       return 0;
     });
 
-  const filteredFa    = freeAgents.filter(f => faPos === 'ALL' || f.position === faPos);
-  const expiringCount = contracts.filter(c => c.years_remaining === 1).length;
-  const capPct        = cap ? (cap.used_cap / cap.total_cap) * 100 : 0;
-  const capColor      = capPct > 100 ? '#e57373' : capPct > 90 ? '#FF8740' : '#4caf50';
+  const filteredFa = freeAgents
+    .filter(f => faPos === 'ALL' || f.position === faPos)
+    .sort((a, b) => {
+      if (faSortBy === 'age')   return a.age - b.age;
+      if (faSortBy === 'value') return fairMarketValue(b.position, b.overall_rating, b.dev_trait) - fairMarketValue(a.position, a.overall_rating, a.dev_trait);
+      return b.overall_rating - a.overall_rating;
+    });
+
+  const expiringCount   = contracts.filter(c => c.years_remaining === 1).length;
+  const capPct          = cap ? (cap.used_cap / cap.total_cap) * 100 : 0;
+  const capColor        = capPct > 100 ? '#e57373' : capPct > 90 ? '#FF8740' : '#4caf50';
   const totalGuaranteed = contracts.reduce((s, c) => s + (c.guaranteed_amount ?? 0), 0);
   const currentExtend   = extendingId ? contracts.find(c => c.id === extendingId) : null;
   const extendSalaryNum = parseFloat(extendSalary) || 0;
@@ -380,7 +387,7 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
         </div>
       )}
 
-  {/* OTC Import */}
+      {/* OTC Import */}
       <div style={{ marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
         <button
           onClick={async () => {
@@ -403,14 +410,14 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
       {/* Tabs */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
         {([
-          { key: 'roster',    label: `ACTIVE ROSTER (${contracts.length})`,  warn: false },
-          { key: 'ps',        label: `PRACTICE SQUAD (${practiceSquad.length})`, warn: false },
-          { key: 'fa',        label: 'FREE AGENTS',                           warn: false },
+          { key: 'roster',    label: `ACTIVE ROSTER (${contracts.length})`,       warn: false },
+          { key: 'ps',        label: `PRACTICE SQUAD (${practiceSquad.length})`,  warn: false },
+          { key: 'fa',        label: 'FREE AGENTS',                                warn: false },
           { key: 'offseason', label: expiringCount > 0 ? `OFFSEASON ⚠ ${expiringCount}` : 'OFFSEASON', warn: expiringCount > 0 },
         ] as const).map(tab => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{
             padding: '5px 16px', fontSize: 11, letterSpacing: 1, cursor: 'pointer', borderRadius: 4,
-            background: activeTab === tab.key ? (tab.warn ? '#FF8740' : '#FF8740') : (tab.warn ? '#1a1000' : '#111'),
+            background: activeTab === tab.key ? '#FF8740' : (tab.warn ? '#1a1000' : '#111'),
             border: `1px solid ${activeTab === tab.key ? '#FF8740' : tab.warn ? '#FF8740' : '#222'}`,
             color: activeTab === tab.key ? '#000' : tab.warn ? '#FF8740' : '#555',
             fontWeight: activeTab === tab.key || tab.warn ? 'bold' : 'normal',
@@ -564,8 +571,8 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
       {/* ── Practice Squad ── */}
       {activeTab === 'ps' && (
         <div>
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 100px 90px 120px', gap: 8, padding: '6px 12px', fontSize: 10, color: '#333', letterSpacing: 1, borderBottom: '1px solid #1a1a1a', marginBottom: 4 }}>
-            <span>PLAYER</span><span>AGE / OVR</span><span>DEV</span><span>SALARY</span>
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 100px 90px 120px 90px', gap: 8, padding: '6px 12px', fontSize: 10, color: '#333', letterSpacing: 1, borderBottom: '1px solid #1a1a1a', marginBottom: 4 }}>
+            <span>PLAYER</span><span>AGE / OVR</span><span>DEV</span><span>SALARY</span><span />
           </div>
           {practiceSquad.length === 0 ? (
             <div style={{ color: '#333', padding: 24, textAlign: 'center' }}>No practice squad players</div>
@@ -573,7 +580,7 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
             const trait = TRAIT_META[p.dev_trait] ?? TRAIT_META['Normal'];
             const traj  = trajectory(p.age);
             return (
-              <div key={p.id} style={{ display: 'grid', gridTemplateColumns: '2fr 100px 90px 120px', gap: 8, padding: '8px 12px', borderBottom: '1px solid #111', alignItems: 'center' }}>
+              <div key={p.id} style={{ display: 'grid', gridTemplateColumns: '2fr 100px 90px 120px 90px', gap: 8, padding: '8px 12px', borderBottom: '1px solid #111', alignItems: 'center' }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ color: '#ddd', fontSize: 13 }}>{p.first_name} {p.last_name}</span>
@@ -587,6 +594,26 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
                 </div>
                 <div style={{ fontSize: 11, color: trait.color }}>{p.dev_trait === 'Normal' ? '—' : p.dev_trait}</div>
                 <div style={{ fontSize: 12, color: '#555' }}>{fmtSalary(p.annual_salary ?? 1.165)}</div>
+                <div>
+                  <button
+                    onClick={async () => {
+                      const result = await window.api.promoteFromPs(p.id);
+                      if (result.success) {
+                        showToast(`${result.name} promoted to active roster.`, 'success');
+                        loadData();
+                      } else {
+                        showToast(result.reason ?? 'Could not promote.', 'error');
+                      }
+                    }}
+                    disabled={!!(rosterSpots && rosterSpots.activeFree <= 0)}
+                    style={{
+                      padding: '4px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4,
+                      background: '#0a1a0a', border: '1px solid #1a4a1a', color: '#4caf50',
+                      opacity: rosterSpots && rosterSpots.activeFree <= 0 ? 0.3 : 1,
+                    }}>
+                    Promote
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -597,7 +624,7 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
       {/* ── Free Agents ── */}
       {activeTab === 'fa' && (
         <div>
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 14 }}>
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 14, alignItems: 'center' }}>
             {POSITIONS.map(pos => (
               <button key={pos} onClick={() => { setFaPos(pos); setSigningId(null); }} style={{
                 padding: '3px 9px', background: faPos === pos ? '#4FC3F7' : '#141414',
@@ -606,6 +633,14 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
                 fontWeight: faPos === pos ? 'bold' : 'normal',
               }}>{pos}</button>
             ))}
+            <select value={faSortBy} onChange={e => setFaSortBy(e.target.value as any)} style={{
+              marginLeft: 'auto', background: '#161616', border: '1px solid #2a2a2a',
+              borderRadius: 5, color: '#ccc', padding: '4px 10px', fontSize: 12,
+            }}>
+              <option value="ovr">Sort: OVR</option>
+              <option value="value">Sort: Market Value</option>
+              <option value="age">Sort: Age</option>
+            </select>
           </div>
 
           {rosterSpots && cap && (
@@ -716,11 +751,8 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
       {/* ── Offseason / Re-signing ── */}
       {activeTab === 'offseason' && (
         <div>
-          {/* Header */}
           <div style={{ background: '#111', border: '1px solid #1e1e1e', borderRadius: 8, padding: '14px 18px', marginBottom: 20 }}>
-            <div style={{ fontSize: 13, color: '#FF8740', fontWeight: 'bold', marginBottom: 4 }}>
-              RE-SIGNING WINDOW
-            </div>
+            <div style={{ fontSize: 13, color: '#FF8740', fontWeight: 'bold', marginBottom: 4 }}>RE-SIGNING WINDOW</div>
             <div style={{ fontSize: 11, color: '#555' }}>
               {expiringPlayers.length === 0
                 ? 'No players entering the final year of their contract.'
@@ -761,7 +793,6 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
                 opacity: decision === 'resigned' ? 0.6 : 1,
               }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 100px 90px 130px 110px 160px', gap: 8, padding: '10px 12px', alignItems: 'center' }}>
-                  {/* Player */}
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span style={{ color: '#ddd', fontWeight: 'bold', fontSize: 13 }}>{player.first_name} {player.last_name}</span>
@@ -769,29 +800,19 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
                     </div>
                     <div style={{ fontSize: 10, color: '#444', marginTop: 1 }}>{player.position_label || player.position}</div>
                   </div>
-
-                  {/* Age / OVR */}
                   <div>
                     <span style={{ color: traj.color, fontSize: 12 }}>{player.age} {traj.label}</span>
                     <span style={{ display: 'inline-block', marginLeft: 6, fontSize: 12, fontWeight: 'bold', color: ratingColor(player.overall_rating) }}>{player.overall_rating}</span>
                   </div>
-
-                  {/* Dev */}
                   <div style={{ fontSize: 11, color: trait.color }}>{player.dev_trait === 'Normal' ? '—' : player.dev_trait}</div>
-
-                  {/* Current salary */}
                   <div>
                     <div style={{ fontSize: 11, color: '#444' }}>Current</div>
                     <div style={{ fontSize: 13, color: '#888' }}>{fmtSalary(player.annual_salary)}/yr</div>
                   </div>
-
-                  {/* Asking price */}
                   <div>
                     <div style={{ fontSize: 11, color: '#444' }}>Asking ~</div>
                     <div style={{ fontSize: 13, color: '#FF8740', fontWeight: 'bold' }}>{fmtSalary(ap)}/yr</div>
                   </div>
-
-                  {/* Decision status + actions */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 3, background: decisionColor + '22', color: decisionColor, fontWeight: 'bold', letterSpacing: 1 }}>
                       {decisionLabel}
@@ -819,7 +840,6 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
                   </div>
                 </div>
 
-                {/* Re-sign offer panel */}
                 {isResigning && decision === 'pending' && (
                   <div style={{ margin: '0 12px 14px', padding: '14px 18px', background: '#081a08', border: '1px solid #1a4a1a', borderRadius: 6 }}>
                     <div style={{ fontSize: 10, color: '#4caf50', letterSpacing: 2, marginBottom: 12 }}>

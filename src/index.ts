@@ -854,6 +854,41 @@ ipcMain.handle('release-player', (_event: any, playerId: number) => {
   return { success: true };
 });
 
+ipcMain.handle('promote-from-ps', (_event: any, playerId: number) => {
+  const teamRow = db.prepare("SELECT value FROM settings WHERE key = 'user_team_id'").get() as any;
+  if (!teamRow) return { success: false, reason: 'No franchise selected.' };
+  const teamId = parseInt(teamRow.value);
+
+  const active = (db.prepare("SELECT COUNT(*) as count FROM players WHERE team_id = ? AND roster_status = 'active'").get(teamId) as any).count;
+  if (active >= 53) return { success: false, reason: 'Active roster is full (53/53). Release a player first.' };
+
+  const player = db.prepare('SELECT * FROM players WHERE id = ? AND roster_status = ?').get(playerId, 'practice_squad') as any;
+  if (!player) return { success: false, reason: 'Player not on practice squad.' };
+
+  db.prepare("UPDATE players SET roster_status = 'active' WHERE id = ?").run(playerId);
+
+  const SAL_RANGES: Record<string, [number, number]> = {
+    QB: [1.0, 42], WR: [1.0, 28], DL: [1.0, 32], LB: [1.0, 18],
+    CB: [1.0, 22], TE: [1.0, 16], OL: [1.0, 22], S: [1.0, 18],
+    RB: [1.0, 16], K: [1.0, 4],
+  };
+  const [minSal, maxSal] = SAL_RANGES[player.position] ?? [1.0, 10];
+  const ovrFactor = Math.pow(Math.max(0, (player.overall_rating - 70)) / 29, 2.5);
+  const salary = Math.round((minSal + ovrFactor * (maxSal - minSal)) * 10) / 10;
+  const years = player.age <= 25 ? 3 : player.age <= 29 ? 2 : 1;
+
+  const existing = db.prepare('SELECT id FROM contracts WHERE player_id = ?').get(playerId);
+  if (existing) {
+    db.prepare('UPDATE contracts SET years_total = ?, years_remaining = ?, annual_salary = ?, guaranteed_amount = ?, guaranteed_pct = ? WHERE player_id = ?')
+      .run(years, years, salary, Math.round(salary * years * 0.3 * 10) / 10, 30, playerId);
+  } else {
+    db.prepare('INSERT INTO contracts (player_id, team_id, years_total, years_remaining, annual_salary, guaranteed_amount, guaranteed_pct) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(playerId, teamId, years, years, salary, Math.round(salary * years * 0.3 * 10) / 10, 30);
+  }
+
+  return { success: true, name: `${player.first_name} ${player.last_name}` };
+});
+
 ipcMain.handle('sign-free-agent', (_event: any, { playerId, years, salary }: {
   playerId: number; years: number; salary: number;
 }) => {
