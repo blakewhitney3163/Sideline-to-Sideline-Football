@@ -18,6 +18,9 @@ interface DepthPlayer {
   awareness: number;
   slot: number;
   position_group: string;
+  injury_status: string;
+  weeks_out: number;
+  injury_type: string;
 }
 
 interface UserTeam {
@@ -36,23 +39,16 @@ interface Props {
 const POSITION_GROUPS = ['QB', 'RB', 'WR', 'TE', 'OL', 'DL', 'LB', 'CB', 'S', 'K'];
 
 const GROUP_LABELS: Record<string, string> = {
-  QB: 'Quarterback',
-  RB: 'Running Back',
-  WR: 'Wide Receiver',
-  TE: 'Tight End',
-  OL: 'Offensive Line',
-  DL: 'Defensive Line',
-  LB: 'Linebacker',
-  CB: 'Cornerback',
-  S: 'Safety',
-  K: 'Kicker',
+  QB: 'Quarterback', RB: 'Running Back', WR: 'Wide Receiver', TE: 'Tight End',
+  OL: 'Offensive Line', DL: 'Defensive Line', LB: 'Linebacker',
+  CB: 'Cornerback', S: 'Safety', K: 'Kicker',
 };
 
 const TRAIT_META: Record<string, { color: string; short: string }> = {
-  Normal:    { color: '#444',    short: '' },
-  Star:      { color: '#4FC3F7', short: 'S' },
-  Superstar: { color: '#FF8740', short: 'SS' },
-  'X-Factor':{ color: '#FFD700', short: 'XF' },
+  Normal:     { color: '#444',    short: '' },
+  Star:       { color: '#4FC3F7', short: 'S' },
+  Superstar:  { color: '#FF8740', short: 'SS' },
+  'X-Factor': { color: '#FFD700', short: 'XF' },
 };
 
 function ovrColor(ovr: number): string {
@@ -62,15 +58,22 @@ function ovrColor(ovr: number): string {
   return '#aaa';
 }
 
+function injuryMeta(status: string): { label: string; color: string; bg: string } | null {
+  if (status === 'ir')           return { label: 'IR',  color: '#e57373', bg: '#2a0a0a' };
+  if (status === 'out')          return { label: 'OUT', color: '#FF8740', bg: '#2a1500' };
+  if (status === 'questionable') return { label: 'Q',   color: '#FFD700', bg: '#1a1500' };
+  return null;
+}
+
 // ─── DepthChart ───────────────────────────────────────────────────────────────
 
 export default function DepthChart({ userTeam }: Props) {
-  const [chart,         setChart]         = useState<Record<string, DepthPlayer[]>>({});
-  const [loading,       setLoading]       = useState(true);
-  const [saving,        setSaving]        = useState<string | null>(null);
-  const [resetting,     setResetting]     = useState(false);
-  const [activeGroup,   setActiveGroup]   = useState('QB');
-  const [toast,         setToast]         = useState<string | null>(null);
+  const [chart,       setChart]       = useState<Record<string, DepthPlayer[]>>({});
+  const [loading,     setLoading]     = useState(true);
+  const [saving,      setSaving]      = useState<string | null>(null);
+  const [resetting,   setResetting]   = useState(false);
+  const [activeGroup, setActiveGroup] = useState('QB');
+  const [toast,       setToast]       = useState<string | null>(null);
 
   useEffect(() => { load(); }, [userTeam.id]);
 
@@ -90,8 +93,7 @@ export default function DepthChart({ userTeam }: Props) {
     if (idx === 0) return;
     const players = [...(chart[group] ?? [])];
     [players[idx - 1], players[idx]] = [players[idx], players[idx - 1]];
-    const updated = { ...chart, [group]: players };
-    setChart(updated);
+    setChart({ ...chart, [group]: players });
     setSaving(group);
     await window.api.setDepthChartOrder({
       teamId: userTeam.id,
@@ -106,8 +108,7 @@ export default function DepthChart({ userTeam }: Props) {
     const players = [...(chart[group] ?? [])];
     if (idx >= players.length - 1) return;
     [players[idx], players[idx + 1]] = [players[idx + 1], players[idx]];
-    const updated = { ...chart, [group]: players };
-    setChart(updated);
+    setChart({ ...chart, [group]: players });
     setSaving(group);
     await window.api.setDepthChartOrder({
       teamId: userTeam.id,
@@ -127,6 +128,7 @@ export default function DepthChart({ userTeam }: Props) {
   };
 
   const players = chart[activeGroup] ?? [];
+  const injuredCount = Object.values(chart).flat().filter(p => p.injury_status !== 'healthy').length;
 
   if (loading) {
     return <div style={{ color: '#555', padding: 40, fontFamily: 'monospace' }}>Loading depth chart...</div>;
@@ -138,8 +140,9 @@ export default function DepthChart({ userTeam }: Props) {
       {/* Toast */}
       {toast && (
         <div style={{
-          position: 'fixed', top: 20, right: 20, background: '#1a2a1a', border: '1px solid #2a4a2a',
-          borderRadius: 6, padding: '10px 16px', color: '#4caf50', fontSize: 12, zIndex: 999,
+          position: 'fixed', top: 20, right: 20, background: '#1a2a1a',
+          border: '1px solid #2a4a2a', borderRadius: 6, padding: '10px 16px',
+          color: '#4caf50', fontSize: 12, zIndex: 999,
         }}>
           {toast}
         </div>
@@ -149,16 +152,18 @@ export default function DepthChart({ userTeam }: Props) {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
           <div style={{ fontSize: 20, fontWeight: 'bold', color: '#fff' }}>Depth Chart</div>
-          <div style={{ fontSize: 12, color: '#555', marginTop: 4 }}>{userTeam.city} {userTeam.name}</div>
+          <div style={{ fontSize: 12, color: '#555', marginTop: 4 }}>
+            {userTeam.city} {userTeam.name}
+            {injuredCount > 0 && (
+              <span style={{ marginLeft: 12, color: '#FF8740' }}>⚠ {injuredCount} injured</span>
+            )}
+          </div>
         </div>
-        <button
-          onClick={handleReset}
-          disabled={resetting}
-          style={{
-            padding: '7px 14px', background: '#141414', border: '1px solid #2a2a2a',
-            borderRadius: 4, color: resetting ? '#333' : '#666', fontSize: 11,
-            cursor: resetting ? 'not-allowed' : 'pointer', fontFamily: 'monospace',
-          }}>
+        <button onClick={handleReset} disabled={resetting} style={{
+          padding: '7px 14px', background: '#141414', border: '1px solid #2a2a2a',
+          borderRadius: 4, color: resetting ? '#333' : '#666', fontSize: 11,
+          cursor: resetting ? 'not-allowed' : 'pointer', fontFamily: 'monospace',
+        }}>
           {resetting ? 'Resetting...' : '↺ Reset to OVR Order'}
         </button>
       </div>
@@ -166,27 +171,21 @@ export default function DepthChart({ userTeam }: Props) {
       {/* Position Group Tabs */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 20, flexWrap: 'wrap' }}>
         {POSITION_GROUPS.map(group => {
-          const count = (chart[group] ?? []).length;
-          if (count === 0) return null;
+          const groupPlayers = chart[group] ?? [];
+          if (groupPlayers.length === 0) return null;
+          const hasInjury = groupPlayers.some(p => p.injury_status !== 'healthy');
           return (
-            <button
-              key={group}
-              onClick={() => setActiveGroup(group)}
-              style={{
-                padding: '6px 14px',
-                background: activeGroup === group ? '#1a2a1a' : '#111',
-                border: `1px solid ${activeGroup === group ? '#2a4a2a' : '#1a1a1a'}`,
-                borderRadius: 4,
-                color: activeGroup === group ? '#4caf50' : '#555',
-                fontWeight: activeGroup === group ? 'bold' : 'normal',
-                fontSize: 12,
-                cursor: 'pointer',
-                fontFamily: 'monospace',
-              }}>
+            <button key={group} onClick={() => setActiveGroup(group)} style={{
+              padding: '6px 14px',
+              background: activeGroup === group ? '#1a2a1a' : '#111',
+              border: `1px solid ${activeGroup === group ? '#2a4a2a' : hasInjury ? '#2a1a00' : '#1a1a1a'}`,
+              borderRadius: 4,
+              color: activeGroup === group ? '#4caf50' : hasInjury ? '#FF8740' : '#555',
+              fontWeight: activeGroup === group ? 'bold' : 'normal',
+              fontSize: 12, cursor: 'pointer', fontFamily: 'monospace',
+            }}>
               {group}
-              <span style={{ marginLeft: 5, fontSize: 10, color: activeGroup === group ? '#2a4a2a' : '#333' }}>
-                {count}
-              </span>
+              {hasInjury && <span style={{ marginLeft: 4, fontSize: 9 }}>⚠</span>}
             </button>
           );
         })}
@@ -198,35 +197,32 @@ export default function DepthChart({ userTeam }: Props) {
         {saving === activeGroup && <span style={{ color: '#333', marginLeft: 12 }}>saving...</span>}
       </div>
 
-      {/* Depth Chart List */}
+      {/* Main content */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 24 }}>
         <div>
           {players.length === 0 ? (
             <div style={{ color: '#333', fontSize: 12 }}>No players at this position.</div>
           ) : (
             players.map((player, idx) => {
-              const trait = TRAIT_META[player.dev_trait] ?? TRAIT_META['Normal'];
+              const trait   = TRAIT_META[player.dev_trait] ?? TRAIT_META['Normal'];
+              const injury  = injuryMeta(player.injury_status);
+              const isOut   = player.injury_status === 'out' || player.injury_status === 'ir';
               const isStarter = idx === 0;
               const isBackup  = idx === 1;
 
               return (
-                <div
-                  key={player.player_id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                    padding: '12px 16px',
-                    marginBottom: 4,
-                    background: isStarter ? '#0f1a0f' : '#111',
-                    border: `1px solid ${isStarter ? '#1a3a1a' : '#1a1a1a'}`,
-                    borderRadius: 6,
-                  }}>
+                <div key={player.player_id} style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '12px 16px', marginBottom: 4,
+                  background: isOut ? '#120a0a' : isStarter ? '#0f1a0f' : '#111',
+                  border: `1px solid ${isOut ? '#2a1010' : isStarter ? '#1a3a1a' : '#1a1a1a'}`,
+                  borderRadius: 6, opacity: isOut ? 0.75 : 1,
+                }}>
 
-                  {/* Slot # */}
+                  {/* Slot */}
                   <div style={{ width: 28, textAlign: 'right', flexShrink: 0 }}>
                     {isStarter ? (
-                      <span style={{ fontSize: 9, color: '#4caf50', letterSpacing: 1 }}>STR</span>
+                      <span style={{ fontSize: 9, color: isOut ? '#555' : '#4caf50', letterSpacing: 1 }}>STR</span>
                     ) : isBackup ? (
                       <span style={{ fontSize: 9, color: '#555', letterSpacing: 1 }}>BU1</span>
                     ) : (
@@ -237,57 +233,57 @@ export default function DepthChart({ userTeam }: Props) {
                   {/* OVR */}
                   <div style={{
                     width: 36, textAlign: 'center', fontSize: 14, fontWeight: 'bold',
-                    color: ovrColor(player.overall_rating), flexShrink: 0,
+                    color: isOut ? '#444' : ovrColor(player.overall_rating), flexShrink: 0,
                   }}>
                     {player.overall_rating}
                   </div>
 
                   {/* Name + info */}
                   <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 13, color: isStarter ? '#fff' : '#ccc' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 13, color: isOut ? '#555' : isStarter ? '#fff' : '#ccc' }}>
                         {player.first_name} {player.last_name}
                       </span>
                       {trait.short && (
                         <span style={{
-                          fontSize: 9, color: trait.color, border: `1px solid ${trait.color}`,
+                          fontSize: 9, color: isOut ? '#444' : trait.color,
+                          border: `1px solid ${isOut ? '#333' : trait.color}`,
                           borderRadius: 2, padding: '1px 4px', letterSpacing: 0.5,
-                        }}>
-                          {trait.short}
-                        </span>
+                        }}>{trait.short}</span>
+                      )}
+                      {injury && (
+                        <span style={{
+                          fontSize: 9, fontWeight: 'bold', color: injury.color,
+                          background: injury.bg, border: `1px solid ${injury.color}`,
+                          borderRadius: 2, padding: '1px 5px', letterSpacing: 0.5,
+                        }}>{injury.label}</span>
                       )}
                     </div>
                     <div style={{ fontSize: 10, color: '#444', marginTop: 2 }}>
                       {player.position_label || player.position} · Age {player.age} · SPD {player.speed} · STR {player.strength} · AWR {player.awareness}
+                      {player.injury_type && player.weeks_out > 0 && (
+                        <span style={{ color: '#3a2010', marginLeft: 8 }}>{player.injury_type} · {player.weeks_out}wk</span>
+                      )}
+                      {player.injury_type && player.weeks_out === 0 && (
+                        <span style={{ color: '#FFD700', marginLeft: 8 }}>{player.injury_type} · Game-time</span>
+                      )}
                     </div>
                   </div>
 
                   {/* Move buttons */}
                   <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                    <button
-                      onClick={() => handleMoveUp(activeGroup, idx)}
-                      disabled={idx === 0}
-                      style={{
-                        width: 28, height: 28, background: '#141414',
-                        border: '1px solid #222', borderRadius: 3,
-                        color: idx === 0 ? '#252525' : '#666',
-                        cursor: idx === 0 ? 'not-allowed' : 'pointer',
-                        fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      }}>
-                      ▲
-                    </button>
-                    <button
-                      onClick={() => handleMoveDown(activeGroup, idx)}
-                      disabled={idx === players.length - 1}
-                      style={{
-                        width: 28, height: 28, background: '#141414',
-                        border: '1px solid #222', borderRadius: 3,
-                        color: idx === players.length - 1 ? '#252525' : '#666',
-                        cursor: idx === players.length - 1 ? 'not-allowed' : 'pointer',
-                        fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      }}>
-                      ▼
-                    </button>
+                    <button onClick={() => handleMoveUp(activeGroup, idx)} disabled={idx === 0} style={{
+                      width: 28, height: 28, background: '#141414', border: '1px solid #222',
+                      borderRadius: 3, color: idx === 0 ? '#252525' : '#666',
+                      cursor: idx === 0 ? 'not-allowed' : 'pointer', fontSize: 12,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>▲</button>
+                    <button onClick={() => handleMoveDown(activeGroup, idx)} disabled={idx === players.length - 1} style={{
+                      width: 28, height: 28, background: '#141414', border: '1px solid #222',
+                      borderRadius: 3, color: idx === players.length - 1 ? '#252525' : '#666',
+                      cursor: idx === players.length - 1 ? 'not-allowed' : 'pointer', fontSize: 12,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>▼</button>
                   </div>
                 </div>
               );
@@ -295,67 +291,103 @@ export default function DepthChart({ userTeam }: Props) {
           )}
         </div>
 
-        {/* Sidebar — starter card */}
-        {players.length > 0 && (
-          <div>
-            <div style={{ fontSize: 10, color: '#444', letterSpacing: 2, marginBottom: 12 }}>STARTER</div>
-            <div style={{ background: '#111', border: '1px solid #1a3a1a', borderRadius: 8, padding: '16px 18px' }}>
-              <div style={{ fontSize: 9, color: '#4caf50', letterSpacing: 2, marginBottom: 8 }}>
-                {GROUP_LABELS[activeGroup]?.toUpperCase()}
-              </div>
-              <div style={{ fontSize: 18, fontWeight: 'bold', color: '#fff', marginBottom: 4 }}>
-                {players[0].first_name} {players[0].last_name}
-              </div>
-              <div style={{ fontSize: 11, color: '#555', marginBottom: 16 }}>
-                {players[0].position_label || players[0].position} · Age {players[0].age}
-              </div>
-              <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
-                <div style={{ textAlign: 'center', flex: 1, background: '#0a0a0a', borderRadius: 4, padding: '8px 0' }}>
-                  <div style={{ fontSize: 18, fontWeight: 'bold', color: ovrColor(players[0].overall_rating) }}>
-                    {players[0].overall_rating}
-                  </div>
-                  <div style={{ fontSize: 9, color: '#333', marginTop: 2 }}>OVR</div>
-                </div>
-                <div style={{ textAlign: 'center', flex: 1, background: '#0a0a0a', borderRadius: 4, padding: '8px 0' }}>
-                  <div style={{ fontSize: 18, fontWeight: 'bold', color: '#ccc' }}>{players[0].speed}</div>
-                  <div style={{ fontSize: 9, color: '#333', marginTop: 2 }}>SPD</div>
-                </div>
-                <div style={{ textAlign: 'center', flex: 1, background: '#0a0a0a', borderRadius: 4, padding: '8px 0' }}>
-                  <div style={{ fontSize: 18, fontWeight: 'bold', color: '#ccc' }}>{players[0].strength}</div>
-                  <div style={{ fontSize: 9, color: '#333', marginTop: 2 }}>STR</div>
-                </div>
-                <div style={{ textAlign: 'center', flex: 1, background: '#0a0a0a', borderRadius: 4, padding: '8px 0' }}>
-                  <div style={{ fontSize: 18, fontWeight: 'bold', color: '#ccc' }}>{players[0].awareness}</div>
-                  <div style={{ fontSize: 9, color: '#333', marginTop: 2 }}>AWR</div>
-                </div>
-              </div>
-              {(() => {
-                const trait = TRAIT_META[players[0].dev_trait] ?? TRAIT_META['Normal'];
-                return trait.short ? (
-                  <div style={{
-                    display: 'inline-block', fontSize: 10, color: trait.color,
-                    border: `1px solid ${trait.color}`, borderRadius: 3,
-                    padding: '2px 8px', letterSpacing: 1,
-                  }}>
-                    {players[0].dev_trait}
-                  </div>
-                ) : null;
-              })()}
+        {/* Starter Card */}
+        {players.length > 0 && (() => {
+          const starter = players[0];
+          const trait   = TRAIT_META[starter.dev_trait] ?? TRAIT_META['Normal'];
+          const injury  = injuryMeta(starter.injury_status);
+          const isOut   = starter.injury_status === 'out' || starter.injury_status === 'ir';
+          // If starter is out, find next healthy player
+          const effective = isOut ? players.find(p => p.injury_status === 'healthy' || p.injury_status === 'questionable') : starter;
 
-              {players.length > 1 && (
-                <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #1a1a1a' }}>
-                  <div style={{ fontSize: 9, color: '#333', letterSpacing: 1, marginBottom: 8 }}>BACKUPS</div>
-                  {players.slice(1, 4).map((p, i) => (
-                    <div key={p.player_id} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 11, borderBottom: '1px solid #111' }}>
-                      <span style={{ color: '#555' }}>{i + 2}. {p.first_name} {p.last_name}</span>
-                      <span style={{ color: ovrColor(p.overall_rating) }}>{p.overall_rating}</span>
-                    </div>
-                  ))}
+          return (
+            <div>
+              <div style={{ fontSize: 10, color: '#444', letterSpacing: 2, marginBottom: 12 }}>
+                {isOut ? 'EXPECTED STARTER' : 'STARTER'}
+              </div>
+              {isOut && effective && (
+                <div style={{ background: '#1a0a00', border: '1px solid #3a1a00', borderRadius: 4, padding: '6px 10px', marginBottom: 8, fontSize: 10, color: '#FF8740' }}>
+                  ⚠ {starter.first_name} {starter.last_name} is {starter.injury_status.toUpperCase()} — {effective.first_name} {effective.last_name} starts
                 </div>
               )}
+              <div style={{
+                background: '#111',
+                border: `1px solid ${isOut ? '#2a1010' : '#1a3a1a'}`,
+                borderRadius: 8, padding: '16px 18px',
+              }}>
+                <div style={{ fontSize: 9, color: isOut ? '#e57373' : '#4caf50', letterSpacing: 2, marginBottom: 8 }}>
+                  {GROUP_LABELS[activeGroup]?.toUpperCase()}
+                </div>
+
+                {/* Show effective starter if original is out */}
+                {(() => {
+                  const display = (isOut && effective) ? effective : starter;
+                  const displayTrait = TRAIT_META[display.dev_trait] ?? TRAIT_META['Normal'];
+                  const displayInjury = injuryMeta(display.injury_status);
+                  return (
+                    <>
+                      <div style={{ fontSize: 18, fontWeight: 'bold', color: '#fff', marginBottom: 4 }}>
+                        {display.first_name} {display.last_name}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#555', marginBottom: 16 }}>
+                        {display.position_label || display.position} · Age {display.age}
+                        {displayInjury && (
+                          <span style={{ marginLeft: 8, color: displayInjury.color }}>
+                            {displayInjury.label}{display.weeks_out > 0 ? ` · ${display.weeks_out}wk` : ''}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+                        {[
+                          { label: 'OVR', val: display.overall_rating, color: ovrColor(display.overall_rating) },
+                          { label: 'SPD', val: display.speed,           color: '#ccc' },
+                          { label: 'STR', val: display.strength,        color: '#ccc' },
+                          { label: 'AWR', val: display.awareness,       color: '#ccc' },
+                        ].map(({ label, val, color }) => (
+                          <div key={label} style={{ textAlign: 'center', flex: 1, background: '#0a0a0a', borderRadius: 4, padding: '8px 0' }}>
+                            <div style={{ fontSize: 18, fontWeight: 'bold', color }}>{val}</div>
+                            <div style={{ fontSize: 9, color: '#333', marginTop: 2 }}>{label}</div>
+                          </div>
+                        ))}
+                      </div>
+                      {displayTrait.short && (
+                        <div style={{
+                          display: 'inline-block', fontSize: 10, color: displayTrait.color,
+                          border: `1px solid ${displayTrait.color}`, borderRadius: 3,
+                          padding: '2px 8px', letterSpacing: 1, marginBottom: 12,
+                        }}>
+                          {display.dev_trait}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+
+                {players.length > 1 && (
+                  <div style={{ paddingTop: 12, borderTop: '1px solid #1a1a1a' }}>
+                    <div style={{ fontSize: 9, color: '#333', letterSpacing: 1, marginBottom: 8 }}>DEPTH</div>
+                    {players.slice(1, 5).map((p, i) => {
+                      const pInjury = injuryMeta(p.injury_status);
+                      return (
+                        <div key={p.player_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', fontSize: 11, borderBottom: '1px solid #111' }}>
+                          <span style={{ color: p.injury_status !== 'healthy' ? '#444' : '#555' }}>
+                            {i + 2}. {p.first_name[0]}. {p.last_name}
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            {pInjury && (
+                              <span style={{ fontSize: 9, color: pInjury.color }}>{pInjury.label}</span>
+                            )}
+                            <span style={{ color: ovrColor(p.overall_rating) }}>{p.overall_rating}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );

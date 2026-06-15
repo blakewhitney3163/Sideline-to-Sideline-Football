@@ -1205,7 +1205,7 @@ ipcMain.handle('get-depth-chart', (_event: any, teamId: number) => {
   const rows = db.prepare(`
     SELECT dc.position_group, dc.slot, dc.player_id,
       p.first_name, p.last_name, p.position, p.position_label,
-      p.overall_rating, p.age, p.dev_trait, p.speed, p.strength, p.awareness
+      p.overall_rating, p.age, p.dev_trait, p.speed, p.strength, p.awareness, p.injury_status, p.weeks_out, p.injury_type
     FROM depth_chart dc
     JOIN players p ON dc.player_id = p.id
     WHERE dc.team_id = ? AND p.roster_status = 'active'

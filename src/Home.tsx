@@ -76,6 +76,18 @@ interface PlayoffGame {
   away_score: number;
 }
 
+interface InjuredPlayer {
+  id: number;
+  first_name: string;
+  last_name: string;
+  position: string;
+  position_label: string;
+  overall_rating: number;
+  injury_status: string;
+  weeks_out: number;
+  injury_type: string;
+}
+
 interface UserTeam {
   id: number;
   city: string;
@@ -115,6 +127,13 @@ const smallBtn = (bg: string, fg: string, disabled: boolean): React.CSSPropertie
   fontSize: 12,
 });
 
+function injuryBadge(status: string): { label: string; color: string; bg: string } {
+  if (status === 'ir')           return { label: 'IR',  color: '#e57373', bg: '#2a0a0a' };
+  if (status === 'out')          return { label: 'OUT', color: '#FF8740', bg: '#2a1500' };
+  if (status === 'questionable') return { label: 'Q',   color: '#FFD700', bg: '#1a1500' };
+  return                                { label: '',    color: '#555',    bg: 'transparent' };
+}
+
 // ─── Home ─────────────────────────────────────────────────────────────────────
 
 export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavigate, onPlayoffsComplete }: Props) {
@@ -141,6 +160,7 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
   const [pendingResigns,     setPendingResigns]     = useState(0);
   const [draftComplete,      setDraftComplete]      = useState(false);
   const [draftGenerated,     setDraftGenerated]     = useState(false);
+  const [injuryReport,       setInjuryReport]       = useState<InjuredPlayer[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -152,13 +172,15 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
       setPlayoffSeeds(null);
       setPlayoffResults(null);
       setUserRecord(null);
+      setInjuryReport([]);
 
-      const [status, dashboard, champs, standings, offseason] = await Promise.all([
+      const [status, dashboard, champs, standings, offseason, injuries] = await Promise.all([
         window.api.getCurrentWeek(),
         window.api.getDashboard(currentSeason),
         window.api.getChampions(),
         window.api.getStandings(currentSeason),
         window.api.getOffseasonStatus(),
+        window.api.getInjuryReport(userTeam.id),
       ]);
 
       if (cancelled) return;
@@ -174,6 +196,7 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
       setPendingResigns(offseason.pendingResigns ?? 0);
       setDraftComplete(offseason.draftComplete ?? false);
       setDraftGenerated(offseason.draftGenerated ?? false);
+      setInjuryReport(injuries ?? []);
 
       if (offseason.playoffsComplete) onPlayoffsComplete();
 
@@ -228,16 +251,18 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
     if (currentWeek === null) return;
     setSimulating(true);
     await window.api.simulateWeek(currentWeek);
-    const [status, dashboard, standings] = await Promise.all([
+    const [status, dashboard, standings, injuries] = await Promise.all([
       window.api.getCurrentWeek(),
       window.api.getDashboard(currentSeason),
       window.api.getStandings(currentSeason),
+      window.api.getInjuryReport(userTeam.id),
     ]);
     setCurrentWeek(status.currentWeek);
     setTopAFC(dashboard.topAFC);
     setTopNFC(dashboard.topNFC);
     const mine = standings.find((t: any) => t.id === userTeam.id);
     if (mine) setUserRecord({ wins: mine.wins, losses: mine.losses });
+    setInjuryReport(injuries ?? []);
     const data = await window.api.getWeekMatchups(viewWeek);
     setMatchups(data);
     setSimulating(false);
@@ -358,13 +383,9 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
           {allWeeksDone && playoffsComplete && (
             <>
               {!confirming && (
-                <button
-                  onClick={() => setConfirming(true)}
-                  style={btn('#1a1a1a', pendingResigns > 0 ? '#FF8740' : '#ccc', false, '1px solid #333')}
-                >
-                  {pendingResigns > 0
-                    ? `⚠ ${pendingResigns} pending — Advance anyway?`
-                    : `Advance to ${currentSeason + 1} →`}
+                <button onClick={() => setConfirming(true)}
+                  style={btn('#1a1a1a', pendingResigns > 0 ? '#FF8740' : '#ccc', false, '1px solid #333')}>
+                  {pendingResigns > 0 ? `⚠ ${pendingResigns} pending — Advance anyway?` : `Advance to ${currentSeason + 1} →`}
                 </button>
               )}
               {confirming && (
@@ -392,7 +413,6 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
             </button>
           </div>
 
-          {/* Re-signing */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid #1a1a1a' }}>
             <span style={{ fontSize: 16, width: 20, textAlign: 'center', color: pendingResigns === 0 ? '#4caf50' : '#FF8740' }}>
               {pendingResigns === 0 ? '✓' : '⚠'}
@@ -402,9 +422,7 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
                 Re-signing Window {pendingResigns > 0 ? `— ${pendingResigns} decision${pendingResigns !== 1 ? 's' : ''} pending` : '— Complete'}
               </div>
               <div style={{ fontSize: 10, color: '#444', marginTop: 2 }}>
-                {pendingResigns > 0
-                  ? 'Players on expiring contracts need a decision before the season ends'
-                  : 'All expiring contracts addressed'}
+                {pendingResigns > 0 ? 'Players on expiring contracts need a decision before the season ends' : 'All expiring contracts addressed'}
               </div>
             </div>
             <button onClick={() => onNavigate('franchise')} style={{
@@ -413,9 +431,8 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
             }}>→ Franchise</button>
           </div>
 
-          {/* Free Agency — optional */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid #1a1a1a' }}>
-            <span style={{ fontSize: 9, width: 20, textAlign: 'center', color: '#444', letterSpacing: 0.5 }}>OPT</span>
+            <span style={{ fontSize: 9, width: 20, textAlign: 'center', color: '#444' }}>OPT</span>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 12, color: '#555' }}>
                 Free Agency <span style={{ fontSize: 9, color: '#333', marginLeft: 6, letterSpacing: 1 }}>OPTIONAL</span>
@@ -428,7 +445,6 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
             }}>→ Free Agents</button>
           </div>
 
-          {/* Draft */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0' }}>
             <span style={{ fontSize: 16, width: 20, textAlign: 'center', color: draftComplete ? '#4caf50' : '#555' }}>
               {draftComplete ? '✓' : '○'}
@@ -438,9 +454,7 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
                 NFL Draft {draftComplete ? '— Complete' : draftGenerated ? '— In Progress' : '— Not Started'}
               </div>
               <div style={{ fontSize: 10, color: '#444', marginTop: 2 }}>
-                {draftComplete
-                  ? '7 rounds complete — rookies added to rosters'
-                  : '7 rounds · reverse standings order · CPU auto-picks'}
+                {draftComplete ? '7 rounds complete — rookies added to rosters' : '7 rounds · reverse standings order · CPU auto-picks'}
               </div>
             </div>
             <button onClick={() => onNavigate('draft')} style={{
@@ -472,7 +486,6 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
             <PlayoffSeedingsView seeds={playoffSeeds} />
           ) : (
             <>
-              {/* Week nav */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
                 <button onClick={() => handleViewWeek(viewWeek - 1)} disabled={viewWeek <= 1}
                   style={{ padding: '4px 12px', background: '#141414', border: '1px solid #2a2a2a', borderRadius: 4, color: viewWeek <= 1 ? '#333' : '#888', cursor: viewWeek <= 1 ? 'not-allowed' : 'pointer', fontSize: 12 }}>←</button>
@@ -486,7 +499,6 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
                 )}
               </div>
 
-              {/* Game cards */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {matchups.map(game => {
                   const played   = game.is_simulated === 1;
@@ -503,13 +515,11 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
                           <span style={{ color: played ? (homeWon ? '#fff' : '#555') : '#ccc', fontSize: 12 }}>{game.home_team}</span>
                         </div>
                         {played && <span style={{ fontSize: 15, fontWeight: 'bold', color: homeWon ? '#fff' : '#555' }}>{game.home_score}</span>}
-
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
                           <span style={{ color: played ? (awayWon ? '#fff' : '#555') : '#ccc', fontSize: 12 }}>{game.away_team}</span>
                           {awayWon && <span style={{ color: '#4caf50', fontSize: 10 }}>▸</span>}
                         </div>
                         {played && <span style={{ fontSize: 15, fontWeight: 'bold', color: awayWon ? '#fff' : '#555' }}>{game.away_score}</span>}
-
                         {!played && (
                           <span style={{ fontSize: 9, color: isUserGame ? '#4caf50' : '#333', letterSpacing: 1, gridColumn: '2 / 5' }}>
                             {isUserGame ? '◆ YOUR GAME' : 'PREVIEW'}
@@ -543,6 +553,35 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
 
         {/* Sidebar */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+          {/* Injury Report */}
+          {injuryReport.length > 0 && (
+            <SidebarBlock title="INJURY REPORT">
+              {injuryReport.map((p, i) => {
+                const badge = injuryBadge(p.injury_status);
+                return (
+                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: '1px solid #141414' }}>
+                    <span style={{
+                      fontSize: 9, fontWeight: 'bold', color: badge.color,
+                      background: badge.bg, border: `1px solid ${badge.color}`,
+                      borderRadius: 2, padding: '1px 4px', minWidth: 24, textAlign: 'center', flexShrink: 0,
+                    }}>{badge.label}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 11, color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {p.first_name[0]}. {p.last_name}
+                        <span style={{ color: '#444', marginLeft: 5 }}>{p.position_label || p.position}</span>
+                      </div>
+                      <div style={{ fontSize: 9, color: '#444', marginTop: 1 }}>
+                        {p.injury_type}{p.weeks_out > 0 ? ` · ${p.weeks_out}wk` : ''}
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 11, color: '#444', flexShrink: 0 }}>{p.overall_rating}</span>
+                  </div>
+                );
+              })}
+            </SidebarBlock>
+          )}
+
           {topAFC.length > 0 && (
             <SidebarBlock title="AFC LEADERS">
               {topAFC.map((t, i) => <SidebarRow key={i} left={t.team_name} right={`${t.wins}-${t.losses}`} />)}
