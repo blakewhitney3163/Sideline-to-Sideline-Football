@@ -704,7 +704,7 @@ ipcMain.handle('import-otc-contracts', (_event: any, filePath?: string) => {
     }
   });
   tx();
-  return { success: true, matched, skipped, total: rows.length, file: otcPath };
+  return { success: true, matched, skipped, total: rows.length, file: otcPath, sampleNames: rows.slice(0, 8).map(r => r.name) };
 });
 
 // ─── Dev Trait Seeding ────────────────────────────────────────────────────────
