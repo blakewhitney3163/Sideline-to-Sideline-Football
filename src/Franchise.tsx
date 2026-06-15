@@ -72,7 +72,7 @@ function fmtSalary(m: number): string {
 // Real 2026 NFL market rates by position and OVR tier
 function contractGrade(salary: number, pos: string, ovr: number, devTrait: string = 'Normal'): { label: string; color: string } | null {
   // X-Factor players are franchise cornerstones — big contracts are expected
-  if (devTrait === 'X-Factor') return null;
+  if (devTrait === 'X-Factor' || devTrait === 'Superstar') return null;
 
   const marketRates: Record<string, [number, number][]> = {
     //  [OVR floor, fair annual $M] pairs — interpolated between tiers
@@ -80,7 +80,7 @@ function contractGrade(salary: number, pos: string, ovr: number, devTrait: strin
     WR: [[99,45],[93,35],[88,25],[83,16],[78,8],[73,3],[70,1.5]],
     DL: [[99,38],[93,30],[88,22],[83,14],[78,7],[73,3],[70,1.5]],
     CB: [[99,32],[93,25],[88,18],[83,11],[78,5],[73,2.5],[70,1.5]],
-    OL: [[99,32],[93,26],[88,20],[83,13],[78,6],[73,2.5],[70,1.5]],
+    OL: [[99,36],[93,30],[88,24],[83,18],[78,9],[73,3],[70,1.5]],
     LB: [[99,26],[93,20],[88,15],[83,9],[78,4.5],[73,2],[70,1.5]],
     TE: [[99,24],[93,19],[88,14],[83,8],[78,4],[73,2],[70,1.5]],
     S:  [[99,22],[93,17],[88,12],[83,7],[78,3.5],[73,1.8],[70,1.5]],
