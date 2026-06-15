@@ -299,6 +299,33 @@ ipcMain.handle('advance-season', () => {
   });
   progressPlayers();
 
+  // Dev trait regression — older/declining players can lose their trait
+const devDowngrade = db.prepare('UPDATE players SET dev_trait = ? WHERE id = ?');
+const allRostered = db.prepare(
+  'SELECT id, age, overall_rating, dev_trait FROM players WHERE team_id IS NOT NULL'
+).all() as any[];
+
+const regressTraits = db.transaction(() => {
+  for (const p of allRostered) {
+    const trait = p.dev_trait;
+    const rand = Math.random();
+
+    if (trait === 'X-Factor') {
+      const shouldDowngrade = p.age >= 32 || p.overall_rating < 88 || rand < 0.04;
+      if (shouldDowngrade) devDowngrade.run('Superstar', p.id);
+
+    } else if (trait === 'Superstar') {
+      const shouldDowngrade = p.age >= 34 || p.overall_rating < 82 || rand < 0.05;
+      if (shouldDowngrade) devDowngrade.run('Star', p.id);
+
+    } else if (trait === 'Star') {
+      const shouldDowngrade = p.age >= 36 || p.overall_rating < 76 || rand < 0.06;
+      if (shouldDowngrade) devDowngrade.run('Normal', p.id);
+    }
+  }
+});
+regressTraits();
+
   // Decrement contract years, release expired players as free agents
   db.prepare('UPDATE contracts SET years_remaining = years_remaining - 1').run();
   const expiredPlayers = db.prepare('SELECT player_id FROM contracts WHERE years_remaining <= 0').all() as any[];
