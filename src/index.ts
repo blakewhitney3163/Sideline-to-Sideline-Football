@@ -106,38 +106,7 @@ function getPlayerAvailabilityPremium(player: { age: number; position: string; d
 function getTeamTradeProfile(teamId: number): {
   status: string; description: string; acceptanceThreshold: number;
   wins: number; losses: number; avgOverall: number;
-} 
-
-// ─── Injury Helpers ───────────────────────────────────────────────────────────
-
-const INJURY_TYPES = ['Hamstring', 'Ankle', 'Knee', 'Shoulder', 'Concussion', 'Rib', 'Back', 'Quad', 'Calf', 'Hand'];
-const POS_INJURY_RISK: Record<string, number> = {
-  QB: 0.025, RB: 0.055, WR: 0.035, TE: 0.035,
-  OL: 0.020, DL: 0.025, LB: 0.035, CB: 0.035, S: 0.025, K: 0.008,
-};
-
-function rollInjuries(playerStats: any[]) {
-  for (const stat of playerStats) {
-    const player = db.prepare('SELECT position, injury_status FROM players WHERE id = ?').get(stat.player_id) as any;
-    if (!player || player.injury_status !== 'healthy') continue;
-
-    const risk = POS_INJURY_RISK[player.position] ?? 0.03;
-    if (Math.random() > risk) continue;
-
-    const rand = Math.random();
-    let status: string, weeksOut: number;
-    if      (rand < 0.40) { status = 'questionable'; weeksOut = 1; }
-    else if (rand < 0.72) { status = 'out';          weeksOut = Math.floor(Math.random() * 2) + 2; }
-    else if (rand < 0.92) { status = 'out';          weeksOut = Math.floor(Math.random() * 3) + 3; }
-    else                  { status = 'ir';           weeksOut = Math.floor(Math.random() * 5) + 4; }
-
-    const injuryType = INJURY_TYPES[Math.floor(Math.random() * INJURY_TYPES.length)];
-    db.prepare("UPDATE players SET injury_status = ?, weeks_out = ?, injury_type = ? WHERE id = ?")
-      .run(status, weeksOut, injuryType, stat.player_id);
-  }
-}
-
-{
+} {
   const season = getCurrentSeason();
   const record = db.prepare(`
     SELECT
@@ -169,6 +138,35 @@ function rollInjuries(playerStats: any[]) {
   return { status, description, acceptanceThreshold, wins, losses, avgOverall };
 }
 
+// ─── Injury Helpers ───────────────────────────────────────────────────────────
+
+const INJURY_TYPES = ['Hamstring', 'Ankle', 'Knee', 'Shoulder', 'Concussion', 'Rib', 'Back', 'Quad', 'Calf', 'Hand'];
+const POS_INJURY_RISK: Record<string, number> = {
+  QB: 0.025, RB: 0.055, WR: 0.035, TE: 0.035,
+  OL: 0.020, DL: 0.025, LB: 0.035, CB: 0.035, S: 0.025, K: 0.008,
+};
+
+function rollInjuries(playerStats: any[]) {
+  for (const stat of playerStats) {
+    const player = db.prepare('SELECT position, injury_status FROM players WHERE id = ?').get(stat.player_id) as any;
+    if (!player || player.injury_status !== 'healthy') continue;
+
+    const risk = POS_INJURY_RISK[player.position] ?? 0.03;
+    if (Math.random() > risk) continue;
+
+    const rand = Math.random();
+    let status: string, weeksOut: number;
+    if (rand < 0.40) { status = 'questionable'; weeksOut = 1; }
+    else if (rand < 0.72) { status = 'out'; weeksOut = Math.floor(Math.random() * 2) + 2; }
+    else if (rand < 0.92) { status = 'out'; weeksOut = Math.floor(Math.random() * 3) + 3; }
+    else { status = 'ir'; weeksOut = Math.floor(Math.random() * 5) + 4; }
+
+    const injuryType = INJURY_TYPES[Math.floor(Math.random() * INJURY_TYPES.length)];
+    db.prepare("UPDATE players SET injury_status = ?, weeks_out = ?, injury_type = ? WHERE id = ?")
+      .run(status, weeksOut, injuryType, stat.player_id);
+  }
+}
+
 // ─── IPC Handlers ─────────────────────────────────────────────────────────────
 
 ipcMain.handle('get-standings', (_event: any, season?: number) => {
@@ -188,7 +186,7 @@ ipcMain.handle('get-teams', () => {
 ipcMain.handle('get-roster', (_event: any, teamId: number) => {
   return db.prepare(`
     SELECT id, first_name, last_name, position, position_label, overall_rating, age,
-           speed, strength, awareness, dev_trait
+      speed, strength, awareness, dev_trait
     FROM players WHERE team_id = ?
     ORDER BY CASE position
       WHEN 'QB' THEN 1 WHEN 'RB' THEN 2 WHEN 'WR' THEN 3 WHEN 'TE' THEN 4
@@ -306,12 +304,12 @@ ipcMain.handle('simulate-playoffs', (_event: any, season?: number) => {
     return { home: homeTeam, away: awayTeam, homeScore: result.homeScore, awayScore: result.awayScore, winner: result.homeScore > result.awayScore ? homeTeam : awayTeam };
   };
 
-  const afcWC  = [simGame(afcTeams[1], afcTeams[6], 18), simGame(afcTeams[2], afcTeams[5], 18), simGame(afcTeams[3], afcTeams[4], 18)];
-  const nfcWC  = [simGame(nfcTeams[1], nfcTeams[6], 18), simGame(nfcTeams[2], nfcTeams[5], 18), simGame(nfcTeams[3], nfcTeams[4], 18)];
+  const afcWC = [simGame(afcTeams[1], afcTeams[6], 18), simGame(afcTeams[2], afcTeams[5], 18), simGame(afcTeams[3], afcTeams[4], 18)];
+  const nfcWC = [simGame(nfcTeams[1], nfcTeams[6], 18), simGame(nfcTeams[2], nfcTeams[5], 18), simGame(nfcTeams[3], nfcTeams[4], 18)];
   const afcDiv = [simGame(afcTeams[0], afcWC[2].winner, 19), simGame(afcWC[0].winner, afcWC[1].winner, 19)];
   const nfcDiv = [simGame(nfcTeams[0], nfcWC[2].winner, 19), simGame(nfcWC[0].winner, nfcWC[1].winner, 19)];
-  const afcChamp  = simGame(afcDiv[0].winner, afcDiv[1].winner, 20);
-  const nfcChamp  = simGame(nfcDiv[0].winner, nfcDiv[1].winner, 20);
+  const afcChamp = simGame(afcDiv[0].winner, afcDiv[1].winner, 20);
+  const nfcChamp = simGame(nfcDiv[0].winner, nfcDiv[1].winner, 20);
   const superBowl = simGame(afcChamp.winner, nfcChamp.winner, 21);
   db.prepare('INSERT OR REPLACE INTO champions (season, team_id) VALUES (?, ?)').run(s, superBowl.winner.id);
 
@@ -357,9 +355,9 @@ ipcMain.handle('advance-season', () => {
 
   const updateOvr = db.prepare('UPDATE players SET overall_rating = ? WHERE id = ?');
   const progressionTable: Record<string, Record<string, [number, number]>> = {
-    young:   { Normal: [0, 1],  Star: [1, 2],  Superstar: [2, 3],  'X-Factor': [3, 4]  },
-    rising:  { Normal: [0, 1],  Star: [0, 2],  Superstar: [1, 2],  'X-Factor': [2, 3]  },
-    prime:   { Normal: [-1, 0], Star: [0, 1],  Superstar: [0, 1],  'X-Factor': [0, 1]  },
+    young:   { Normal: [0, 1],  Star: [1, 2],  Superstar: [2, 3],  'X-Factor': [3, 4] },
+    rising:  { Normal: [0, 1],  Star: [0, 2],  Superstar: [1, 2],  'X-Factor': [2, 3] },
+    prime:   { Normal: [-1, 0], Star: [0, 1],  Superstar: [0, 1],  'X-Factor': [0, 1] },
     decline: { Normal: [-2,-1], Star: [-1, 0], Superstar: [-1, 0], 'X-Factor': [-1, 0] },
     old:     { Normal: [-3,-2], Star: [-2,-1], Superstar: [-2,-1], 'X-Factor': [-1, 0] },
     veteran: { Normal: [-4,-3], Star: [-3,-2], Superstar: [-3,-2], 'X-Factor': [-2,-1] },
@@ -377,31 +375,28 @@ ipcMain.handle('advance-season', () => {
   progressPlayers();
 
   // Dev trait regression — older/declining players can lose their trait
-const devDowngrade = db.prepare('UPDATE players SET dev_trait = ? WHERE id = ?');
-const allRostered = db.prepare(
-  'SELECT id, age, overall_rating, dev_trait FROM players WHERE team_id IS NOT NULL'
-).all() as any[];
+  const devDowngrade = db.prepare('UPDATE players SET dev_trait = ? WHERE id = ?');
+  const allRostered = db.prepare(
+    'SELECT id, age, overall_rating, dev_trait FROM players WHERE team_id IS NOT NULL'
+  ).all() as any[];
 
-const regressTraits = db.transaction(() => {
-  for (const p of allRostered) {
-    const trait = p.dev_trait;
-    const rand = Math.random();
-
-    if (trait === 'X-Factor') {
-      const shouldDowngrade = p.age >= 32 || p.overall_rating < 88 || rand < 0.04;
-      if (shouldDowngrade) devDowngrade.run('Superstar', p.id);
-
-    } else if (trait === 'Superstar') {
-      const shouldDowngrade = p.age >= 34 || p.overall_rating < 82 || rand < 0.05;
-      if (shouldDowngrade) devDowngrade.run('Star', p.id);
-
-    } else if (trait === 'Star') {
-      const shouldDowngrade = p.age >= 36 || p.overall_rating < 76 || rand < 0.06;
-      if (shouldDowngrade) devDowngrade.run('Normal', p.id);
+  const regressTraits = db.transaction(() => {
+    for (const p of allRostered) {
+      const trait = p.dev_trait;
+      const rand = Math.random();
+      if (trait === 'X-Factor') {
+        const shouldDowngrade = p.age >= 32 || p.overall_rating < 88 || rand < 0.04;
+        if (shouldDowngrade) devDowngrade.run('Superstar', p.id);
+      } else if (trait === 'Superstar') {
+        const shouldDowngrade = p.age >= 34 || p.overall_rating < 82 || rand < 0.05;
+        if (shouldDowngrade) devDowngrade.run('Star', p.id);
+      } else if (trait === 'Star') {
+        const shouldDowngrade = p.age >= 36 || p.overall_rating < 76 || rand < 0.06;
+        if (shouldDowngrade) devDowngrade.run('Normal', p.id);
+      }
     }
-  }
-});
-regressTraits();
+  });
+  regressTraits();
 
   // Decrement contract years, release expired players as free agents
   db.prepare('UPDATE contracts SET years_remaining = years_remaining - 1').run();
@@ -434,27 +429,18 @@ ipcMain.handle('generate-schedule', () => {
   const insertGame = db.prepare('INSERT INTO games (season, week, home_team_id, away_team_id, is_simulated) VALUES (?, ?, ?, ?, 0)');
 
   // 18 weeks, 17 games per team — each team gets exactly one bye week.
-  // Bye weeks are distributed across weeks 5–14 (4 teams off per week = 14 games that week).
-  // Weeks 1–4 and 15–18 are full (16 games each).
-  //
-  // Bye assignment: shuffle teams, assign in groups of 4 to bye weeks 5–14.
-
+  // Bye weeks are distributed across weeks 5–12 (4 teams off per week = 8 bye weeks).
   const shuffledForByes = [...teams].sort(() => Math.random() - 0.5);
-  const byeWeekMap: Record<number, number> = {}; // teamId -> bye week
+  const byeWeekMap: Record<number, number> = {};
   for (let i = 0; i < shuffledForByes.length; i++) {
-    const byeWeek = 5 + Math.floor(i / 4); // weeks 5–12 get 4 teams each (32/4 = 8 bye weeks)
+    const byeWeek = 5 + Math.floor(i / 4);
     byeWeekMap[shuffledForByes[i]] = byeWeek;
   }
 
   const create = db.transaction(() => {
     for (let week = 1; week <= 18; week++) {
-      // Teams playing this week (not on bye)
       const playing = teams.filter((id: number) => byeWeekMap[id] !== week);
-
-      // Shuffle and pair them up
       const shuffled = [...playing].sort(() => Math.random() - 0.5);
-
-      // If odd count somehow (shouldn't happen), drop last team
       const pairs = Math.floor(shuffled.length / 2);
       for (let i = 0; i < pairs; i++) {
         const home = shuffled[i * 2];
@@ -624,14 +610,14 @@ ipcMain.handle('propose-trade', (_event: any, { myPlayerIds, theirPlayerIds, the
 
   if (myPlayers.length === 0 || theirPlayers.length === 0) return { accepted: false, reason: 'Invalid players selected.' };
 
-  const myValue    = myPlayers.reduce((sum: number, p: any) => sum + calcPlayerTradeValue(p.overall_rating, p.age, p.position, p.dev_trait), 0);
+  const myValue = myPlayers.reduce((sum: number, p: any) => sum + calcPlayerTradeValue(p.overall_rating, p.age, p.position, p.dev_trait), 0);
   const theirValue = theirPlayers.reduce((sum: number, p: any) => sum + calcPlayerTradeValue(p.overall_rating, p.age, p.position, p.dev_trait), 0);
 
-  const valueDiff    = myValue - theirValue;
+  const valueDiff = myValue - theirValue;
   const randomFactor = Math.floor(Math.random() * 11) - 5;
-  const profile      = getTeamTradeProfile(theirTeamId);
+  const profile = getTeamTradeProfile(theirTeamId);
   const availabilityPremium = theirPlayers.reduce((sum: number, p: any) => sum + getPlayerAvailabilityPremium(p), 0);
-  const effectiveThreshold  = profile.acceptanceThreshold + availabilityPremium;
+  const effectiveThreshold = profile.acceptanceThreshold + availabilityPremium;
   const accepted = (valueDiff + randomFactor) >= effectiveThreshold;
 
   if (accepted) {
@@ -651,10 +637,10 @@ ipcMain.handle('propose-trade', (_event: any, { myPlayerIds, theirPlayerIds, the
 
   const reason =
     availabilityPremium > 40 ? 'That player is a cornerstone of our franchise — not available at any reasonable price.' :
-    availabilityPremium > 0  ? 'We\'re protective of that player. You\'ll need to significantly sweeten the offer.' :
-    valueDiff < -20          ? 'Not enough value — we need significantly more to make this work.' :
-    valueDiff < -10          ? 'The offer is too light for us right now.' :
-                               'We\'re not interested at this time.';
+    availabilityPremium > 0  ? "We're protective of that player. You'll need to significantly sweeten the offer." :
+    valueDiff < -20          ? "Not enough value — we need significantly more to make this work." :
+    valueDiff < -10          ? "The offer is too light for us right now." :
+                               "We're not interested at this time.";
   return { accepted: false, reason };
 });
 
@@ -663,10 +649,10 @@ ipcMain.handle('propose-trade', (_event: any, { myPlayerIds, theirPlayerIds, the
 ipcMain.handle('get-team-contracts', (_event: any, teamId: number) => {
   return db.prepare(`
     SELECT p.id, p.first_name, p.last_name, p.position, p.position_label,
-           p.overall_rating, p.age, p.dev_trait, p.roster_status,
-           c.annual_salary, c.years_remaining, c.years_total,
-           c.guaranteed_amount, c.guaranteed_pct,
-           c.id as contract_id
+      p.overall_rating, p.age, p.dev_trait, p.roster_status,
+      c.annual_salary, c.years_remaining, c.years_total,
+      c.guaranteed_amount, c.guaranteed_pct,
+      c.id as contract_id
     FROM contracts c
     JOIN players p ON c.player_id = p.id
     WHERE c.team_id = ? AND p.roster_status = 'active'
@@ -677,8 +663,8 @@ ipcMain.handle('get-team-contracts', (_event: any, teamId: number) => {
 ipcMain.handle('get-practice-squad', (_event: any, teamId: number) => {
   return db.prepare(`
     SELECT p.id, p.first_name, p.last_name, p.position, p.position_label,
-           p.overall_rating, p.age, p.dev_trait,
-           c.annual_salary, c.years_remaining
+      p.overall_rating, p.age, p.dev_trait,
+      c.annual_salary, c.years_remaining
     FROM players p
     LEFT JOIN contracts c ON c.player_id = p.id
     WHERE p.team_id = ? AND p.roster_status = 'practice_squad'
@@ -687,7 +673,7 @@ ipcMain.handle('get-practice-squad', (_event: any, teamId: number) => {
 });
 
 ipcMain.handle('get-cap-summary', (_event: any, teamId: number) => {
-  const SALARY_CAP = 279.2; // 2026 NFL cap (millions)
+  const SALARY_CAP = 279.2;
   const result = db.prepare(`
     SELECT COALESCE(SUM(c.annual_salary), 0) as used_cap
     FROM contracts c
@@ -696,8 +682,8 @@ ipcMain.handle('get-cap-summary', (_event: any, teamId: number) => {
   `).get(teamId) as any;
   const usedCap = Math.round(result.used_cap * 10) / 10;
   return {
-    total_cap:     SALARY_CAP,
-    used_cap:      usedCap,
+    total_cap: SALARY_CAP,
+    used_cap: usedCap,
     available_cap: Math.round((SALARY_CAP - usedCap) * 10) / 10,
   };
 });
@@ -708,7 +694,7 @@ ipcMain.handle('get-roster-spots', (_event: any, teamId: number) => {
     FROM players WHERE team_id = ? GROUP BY roster_status
   `).all(teamId) as any[];
   const active = counts.find((r: any) => r.roster_status === 'active')?.count ?? 0;
-  const ps     = counts.find((r: any) => r.roster_status === 'practice_squad')?.count ?? 0;
+  const ps = counts.find((r: any) => r.roster_status === 'practice_squad')?.count ?? 0;
   return { active, ps, activeMax: 53, psMax: 16, activeFree: 53 - active, psFree: 16 - ps };
 });
 
@@ -726,7 +712,7 @@ ipcMain.handle('extend-player', (_event: any, { playerId, years, salary }: {
 }) => {
   const contract = db.prepare('SELECT * FROM contracts WHERE player_id = ?').get(playerId) as any;
   if (!contract) return { success: false, reason: 'No contract found.' };
-  const guaranteedPct    = Math.round(40 + Math.random() * 20);
+  const guaranteedPct = Math.round(40 + Math.random() * 20);
   const guaranteedAmount = Math.round(salary * years * (guaranteedPct / 100) * 10) / 10;
   db.prepare('UPDATE contracts SET years_total = ?, years_remaining = ?, annual_salary = ?, guaranteed_amount = ?, guaranteed_pct = ? WHERE player_id = ?')
     .run(years, years, salary, guaranteedAmount, guaranteedPct, playerId);
@@ -752,7 +738,6 @@ ipcMain.handle('sign-free-agent', (_event: any, { playerId, years, salary }: {
   const player = db.prepare('SELECT id, overall_rating, age, position, dev_trait FROM players WHERE id = ?').get(playerId) as any;
   if (!player) return { success: false, reason: 'Player not found.' };
 
-  // ── Fair market value (mirrors Franchise.tsx fairMarketValue) ──────────────
   const marketRates: Record<string, [number, number][]> = {
     QB: [[99,65],[93,50],[88,35],[83,20],[78,10],[73,4],[70,1.5]],
     WR: [[99,45],[93,35],[88,25],[83,16],[78,8],[73,3],[70,1.5]],
@@ -770,7 +755,7 @@ ipcMain.handle('sign-free-agent', (_event: any, { playerId, years, salary }: {
   let baseMarket = rates[rates.length - 1][1];
   for (let i = 0; i < rates.length - 1; i++) {
     const [highOvr, highSal] = rates[i];
-    const [lowOvr, lowSal]   = rates[i + 1];
+    const [lowOvr, lowSal] = rates[i + 1];
     if (player.overall_rating >= lowOvr) {
       const t = (player.overall_rating - lowOvr) / (highOvr - lowOvr);
       baseMarket = lowSal + t * (highSal - lowSal);
@@ -780,23 +765,17 @@ ipcMain.handle('sign-free-agent', (_event: any, { playerId, years, salary }: {
   const fairMarket = Math.round(baseMarket * (traitMul[player.dev_trait] ?? 1.0) * 10) / 10;
   const ratio = salary / Math.max(fairMarket, 1);
 
-  // ── Base acceptance probability ────────────────────────────────────────────
   let acceptChance =
     ratio >= 1.00 ? 1.00 :
     ratio >= 0.85 ? 0.90 :
     ratio >= 0.70 ? 0.60 :
     ratio >= 0.50 ? 0.20 : 0.00;
 
-  // ── Modifiers ──────────────────────────────────────────────────────────────
-  // Older players have less leverage — more willing to take a discount
   if (player.age >= 33) acceptChance = Math.min(1, acceptChance + 0.15);
   if (player.age >= 36) acceptChance = Math.min(1, acceptChance + 0.15);
-
-  // Elite traits know their worth — harder to lowball
-  if (player.dev_trait === 'X-Factor')  acceptChance = Math.max(0, acceptChance - 0.20);
+  if (player.dev_trait === 'X-Factor') acceptChance = Math.max(0, acceptChance - 0.20);
   if (player.dev_trait === 'Superstar') acceptChance = Math.max(0, acceptChance - 0.10);
 
-  // Contending team is a draw — players take slight discount to chase a ring
   const season = getCurrentSeason();
   const record = db.prepare(`
     SELECT
@@ -807,19 +786,17 @@ ipcMain.handle('sign-free-agent', (_event: any, { playerId, years, salary }: {
   const winPct = record?.played >= 4 ? record.wins / record.played : 0.5;
   if (winPct >= 0.65) acceptChance = Math.min(1, acceptChance + 0.08);
 
-  // ── Decision ───────────────────────────────────────────────────────────────
   const accepted = Math.random() < acceptChance;
 
   if (!accepted) {
     const reason =
-      ratio < 0.50 ? `Insulted by the offer. ${player.dev_trait === 'X-Factor' || player.dev_trait === 'Superstar' ? 'Elite players' : 'Players'} don\'t sign for that salary.` :
+      ratio < 0.50 ? `Insulted by the offer. ${player.dev_trait === 'X-Factor' || player.dev_trait === 'Superstar' ? 'Elite players' : 'Players'} don't sign for that salary.` :
       ratio < 0.70 ? `Not enough money. Looking for closer to ${fairMarket.toFixed(1)}M/yr on the open market.` :
       ratio < 0.85 ? `Decided to explore other options. Try sweetening the offer slightly.` :
-      `Chose to sign elsewhere. Sometimes it just doesn\'t work out.`;
+                     `Chose to sign elsewhere. Sometimes it just doesn't work out.`;
     return { success: false, reason };
   }
 
-  // ── Execute signing ────────────────────────────────────────────────────────
   const guaranteedPct = Math.round(30 + Math.random() * 30);
   const guaranteedAmount = Math.round(salary * years * (guaranteedPct / 100) * 10) / 10;
 
@@ -836,9 +813,9 @@ ipcMain.handle('get-expiring-contracts', () => {
   const teamId = parseInt(teamRow.value);
   return db.prepare(`
     SELECT p.id, p.first_name, p.last_name, p.position, p.position_label,
-           p.overall_rating, p.age, p.dev_trait,
-           c.annual_salary, c.years_remaining, c.years_total,
-           c.guaranteed_amount, c.guaranteed_pct, c.id as contract_id
+      p.overall_rating, p.age, p.dev_trait,
+      c.annual_salary, c.years_remaining, c.years_total,
+      c.guaranteed_amount, c.guaranteed_pct, c.id as contract_id
     FROM contracts c
     JOIN players p ON c.player_id = p.id
     WHERE c.team_id = ? AND p.roster_status = 'active' AND c.years_remaining = 1
@@ -869,7 +846,7 @@ ipcMain.handle('resign-player', (_event: any, { playerId, years, salary }: {
   let baseMarket = rates[rates.length - 1][1];
   for (let i = 0; i < rates.length - 1; i++) {
     const [highOvr, highSal] = rates[i];
-    const [lowOvr, lowSal]   = rates[i + 1];
+    const [lowOvr, lowSal] = rates[i + 1];
     if (player.overall_rating >= lowOvr) {
       const t = (player.overall_rating - lowOvr) / (highOvr - lowOvr);
       baseMarket = lowSal + t * (highSal - lowSal);
@@ -879,7 +856,6 @@ ipcMain.handle('resign-player', (_event: any, { playerId, years, salary }: {
   const fairMarket = Math.round(baseMarket * (traitMul[player.dev_trait] ?? 1.0) * 10) / 10;
   const ratio = salary / Math.max(fairMarket, 1);
 
-  // Loyalty bonus — slightly more willing to stay vs testing open market
   let acceptChance =
     ratio >= 1.00 ? 1.00 :
     ratio >= 0.85 ? 0.95 :
@@ -888,7 +864,7 @@ ipcMain.handle('resign-player', (_event: any, { playerId, years, salary }: {
 
   if (player.age >= 33) acceptChance = Math.min(1, acceptChance + 0.15);
   if (player.age >= 36) acceptChance = Math.min(1, acceptChance + 0.15);
-  if (player.dev_trait === 'X-Factor')  acceptChance = Math.max(0, acceptChance - 0.15);
+  if (player.dev_trait === 'X-Factor') acceptChance = Math.max(0, acceptChance - 0.15);
   if (player.dev_trait === 'Superstar') acceptChance = Math.max(0, acceptChance - 0.08);
 
   const accepted = Math.random() < acceptChance;
@@ -898,7 +874,7 @@ ipcMain.handle('resign-player', (_event: any, { playerId, years, salary }: {
       ratio < 0.50 ? `Insulted by the offer. Looking for around ${fairMarket.toFixed(1)}M/yr.` :
       ratio < 0.70 ? `Not enough to stay. Asking price is closer to ${fairMarket.toFixed(1)}M/yr.` :
       ratio < 0.85 ? `Wants to test the market. Try offering closer to ${fairMarket.toFixed(1)}M/yr.` :
-      `Decided to explore other options despite the offer.`;
+                     `Decided to explore other options despite the offer.`;
     return { success: false, reason, willHitFA: true };
   }
 
@@ -949,14 +925,14 @@ ipcMain.handle('generate-draft-class', () => {
   const prospects: any[] = [];
   for (let i = 0; i < 280; i++) {
     let ovr: number;
-    if      (i < 10)  ovr = Math.floor(Math.random() * 7)  + 76;
-    else if (i < 32)  ovr = Math.floor(Math.random() * 7)  + 71;
-    else if (i < 64)  ovr = Math.floor(Math.random() * 6)  + 67;
-    else if (i < 96)  ovr = Math.floor(Math.random() * 6)  + 64;
-    else if (i < 128) ovr = Math.floor(Math.random() * 5)  + 61;
-    else if (i < 160) ovr = Math.floor(Math.random() * 5)  + 59;
-    else if (i < 224) ovr = Math.floor(Math.random() * 5)  + 57;
-    else              ovr = Math.floor(Math.random() * 6)  + 52;
+    if (i < 10)       ovr = Math.floor(Math.random() * 7) + 76;
+    else if (i < 32)  ovr = Math.floor(Math.random() * 7) + 71;
+    else if (i < 64)  ovr = Math.floor(Math.random() * 6) + 67;
+    else if (i < 96)  ovr = Math.floor(Math.random() * 6) + 64;
+    else if (i < 128) ovr = Math.floor(Math.random() * 5) + 61;
+    else if (i < 160) ovr = Math.floor(Math.random() * 5) + 59;
+    else if (i < 224) ovr = Math.floor(Math.random() * 5) + 57;
+    else              ovr = Math.floor(Math.random() * 6) + 52;
 
     prospects.push({
       season,
@@ -964,8 +940,8 @@ ipcMain.handle('generate-draft-class', () => {
       last_name:  LAST[Math.floor(Math.random() * LAST.length)],
       position:   POS_POOL[Math.floor(Math.random() * POS_POOL.length)],
       overall_rating: ovr,
-      dev_trait: getDevTrait(ovr),
-      age: Math.random() < 0.6 ? 21 : Math.random() < 0.6 ? 22 : 23,
+      dev_trait:  getDevTrait(ovr),
+      age:        Math.random() < 0.6 ? 21 : Math.random() < 0.6 ? 22 : 23,
     });
   }
 
@@ -987,8 +963,8 @@ ipcMain.handle('get-draft-order', () => {
       COALESCE((
         SELECT COUNT(*) FROM games g
         WHERE g.season = ? AND g.is_simulated = 1 AND g.is_playoff = 0
-        AND ((g.home_team_id = t.id AND g.home_score > g.away_score)
-          OR (g.away_team_id = t.id AND g.away_score > g.home_score))
+          AND ((g.home_team_id = t.id AND g.home_score > g.away_score)
+            OR (g.away_team_id = t.id AND g.away_score > g.home_score))
       ), 0) as wins
     FROM teams t ORDER BY wins ASC
   `).all(season);
@@ -1090,10 +1066,9 @@ ipcMain.handle('complete-draft', () => {
 });
 
 ipcMain.handle('import-otc-contracts', (_event: any, filePath?: string) => {
-  const fs         = require('fs');
+  const fs = require('fs');
   const pathModule = require('path');
 
-  // Auto-discover common filenames in project root
   let otcPath = filePath;
   if (!otcPath) {
     const candidates = ['otc-contracts.html', 'otc-contracts.htm', 'otc-contracts.md', 'Contracts_Over_the_Cap.htm', 'Contracts_Over_the_Cap.html'];
@@ -1106,7 +1081,7 @@ ipcMain.handle('import-otc-contracts', (_event: any, filePath?: string) => {
     return { success: false, reason: 'OTC file not found. Pass the full path or place the file in the project root.' };
   }
 
-  const content: string  = fs.readFileSync(otcPath, 'utf8');
+  const content: string = fs.readFileSync(otcPath, 'utf8');
   const parseMoney = (s: string): number => parseFloat(s.replace(/[$,]/g, '')) || 0;
   const isHtml = content.trimStart().startsWith('<!') || content.includes('<table') || content.includes('<tr');
 
@@ -1142,7 +1117,6 @@ ipcMain.handle('import-otc-contracts', (_event: any, filePath?: string) => {
       });
     }
   } else {
-    // Markdown table format
     for (const line of content.split('\n')) {
       if (!line.startsWith('|') || line.includes('---') || line.includes('Player') || line.includes('Pos.')) continue;
       const cols = line.split('|').map((c: string) => c.trim()).filter(Boolean);
@@ -1205,7 +1179,8 @@ ipcMain.handle('get-depth-chart', (_event: any, teamId: number) => {
   const rows = db.prepare(`
     SELECT dc.position_group, dc.slot, dc.player_id,
       p.first_name, p.last_name, p.position, p.position_label,
-      p.overall_rating, p.age, p.dev_trait, p.speed, p.strength, p.awareness, p.injury_status, p.weeks_out, p.injury_type
+      p.overall_rating, p.age, p.dev_trait, p.speed, p.strength, p.awareness,
+      p.injury_status, p.weeks_out, p.injury_type
     FROM depth_chart dc
     JOIN players p ON dc.player_id = p.id
     WHERE dc.team_id = ? AND p.roster_status = 'active'
@@ -1269,4 +1244,3 @@ ipcMain.handle('seed-dev-traits', () => {
 
 app.on('ready', createWindow);
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
-app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
