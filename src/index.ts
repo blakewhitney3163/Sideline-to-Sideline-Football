@@ -260,21 +260,30 @@ ipcMain.handle('get-dashboard', (_event: any, season?: number) => {
 ipcMain.handle('get-stats', (_event: any, season?: number) => {
   const s = season ?? getCurrentSeason();
   const passing = db.prepare(`
-    SELECT p.first_name || ' ' || p.last_name AS player_name, t.city || ' ' || t.name AS team_name,
+    SELECT p.id as player_id, p.first_name || ' ' || p.last_name AS player_name,
+      p.overall_rating, p.age, p.position, p.dev_trait,
+      t.city || ' ' || t.name AS team_name,
       SUM(st.pass_yards) AS pass_yards, SUM(st.pass_tds) AS pass_tds,
-      SUM(st.interceptions) AS interceptions, SUM(st.completions) AS completions, SUM(st.pass_attempts) AS pass_attempts
+      SUM(st.interceptions) AS interceptions, SUM(st.completions) AS completions,
+      SUM(st.pass_attempts) AS pass_attempts
     FROM stats st JOIN players p ON st.player_id = p.id JOIN teams t ON st.team_id = t.id JOIN games g ON st.game_id = g.id
     WHERE g.season = ? AND g.is_simulated = 1 AND st.pass_attempts > 0 GROUP BY p.id ORDER BY pass_yards DESC LIMIT 15
   `).all(s);
   const rushing = db.prepare(`
-    SELECT p.first_name || ' ' || p.last_name AS player_name, t.city || ' ' || t.name AS team_name,
-      SUM(st.rush_yards) AS rush_yards, SUM(st.rush_tds) AS rush_tds, SUM(st.rush_attempts) AS rush_attempts
+    SELECT p.id as player_id, p.first_name || ' ' || p.last_name AS player_name,
+      p.overall_rating, p.age, p.position, p.dev_trait,
+      t.city || ' ' || t.name AS team_name,
+      SUM(st.rush_yards) AS rush_yards, SUM(st.rush_tds) AS rush_tds,
+      SUM(st.rush_attempts) AS rush_attempts
     FROM stats st JOIN players p ON st.player_id = p.id JOIN teams t ON st.team_id = t.id JOIN games g ON st.game_id = g.id
     WHERE g.season = ? AND g.is_simulated = 1 AND st.rush_attempts > 0 GROUP BY p.id ORDER BY rush_yards DESC LIMIT 15
   `).all(s);
   const receiving = db.prepare(`
-    SELECT p.first_name || ' ' || p.last_name AS player_name, t.city || ' ' || t.name AS team_name,
-      SUM(st.rec_yards) AS rec_yards, SUM(st.rec_tds) AS rec_tds, SUM(st.receptions) AS receptions, SUM(st.targets) AS targets
+    SELECT p.id as player_id, p.first_name || ' ' || p.last_name AS player_name,
+      p.overall_rating, p.age, p.position, p.dev_trait,
+      t.city || ' ' || t.name AS team_name,
+      SUM(st.rec_yards) AS rec_yards, SUM(st.rec_tds) AS rec_tds,
+      SUM(st.receptions) AS receptions, SUM(st.targets) AS targets
     FROM stats st JOIN players p ON st.player_id = p.id JOIN teams t ON st.team_id = t.id JOIN games g ON st.game_id = g.id
     WHERE g.season = ? AND g.is_simulated = 1 AND st.targets > 0 GROUP BY p.id ORDER BY rec_yards DESC LIMIT 15
   `).all(s);
