@@ -66,17 +66,18 @@ function generatePlayerStats(teamId, score, offenseRating) {
     def_interceptions: 0, pass_deflections: 0, def_tds: 0,
   };
 
-  // QB
-  let passYardsGenerated = 260 * teamRatingFactor;
+  // QB — mean 230 yards (down from 260), capped at 400
+  let passYardsGenerated = 230 * teamRatingFactor;
   if (qb) {
     const qbRatingFactor = qb.overall_rating / 75;
     const combinedFactor = (teamRatingFactor + qbRatingFactor) / 2;
-    passYardsGenerated   = clamp(randomNormal(260 * combinedFactor, 50), 60, 450);
+    passYardsGenerated   = clamp(randomNormal(230 * combinedFactor, 45), 50, 400);
     const passAttempts   = clamp(randomNormal(34, 5), 20, 50);
     const compPct        = Math.min(0.75, Math.max(0.42, 0.42 + (qb.overall_rating - 50) * 0.0033 + randomNormal(0, 0.04)));
     const completions    = clamp(passAttempts * compPct, 10, passAttempts);
-    const intMean        = Math.max(0.3, 2.5 - (qb.overall_rating - 50) * 0.04);
-    const ints           = clamp(randomNormal(intMean, 0.9), 0, 5);
+    // INTs: ~0.7/game for 75 OVR QB, ~0.4 for elite, ~1.2 for poor
+    const intMean        = Math.max(0.1, 1.0 - (qb.overall_rating - 60) * 0.02);
+    const ints           = clamp(randomNormal(intMean, 0.7), 0, 4);
     const qbCarries      = Math.random() > 0.6 ? clamp(randomNormal(4, 2), 0, 8) : 0;
 
     stats.push({
@@ -89,17 +90,17 @@ function generatePlayerStats(teamId, score, offenseRating) {
     });
   }
 
-  // RBs
-  const totalRushAttempts = clamp(randomNormal(22, 4), 12, 35);
+  // RBs — mean 26 attempts (up from 22), YPC base 4.2 (up from 3.5)
+  const totalRushAttempts = clamp(randomNormal(26, 5), 14, 40);
   const rbRatingWeights   = rbs.map(rb => rb.overall_rating / 75);
   const rbWeightTotal     = rbRatingWeights.reduce((a, b) => a + b, 0) || 1;
 
   rbs.forEach((rb, i) => {
     const baseShare = rbRatingWeights[i] / rbWeightTotal;
     const share     = clamp(randomNormal(baseShare * 100, 8), 20, 80) / 100;
-    const carries   = clamp(totalRushAttempts * share, i === 0 ? 6 : 0, 28);
-    const ypc       = Math.max(2.5, randomNormal(3.5 + (rb.overall_rating - 70) * 0.04, 0.8));
-    const rushYards = clamp(carries * ypc, 0, 200);
+    const carries   = clamp(totalRushAttempts * share, i === 0 ? 6 : 0, 32);
+    const ypc       = Math.max(2.8, randomNormal(4.2 + (rb.overall_rating - 70) * 0.05, 0.8));
+    const rushYards = clamp(carries * ypc, 0, 220);
     const rbRushTDs = i === 0 && rushTDs > 0 ? rushTDs : 0;
 
     stats.push({
@@ -122,7 +123,7 @@ function generatePlayerStats(teamId, score, offenseRating) {
 
   receivers.forEach((rec, i) => {
     const baseShare    = recRatingWeights[i] / recWeightTotal;
-    const recYards     = clamp(randomNormal(passYardsGenerated * baseShare, 18), 0, 180);
+    const recYards     = clamp(randomNormal(passYardsGenerated * baseShare, 18), 0, 170);
     const ratingFactor = rec.overall_rating / 75;
     const targets      = clamp(randomNormal((9 * ratingFactor) - i * 0.8, 2), 1, 14);
     const catchRate    = Math.min(0.82, Math.max(0.48, 0.55 + (rec.overall_rating - 70) * 0.004));
@@ -156,13 +157,12 @@ function generateDefensiveStats(teamId, opponentQBInts, defenseRating) {
 
   if (allDef.length === 0) return [];
 
-  // Team totals for this game
-  const totalTackles = clamp(randomNormal(52, 7), 35, 75);
-  const totalSacks   = clampFloat(randomNormal(2.5 * defFactor, 1.3), 0, 8);
-  const totalPDs     = clamp(randomNormal(7 * defFactor, 2.5), 1, 16);
+  // Team totals — tackles 44 mean (down from 52), INTs from QB stat (already reduced)
+  const totalTackles = clamp(randomNormal(44, 6), 28, 65);
+  const totalSacks   = clampFloat(randomNormal(2.5 * defFactor, 1.2), 0, 7);
+  const totalPDs     = clamp(randomNormal(6 * defFactor, 2), 1, 14);
   const totalINTs    = opponentQBInts;
 
-  // Per-player buckets (plain objects, no TS types)
   const pTackles = {};
   const pAssists = {};
   const pSacks   = {};
@@ -192,8 +192,8 @@ function generateDefensiveStats(teamId, opponentQBInts, defenseRating) {
     const weights    = players.map(p => p.overall_rating / 75);
     const wTotal     = weights.reduce((a, b) => a + b, 0) || 1;
     players.forEach((p, i) => {
-      pTackles[p.id] = clamp(randomNormal((groupTotal * weights[i] / wTotal), 2), 0, 15);
-      pAssists[p.id] = clamp(randomNormal(pTackles[p.id] * 0.4, 1), 0, 6);
+      pTackles[p.id] = clamp(randomNormal((groupTotal * weights[i] / wTotal), 2), 0, 12);
+      pAssists[p.id] = clamp(randomNormal(pTackles[p.id] * 0.35, 1), 0, 5);
     });
   }
 
@@ -225,16 +225,16 @@ function generateDefensiveStats(teamId, opponentQBInts, defenseRating) {
   let remPDs = totalPDs;
   dbs.forEach(p => {
     if (remPDs <= 0) return;
-    const pd = clamp(randomNormal(remPDs / dbs.length, 1.2), 0, 5);
+    const pd = clamp(randomNormal(remPDs / dbs.length, 1.0), 0, 4);
     pPDs[p.id] = pd;
     remPDs -= pd;
   });
 
   // Forced fumble / recovery
-  if (Math.random() < 0.35 && allDef.length > 0) {
+  if (Math.random() < 0.30 && allDef.length > 0) {
     pFFs[allDef[Math.floor(Math.random() * allDef.length)].id] = 1;
   }
-  if (Math.random() < 0.25 && allDef.length > 0) {
+  if (Math.random() < 0.20 && allDef.length > 0) {
     const rec = allDef[Math.floor(Math.random() * allDef.length)];
     pFRs[rec.id] = 1;
     if (Math.random() < 0.12) pDTDs[rec.id] = 1;
