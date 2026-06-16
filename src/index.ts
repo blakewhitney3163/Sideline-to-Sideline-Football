@@ -1855,6 +1855,45 @@ ipcMain.handle('get-season-awards', (_event: any, season: number) => {
   };
 });
 
+ipcMain.handle('get-team-needs', (_: any, teamId: number) => {
+  const TARGETS: Record<string, { min: number; ideal: number; topN: number; minOvr: number }> = {
+    QB: { min: 2, ideal: 3, topN: 1, minOvr: 72 },
+    RB: { min: 3, ideal: 4, topN: 2, minOvr: 70 },
+    WR: { min: 4, ideal: 5, topN: 3, minOvr: 70 },
+    TE: { min: 2, ideal: 3, topN: 1, minOvr: 68 },
+    OL: { min: 6, ideal: 8, topN: 5, minOvr: 68 },
+    DL: { min: 4, ideal: 6, topN: 4, minOvr: 68 },
+    LB: { min: 3, ideal: 5, topN: 3, minOvr: 68 },
+    CB: { min: 3, ideal: 5, topN: 2, minOvr: 68 },
+    S:  { min: 2, ideal: 3, topN: 2, minOvr: 68 },
+    K:  { min: 1, ideal: 1, topN: 1, minOvr: 60 },
+  };
+
+  const roster = db.prepare(`
+    SELECT position, overall_rating FROM players
+    WHERE team_id = ? AND is_free_agent = 0 AND on_practice_squad = 0
+    ORDER BY overall_rating DESC
+  `).all(teamId) as { position: string; overall_rating: number }[];
+
+  const needs: { position: string; severity: 'critical' | 'depth' }[] = [];
+
+  for (const [pos, targets] of Object.entries(TARGETS)) {
+    const posPlayers = roster.filter((p: any) => p.position === pos);
+    const count = posPlayers.length;
+    if (count < targets.min) {
+      needs.push({ position: pos, severity: 'critical' });
+      continue;
+    }
+    const topPlayers = posPlayers.slice(0, targets.topN);
+    const topAvg = topPlayers.reduce((s: number, p: any) => s + p.overall_rating, 0) / topPlayers.length;
+    if (count < targets.ideal || topAvg < targets.minOvr) {
+      needs.push({ position: pos, severity: 'depth' });
+    }
+  }
+
+  return needs;
+});
+
 // ─── NFLverse Stats Import ────────────────────────────────────────────────────
 ipcMain.handle('import-nflverse-stats', () => {
   const players = db.prepare('SELECT id, position, age, overall_rating FROM players').all() as any[];

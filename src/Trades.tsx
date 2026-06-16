@@ -34,6 +34,11 @@ interface TradeResult {
   reason?: string;
 }
 
+interface TeamNeed {
+  position: string;
+  severity: 'critical' | 'depth';
+}
+
 interface Props {
   userTeam: { id: number; city: string; name: string };
 }
@@ -49,7 +54,7 @@ const STATUS_META: Record<string, { color: string; bg: string }> = {
 };
 
 const TRAIT_META: Record<string, { color: string }> = {
-  'Normal':    { color: '#444'    },
+  'Normal':    { color: '#444' },
   'Star':      { color: '#4FC3F7' },
   'Superstar': { color: '#FF8740' },
   'X-Factor':  { color: '#FFD700' },
@@ -83,31 +88,34 @@ function calcTradeValue(overall: number, age: number, position: string, devTrait
 }
 
 function trajectory(age: number): { label: string; color: string } {
-  if (age <= 26) return { label: '↑ Rising',   color: '#4caf50' };
-  if (age <= 30) return { label: '→ Prime',     color: '#FF8740' };
-  return              { label: '↓ Declining', color: '#777'    };
+  if (age <= 26) return { label: '↑ Rising', color: '#4caf50' };
+  if (age <= 30) return { label: '→ Prime',  color: '#FF8740' };
+  return { label: '↓ Declining', color: '#777' };
 }
 
 export default function Trades({ userTeam }: Props) {
-  const [teams, setTeams]                   = useState<Team[]>([]);
+  const [teams, setTeams]               = useState<Team[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
-  const [teamStatus, setTeamStatus]         = useState<TeamStatus | null>(null);
-  const [myRoster, setMyRoster]             = useState<Player[]>([]);
-  const [theirRoster, setTheirRoster]       = useState<Player[]>([]);
-  const [mySelected, setMySelected]         = useState<number[]>([]);
-  const [theirSelected, setTheirSelected]   = useState<number[]>([]);
-  const [myPos, setMyPos]                   = useState('ALL');
-  const [theirPos, setTheirPos]             = useState('ALL');
-  const [result, setResult]                 = useState<TradeResult | null>(null);
-  const [proposing, setProposing]           = useState(false);
+  const [teamStatus, setTeamStatus]     = useState<TeamStatus | null>(null);
+  const [myRoster, setMyRoster]         = useState<Player[]>([]);
+  const [theirRoster, setTheirRoster]   = useState<Player[]>([]);
+  const [mySelected, setMySelected]     = useState<number[]>([]);
+  const [theirSelected, setTheirSelected] = useState<number[]>([]);
+  const [myPos, setMyPos]               = useState('ALL');
+  const [theirPos, setTheirPos]         = useState('ALL');
+  const [result, setResult]             = useState<TradeResult | null>(null);
+  const [proposing, setProposing]       = useState(false);
+  const [needs, setNeeds]               = useState<TeamNeed[]>([]);
 
   useEffect(() => {
     Promise.all([
       window.api.getTeams(),
       window.api.getRoster(userTeam.id),
-    ]).then(([allTeams, roster]: [Team[], Player[]]) => {
+      window.api.getTeamNeeds(userTeam.id),
+    ]).then(([allTeams, roster, n]: [Team[], Player[], TeamNeed[]]) => {
       setTeams(allTeams.filter(t => t.id !== userTeam.id));
       setMyRoster(roster);
+      setNeeds(n);
     });
   }, [userTeam.id]);
 
@@ -170,16 +178,16 @@ export default function Trades({ userTeam }: Props) {
     return s + (p ? calcTradeValue(p.overall_rating, p.age, p.position, p.dev_trait) : 0);
   }, 0);
 
-  const canPropose   = mySelected.length > 0 && theirSelected.length > 0 && selectedTeamId !== null;
-  const selectedTeam = teams.find(t => t.id === selectedTeamId);
-  const statusMeta   = STATUS_META[teamStatus?.status ?? ''] ?? STATUS_META['Neutral'];
+  const canPropose    = mySelected.length > 0 && theirSelected.length > 0 && selectedTeamId !== null;
+  const selectedTeam  = teams.find(t => t.id === selectedTeamId);
+  const statusMeta    = STATUS_META[teamStatus?.status ?? ''] ?? STATUS_META['Neutral'];
 
   const threshold = teamStatus?.acceptanceThreshold ?? -8;
-  const margin = (myValue - theirValue) - threshold;
+  const margin    = (myValue - theirValue) - threshold;
   const likelihood =
-    !canPropose   ? 'idle' :
-    margin >= 5   ? 'yes' :
-    margin >= -5  ? 'maybe' : 'no';
+    !canPropose ? 'idle' :
+    margin >= 5  ? 'yes'  :
+    margin >= -5 ? 'maybe' : 'no';
 
   const likelihoodText: Record<string, string> = {
     idle:  'Select players from both sides to propose',
@@ -192,17 +200,14 @@ export default function Trades({ userTeam }: Props) {
   };
 
   return (
-    <div style={{ padding: 20, color: '#fff', fontFamily: 'sans-serif', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
+    <div style={{ padding: '24px 32px', maxWidth: 1200, margin: '0 auto' }}>
 
       {/* Header */}
-      <div style={{ marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid #1e1e1e' }}>
-        <div style={{ fontSize: 20, fontWeight: 'bold', color: '#FF8740', marginBottom: 10 }}>
-          Trade Center
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 13, color: '#666' }}>Trade with:</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+        <h1 style={{ color: '#fff', fontSize: 22, fontWeight: 700, margin: 0 }}>Trade Center</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ color: '#444', fontSize: 12 }}>Trade with:</span>
           <select
-            value={selectedTeamId ?? ''}
             onChange={e => e.target.value && handleSelectTeam(Number(e.target.value))}
             style={{ background: '#161616', border: '1px solid #2a2a2a', borderRadius: 5, color: '#ccc', padding: '6px 12px', fontSize: 13, cursor: 'pointer' }}
           >
@@ -218,41 +223,45 @@ export default function Trades({ userTeam }: Props) {
         </div>
       </div>
 
-      {!selectedTeamId ? (
-        <div style={{ textAlign: 'center', padding: '60px 20px', color: '#2a2a2a' }}>
-          <div style={{ fontSize: 14 }}>Select a team above to build a trade.</div>
+      {/* Team Needs Strip */}
+      {needs.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', background: '#0d0d0d', border: '1px solid #1a1a1a', borderRadius: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+          <span style={{ color: '#555', fontSize: 10, letterSpacing: 1, marginRight: 4 }}>YOUR NEEDS</span>
+          {needs.map(n => (
+            <span key={n.position} style={{
+              background: n.severity === 'critical' ? '#3a0a0a' : '#1a1500',
+              border: `1px solid ${n.severity === 'critical' ? '#e57373' : '#e8b800'}`,
+              color: n.severity === 'critical' ? '#e57373' : '#e8b800',
+              fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4,
+            }}>{n.position}</span>
+          ))}
         </div>
+      )}
+
+      {!selectedTeamId ? (
+        <div style={{ color: '#444', padding: '40px 0', fontSize: 13 }}>Select a team above to build a trade.</div>
       ) : (
         <>
           {/* Team Status Banner */}
           {teamStatus && (
-            <div style={{
-              background: statusMeta.bg,
-              border: `1px solid ${statusMeta.color}30`,
-              borderRadius: 8, padding: '12px 16px', marginBottom: 16,
-              display: 'flex', alignItems: 'center', gap: 16,
-            }}>
+            <div style={{ background: statusMeta.bg, border: `1px solid ${statusMeta.color}33`, borderRadius: 8, padding: '12px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <span style={{ fontSize: 14, fontWeight: 'bold', color: '#fff' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>
                     {selectedTeam?.city} {selectedTeam?.name}
                   </span>
-                  <span style={{
-                    background: statusMeta.color, color: '#000',
-                    fontSize: 9, fontWeight: 'bold',
-                    padding: '2px 7px', borderRadius: 3, letterSpacing: 0.8,
-                  }}>
+                  <span style={{ background: statusMeta.color, color: '#000', fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 3, letterSpacing: 1 }}>
                     {teamStatus.status.toUpperCase()}
                   </span>
                 </div>
-                <div style={{ fontSize: 12, color: '#999' }}>{teamStatus.description}</div>
+                <div style={{ color: '#666', fontSize: 11, marginTop: 3 }}>{teamStatus.description}</div>
               </div>
-              <div style={{ marginLeft: 'auto', textAlign: 'right', flexShrink: 0 }}>
-                <div style={{ fontSize: 13, color: '#ccc', fontWeight: 'bold' }}>
-                  {teamStatus.wins}–{teamStatus.losses}
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: 20 }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ color: statusMeta.color, fontWeight: 700, fontSize: 16 }}>{teamStatus.wins}–{teamStatus.losses}</div>
                 </div>
-                <div style={{ fontSize: 11, color: '#555' }}>
-                  Avg OVR: <span style={{ color: ratingColor(teamStatus.avgOverall) }}>{teamStatus.avgOverall}</span>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ color: '#888', fontSize: 11 }}>Avg OVR: {teamStatus.avgOverall}</div>
                 </div>
               </div>
             </div>
@@ -262,80 +271,81 @@ export default function Trades({ userTeam }: Props) {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
             <RosterPanel
               title={`${userTeam.city} ${userTeam.name}`}
-              subtitle="Select players to offer"
+              subtitle="Your roster — select players to offer"
               players={myFiltered}
               selected={mySelected}
               posFilter={myPos}
               onPosFilter={setMyPos}
               onToggle={toggleMine}
-              accent="#4FC3F7"
+              accent="#e57373"
             />
             <RosterPanel
               title={`${selectedTeam?.city} ${selectedTeam?.name}`}
-              subtitle="Select players to request"
+              subtitle="Their roster — select players to request"
               players={theirFiltered}
               selected={theirSelected}
               posFilter={theirPos}
               onPosFilter={setTheirPos}
               onToggle={toggleTheirs}
-              accent={statusMeta.color}
+              accent="#4FC3F7"
+              needs={needs}
             />
           </div>
 
           {/* Trade summary bar */}
-          <div style={{ background: '#0e0e0e', border: '1px solid #1e1e1e', borderRadius: 8, padding: '14px 16px' }}>
+          <div style={{ background: '#111', border: '1px solid #1e1e1e', borderRadius: 8, padding: '14px 16px', marginBottom: 16 }}>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 16, marginBottom: 14, alignItems: 'start' }}>
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
 
               {/* You offer */}
-              <div>
-                <div style={{ fontSize: 10, color: '#555', letterSpacing: 1, marginBottom: 6 }}>YOU OFFER</div>
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <div style={{ color: '#444', fontSize: 10, letterSpacing: 1, marginBottom: 6 }}>YOU OFFER</div>
                 {mySelected.length === 0
-                  ? <div style={{ fontSize: 12, color: '#333' }}>No players selected</div>
+                  ? <div style={{ color: '#333', fontSize: 12 }}>No players selected</div>
                   : mySelected.map(id => {
                       const p = myRoster.find(x => x.id === id);
                       return p ? (
-                        <div key={id} style={{ fontSize: 12, color: '#ccc', marginBottom: 3 }}>
+                        <div key={id} style={{ color: '#ccc', fontSize: 12, marginBottom: 3 }}>
                           {p.first_name} {p.last_name}
                           {p.dev_trait && p.dev_trait !== 'Normal' && (
-                            <span style={{ color: TRAIT_META[p.dev_trait]?.color, fontWeight: 'bold' }}> · {p.dev_trait}</span>
+                            <span style={{ color: TRAIT_META[p.dev_trait]?.color, fontSize: 10 }}> · {p.dev_trait}</span>
                           )}
-                          <span style={{ color: '#444' }}> · {p.position_label || p.position} · </span>
+                          <span style={{ color: '#555' }}> · {p.position_label || p.position} · </span>
                           <span style={{ color: ratingColor(p.overall_rating) }}>{p.overall_rating} OVR</span>
-                          <span style={{ color: '#4FC3F7' }}> · {calcTradeValue(p.overall_rating, p.age, p.position, p.dev_trait)} val</span>
+                          <span style={{ color: '#444' }}> · {calcTradeValue(p.overall_rating, p.age, p.position, p.dev_trait)} val</span>
                         </div>
                       ) : null;
                     })}
                 {mySelected.length > 0 && (
-                  <div style={{ fontSize: 11, color: '#4FC3F7', marginTop: 6, fontWeight: 'bold' }}>
+                  <div style={{ color: '#e57373', fontWeight: 700, fontSize: 12, marginTop: 6 }}>
                     Total Value: {myValue}
                   </div>
                 )}
               </div>
 
-              <div style={{ fontSize: 20, color: '#2a2a2a', alignSelf: 'center' }}>⇄</div>
+              <div style={{ display: 'flex', alignItems: 'center', color: '#444', fontSize: 20, padding: '0 8px' }}>⇄</div>
 
               {/* You receive */}
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 10, color: '#555', letterSpacing: 1, marginBottom: 6 }}>YOU RECEIVE</div>
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <div style={{ color: '#444', fontSize: 10, letterSpacing: 1, marginBottom: 6 }}>YOU RECEIVE</div>
                 {theirSelected.length === 0
-                  ? <div style={{ fontSize: 12, color: '#333' }}>No players selected</div>
+                  ? <div style={{ color: '#333', fontSize: 12 }}>No players selected</div>
                   : theirSelected.map(id => {
                       const p = theirRoster.find(x => x.id === id);
                       return p ? (
-                        <div key={id} style={{ fontSize: 12, color: '#ccc', marginBottom: 3 }}>
+                        <div key={id} style={{ color: '#ccc', fontSize: 12, marginBottom: 3 }}>
                           {p.first_name} {p.last_name}
                           {p.dev_trait && p.dev_trait !== 'Normal' && (
-                            <span style={{ color: TRAIT_META[p.dev_trait]?.color, fontWeight: 'bold' }}> · {p.dev_trait}</span>
+                            <span style={{ color: TRAIT_META[p.dev_trait]?.color, fontSize: 10 }}> · {p.dev_trait}</span>
                           )}
-                          <span style={{ color: '#444' }}> · {p.position_label || p.position} · </span>
+                          <span style={{ color: '#555' }}> · {p.position_label || p.position} · </span>
                           <span style={{ color: ratingColor(p.overall_rating) }}>{p.overall_rating} OVR</span>
-                          <span style={{ color: statusMeta.color }}> · {calcTradeValue(p.overall_rating, p.age, p.position, p.dev_trait)} val</span>
+                          <span style={{ color: '#444' }}> · {calcTradeValue(p.overall_rating, p.age, p.position, p.dev_trait)} val</span>
                         </div>
                       ) : null;
                     })}
                 {theirSelected.length > 0 && (
-                  <div style={{ fontSize: 11, color: statusMeta.color, marginTop: 6, fontWeight: 'bold' }}>
+                  <div style={{ color: '#4FC3F7', fontWeight: 700, fontSize: 12, marginTop: 6 }}>
                     Total Value: {theirValue}
                   </div>
                 )}
@@ -344,33 +354,32 @@ export default function Trades({ userTeam }: Props) {
 
             {/* Value bar */}
             {canPropose && myValue > 0 && theirValue > 0 && (
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ display: 'flex', gap: 3, height: 4, borderRadius: 2, overflow: 'hidden' }}>
-                  <div style={{ flex: myValue, background: '#4FC3F7', borderRadius: 2, transition: 'flex 0.3s' }} />
-                  <div style={{ flex: theirValue, background: statusMeta.color, borderRadius: 2, transition: 'flex 0.3s' }} />
+              <div style={{ marginTop: 12 }}>
+                <div style={{ display: 'flex', height: 6, borderRadius: 3, overflow: 'hidden', background: '#0a0a0a' }}>
+                  <div style={{ width: `${(myValue / (myValue + theirValue)) * 100}%`, background: '#e57373' }} />
+                  <div style={{ flex: 1, background: '#4FC3F7' }} />
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3 }}>
-                  <span style={{ fontSize: 10, color: '#4FC3F7' }}>You give: {myValue}</span>
-                  <span style={{ fontSize: 10, color: statusMeta.color }}>You get: {theirValue}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                  <span style={{ color: '#e57373', fontSize: 10 }}>You give: {myValue}</span>
+                  <span style={{ color: '#4FC3F7', fontSize: 10 }}>You get: {theirValue}</span>
                 </div>
               </div>
             )}
 
             {/* Likelihood + propose */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ fontSize: 12, color: likelihoodColor[likelihood] }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 14 }}>
+              <div style={{ color: likelihoodColor[likelihood], fontSize: 12, flex: 1 }}>
                 {likelihoodText[likelihood]}
               </div>
               <button
                 onClick={handlePropose}
                 disabled={!canPropose || proposing}
                 style={{
-                  padding: '9px 20px',
-                  background: !canPropose || proposing ? '#1a1a1a' : '#FF8740',
-                  border: 'none', borderRadius: 5,
-                  color: !canPropose || proposing ? '#444' : '#000',
-                  fontWeight: 'bold', fontSize: 13,
-                  cursor: !canPropose || proposing ? 'not-allowed' : 'pointer',
+                  padding: '8px 20px', background: canPropose ? '#1a3a1a' : '#111',
+                  border: `1px solid ${canPropose ? '#4caf50' : '#2a2a2a'}`,
+                  borderRadius: 5, color: canPropose ? '#4caf50' : '#333',
+                  fontSize: 12, fontWeight: 700, cursor: canPropose ? 'pointer' : 'default',
+                  letterSpacing: 0.5,
                 }}
               >
                 {proposing ? 'Proposing...' : 'Propose Trade'}
@@ -378,13 +387,7 @@ export default function Trades({ userTeam }: Props) {
             </div>
 
             {result && (
-              <div style={{
-                marginTop: 12, padding: '10px 14px',
-                background: result.accepted ? '#0a1a0a' : '#1a0a0a',
-                border: `1px solid ${result.accepted ? '#1a4a1a' : '#4a1a1a'}`,
-                borderRadius: 6, fontSize: 13,
-                color: result.accepted ? '#4caf50' : '#e57373',
-              }}>
+              <div style={{ marginTop: 10, color: result.accepted ? '#4caf50' : '#e57373', fontSize: 13, fontWeight: 600 }}>
                 {result.accepted ? '✓ Trade accepted! Rosters updated.' : `✗ ${result.reason}`}
               </div>
             )}
@@ -406,49 +409,47 @@ interface RosterPanelProps {
   onPosFilter: (p: string) => void;
   onToggle: (id: number) => void;
   accent: string;
+  needs?: TeamNeed[];
 }
 
-function RosterPanel({ title, subtitle, players, selected, posFilter, onPosFilter, onToggle, accent }: RosterPanelProps) {
+function RosterPanel({ title, subtitle, players, selected, posFilter, onPosFilter, onToggle, accent, needs }: RosterPanelProps) {
   return (
-    <div style={{ background: '#0e0e0e', border: '1px solid #1a1a1a', borderRadius: 8, overflow: 'hidden' }}>
-      <div style={{ padding: '10px 14px', borderBottom: '1px solid #1a1a1a' }}>
-        <div style={{ fontSize: 11, fontWeight: 'bold', color: accent, marginBottom: 2 }}>{title}</div>
-        <div style={{ fontSize: 10, color: '#444', marginBottom: 8 }}>{subtitle}</div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-          {POSITIONS.map(pos => (
-            <button
-              key={pos}
-              onClick={() => onPosFilter(pos)}
-              style={{
-                padding: '2px 7px',
-                background: posFilter === pos ? accent : '#141414',
-                border: `1px solid ${posFilter === pos ? accent : '#222'}`,
-                borderRadius: 3,
-                color: posFilter === pos ? '#000' : '#555',
-                fontSize: 10, cursor: 'pointer',
-                fontWeight: posFilter === pos ? 'bold' : 'normal',
-              }}
-            >
-              {pos}
-            </button>
-          ))}
-        </div>
+    <div style={{ background: '#111', border: '1px solid #1e1e1e', borderRadius: 8, padding: '12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div>
+        <div style={{ color: '#fff', fontWeight: 700, fontSize: 13 }}>{title}</div>
+        <div style={{ color: '#444', fontSize: 11 }}>{subtitle}</div>
+      </div>
+      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+        {POSITIONS.map(pos => (
+          <button key={pos} onClick={() => onPosFilter(pos)}
+            style={{
+              padding: '2px 7px',
+              background: posFilter === pos ? accent : '#141414',
+              border: `1px solid ${posFilter === pos ? accent : '#222'}`,
+              borderRadius: 3,
+              color: posFilter === pos ? '#000' : '#555',
+              fontSize: 10, cursor: 'pointer',
+              fontWeight: posFilter === pos ? 'bold' : 'normal',
+            }}
+          >
+            {pos}
+          </button>
+        ))}
       </div>
 
-      <div style={{ maxHeight: 360, overflowY: 'auto', padding: '8px 10px' }}>
+      <div style={{ overflowY: 'auto', maxHeight: 420, display: 'flex', flexDirection: 'column', gap: 2 }}>
         {players.length === 0 ? (
-          <div style={{ color: '#333', fontSize: 12, textAlign: 'center', padding: 20 }}>No players</div>
+          <div style={{ color: '#333', fontSize: 12, padding: 8 }}>No players</div>
         ) : (
           players.map(player => {
-            const isSelected = selected.includes(player.id);
-            const traj = trajectory(player.age);
-            const val  = calcTradeValue(player.overall_rating, player.age, player.position, player.dev_trait);
-            const traitColor = TRAIT_META[player.dev_trait]?.color ?? '#444';
-            const showTrait  = player.dev_trait && player.dev_trait !== 'Normal';
+            const isSelected  = selected.includes(player.id);
+            const traj        = trajectory(player.age);
+            const val         = calcTradeValue(player.overall_rating, player.age, player.position, player.dev_trait);
+            const traitColor  = TRAIT_META[player.dev_trait]?.color ?? '#444';
+            const showTrait   = player.dev_trait && player.dev_trait !== 'Normal';
+            const need        = needs?.find(n => n.position === player.position);
             return (
-              <div
-                key={player.id}
-                onClick={() => onToggle(player.id)}
+              <div key={player.id} onClick={() => onToggle(player.id)}
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   padding: '6px 8px', marginBottom: 3,
@@ -457,34 +458,34 @@ function RosterPanel({ title, subtitle, players, selected, posFilter, onPosFilte
                   borderRadius: 4, cursor: 'pointer',
                 }}
               >
-                <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <span style={{ fontSize: 12, color: isSelected ? '#fff' : '#ccc', fontWeight: isSelected ? '700' : '400' }}>
+                    <span style={{ color: '#ddd', fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {player.first_name} {player.last_name}
                     </span>
                     {showTrait && (
-                      <span style={{
-                        fontSize: 8, fontWeight: 'bold', color: '#000',
-                        background: traitColor,
-                        padding: '1px 5px', borderRadius: 2, letterSpacing: 0.3,
-                      }}>
-                        {player.dev_trait === 'X-Factor' ? 'XF' :
-                         player.dev_trait === 'Superstar' ? 'SS' : 'S'}
+                      <span style={{ background: traitColor, color: '#000', fontSize: 8, fontWeight: 700, padding: '1px 4px', borderRadius: 3 }}>
+                        {player.dev_trait === 'X-Factor' ? 'XF' : player.dev_trait === 'Superstar' ? 'SS' : 'S'}
                       </span>
                     )}
+                    {need && (
+                      <span style={{
+                        background: need.severity === 'critical' ? '#e57373' : '#e8b800',
+                        color: '#000', fontSize: 8, fontWeight: 800,
+                        padding: '1px 4px', borderRadius: 3, letterSpacing: 0.5,
+                      }}>NEED</span>
+                    )}
                   </div>
-                  <div style={{ fontSize: 10, display: 'flex', gap: 8, marginTop: 1 }}>
-                    <span style={{ color: '#555' }}>{player.position_label || player.position} · Age {player.age}</span>
-                    <span style={{ color: traj.color }}>{traj.label}</span>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <span style={{ color: '#555', fontSize: 10 }}>{player.position_label || player.position} · Age {player.age}</span>
+                    <span style={{ color: traj.color, fontSize: 10 }}>{traj.label}</span>
                   </div>
                 </div>
-                <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 8 }}>
-                  <div style={{ fontSize: 13, fontWeight: 'bold', color: ratingColor(player.overall_rating) }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 }}>
+                  <span style={{ color: ratingColor(player.overall_rating), fontWeight: 700, fontSize: 13 }}>
                     {player.overall_rating}
-                  </div>
-                  <div style={{ fontSize: 10, color: accent }}>
-                    {val} val
-                  </div>
+                  </span>
+                  <span style={{ color: '#444', fontSize: 10 }}>{val} val</span>
                 </div>
               </div>
             );
@@ -493,7 +494,7 @@ function RosterPanel({ title, subtitle, players, selected, posFilter, onPosFilte
       </div>
 
       {selected.length > 0 && (
-        <div style={{ padding: '6px 14px', borderTop: '1px solid #1a1a1a', fontSize: 11, color: accent }}>
+        <div style={{ color: accent, fontSize: 11, fontWeight: 600, paddingTop: 4 }}>
           {selected.length} player{selected.length > 1 ? 's' : ''} selected
         </div>
       )}

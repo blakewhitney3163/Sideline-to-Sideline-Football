@@ -58,6 +58,8 @@ interface RosterSpots {
   psFree: number;
 }
 
+interface TeamNeed { position: string; severity: 'critical' | 'depth'; }
+
 interface Props {
   userTeam: { id: number; city: string; name: string };
   currentSeason: number;
@@ -140,6 +142,25 @@ function contractGrade(salary: number, pos: string, ovr: number, devTrait: strin
 
 type Decision = 'pending' | 'resigned' | 'walking';
 
+function TeamNeedsBar({ needs }: { needs: TeamNeed[] }) {
+  if (needs.length === 0) return null;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: '#0d0d0d', border: '1px solid #1a1a1a', borderRadius: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+      <span style={{ color: '#555', fontSize: 10, letterSpacing: 1, marginRight: 4 }}>TEAM NEEDS</span>
+      {needs.map(n => (
+        <span key={n.position} style={{
+          background: n.severity === 'critical' ? '#3a0a0a' : '#1a1500',
+          border: `1px solid ${n.severity === 'critical' ? '#e57373' : '#e8b800'}`,
+          color: n.severity === 'critical' ? '#e57373' : '#e8b800',
+          fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4,
+        }}>
+          {n.position}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export default function Franchise({ userTeam, currentSeason }: Props) {
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [practiceSquad, setPracticeSquad] = useState<PracticePlayer[]>([]);
@@ -169,6 +190,7 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
   const [faSearch, setFaSearch] = useState('');
   const [cpuFaResult, setCpuFaResult] = useState<{ totalSigned: number; teamsActive: number } | null>(null);
   const [cpuFaDone, setCpuFaDone] = useState(false);
+  const [needs, setNeeds] = useState<TeamNeed[]>([]);
 
   useEffect(() => { loadData(); }, [userTeam.id]);
 
@@ -182,17 +204,19 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
     setTimeout(() => setToast(null), 4000);
   };
 
-  const loadData = async () => {
-    const [c, s, ps, spots] = await Promise.all([
+   const loadData = async () => {
+    const [c, s, ps, spots, n] = await Promise.all([
       window.api.getTeamContracts(userTeam.id),
       window.api.getCapSummary(userTeam.id),
       window.api.getPracticeSquad(userTeam.id),
       window.api.getRosterSpots(userTeam.id),
+      window.api.getTeamNeeds(userTeam.id),
     ]);
     setContracts(c);
     setCap(s);
     setPracticeSquad(ps);
     setRosterSpots(spots);
+    setNeeds(n);
   };
 
   const loadFreeAgents = async () => {
@@ -694,7 +718,7 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
               </span>
             </div>
           )}
-
+<TeamNeedsBar needs={needs} />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 80px 100px auto', gap: 8, padding: '6px 12px', fontSize: 10, color: '#333', letterSpacing: 1, borderBottom: '1px solid #1a1a1a', marginBottom: 4 }}>
             <span>PLAYER</span><span>AGE / OVR</span><span>DEV</span><span>MARKET VALUE</span>
           </div>
@@ -714,6 +738,13 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span style={{ color: '#ddd', fontWeight: 600, fontSize: 13 }}>{fa.first_name} {fa.last_name}</span>
                       {trait.short && <span style={{ background: trait.color, color: '#000', fontSize: 8, fontWeight: 700, padding: '1px 4px', borderRadius: 3 }}>{trait.short}</span>}
+                      {needs.some(n => n.position === fa.position) && (
+                  <span style={{
+                    background: needs.find(n => n.position === fa.position)?.severity === 'critical' ? '#e57373' : '#e8b800',
+                    color: '#000', fontSize: 8, fontWeight: 800,
+                    padding: '1px 4px', borderRadius: 3, letterSpacing: 0.5,
+                  }}>NEED</span>
+                )}
                     </div>
                     <span style={{ color: '#444', fontSize: 11 }}>{fa.position_label || fa.position}</span>
                   </div>

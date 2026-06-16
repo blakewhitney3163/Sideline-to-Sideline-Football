@@ -174,5 +174,8 @@ contextBridge.exposeInMainWorld('api', {
 
    getSeasonAwards: (season: number) =>
     ipcRenderer.invoke('get-season-awards', season),
+   
+   getTeamNeeds: (teamId: number) =>
+    ipcRenderer.invoke('get-team-needs', teamId),
 
 });
