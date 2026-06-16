@@ -1936,6 +1936,80 @@ ipcMain.handle('get-season-records', () => {
   return { passing, rushing, receiving, tds, tackles, sacks, defInts };
 });
 
+ipcMain.handle('get-season-awards', (_event: any, season: number) => {
+  const offStats = db.prepare(`
+    SELECT p.id, p.first_name || ' ' || p.last_name as name,
+           p.position, p.position_label, p.age, p.overall_rating, p.dev_trait,
+           p.team_id, t.name as team_name, t.city as team_city,
+           SUM(s.pass_yards) as pass_yards, SUM(s.pass_tds) as pass_tds,
+           SUM(s.interceptions) as interceptions,
+           SUM(s.rush_yards) as rush_yards, SUM(s.rush_tds) as rush_tds,
+           SUM(s.rec_yards) as rec_yards, SUM(s.rec_tds) as rec_tds,
+           SUM(s.receptions) as receptions,
+           COUNT(DISTINCT s.game_id) as games
+    FROM stats s
+    JOIN players p ON s.player_id = p.id
+    JOIN teams t ON p.team_id = t.id
+    JOIN games g ON s.game_id = g.id
+    WHERE g.season = ? AND g.is_playoff = 0
+    GROUP BY p.id HAVING games > 0
+  `).all(season) as any[];
+
+  const defStats = db.prepare(`
+    SELECT p.id, p.first_name || ' ' || p.last_name as name,
+           p.position, p.position_label, p.age, p.overall_rating, p.dev_trait,
+           p.team_id, t.name as team_name, t.city as team_city,
+           SUM(s.tackles) as tackles, SUM(s.assisted_tackles) as assisted_tackles,
+           SUM(s.sacks) as sacks, SUM(s.def_interceptions) as def_interceptions,
+           SUM(s.pass_deflections) as pass_deflections, SUM(s.forced_fumbles) as forced_fumbles,
+           COUNT(DISTINCT s.game_id) as games
+    FROM stats s
+    JOIN players p ON s.player_id = p.id
+    JOIN teams t ON p.team_id = t.id
+    JOIN games g ON s.game_id = g.id
+    WHERE g.season = ? AND g.is_playoff = 0
+    GROUP BY p.id HAVING games > 0
+  `).all(season) as any[];
+
+  const offScore = (p: any) =>
+    (p.pass_yards || 0) * 0.04 + (p.pass_tds || 0) * 6 - (p.interceptions || 0) * 3 +
+    (p.rush_yards || 0) * 0.1 + (p.rush_tds || 0) * 6 +
+    (p.rec_yards || 0) * 0.1 + (p.rec_tds || 0) * 6;
+
+  const defScore = (p: any) =>
+    (p.tackles || 0) * 2 + (p.sacks || 0) * 10 +
+    (p.def_interceptions || 0) * 8 + (p.pass_deflections || 0) * 2 +
+    (p.forced_fumbles || 0) * 5;
+
+  const OFF_POS = ['QB', 'RB', 'WR', 'TE'];
+  const DEF_POS = ['DL', 'LB', 'CB', 'S'];
+
+  const offPlayers = offStats.filter((p: any) => OFF_POS.includes(p.position));
+  const defPlayers = defStats.filter((p: any) => DEF_POS.includes(p.position));
+  const topOff = [...offPlayers].sort((a: any, b: any) => offScore(b) - offScore(a));
+  const topDef = [...defPlayers].sort((a: any, b: any) => defScore(b) - defScore(a));
+
+  const coyRow = db.prepare(`
+    SELECT t.id, t.city, t.name,
+      SUM(CASE WHEN (g.home_team_id = t.id AND g.home_score > g.away_score)
+                 OR (g.away_team_id = t.id AND g.away_score > g.home_score)
+               THEN 1 ELSE 0 END) as wins
+    FROM games g
+    JOIN teams t ON g.home_team_id = t.id OR g.away_team_id = t.id
+    WHERE g.season = ? AND g.is_playoff = 0 AND g.is_simulated = 1
+    GROUP BY t.id ORDER BY wins DESC LIMIT 1
+  `).get(season) as any;
+
+  return {
+    mvp:   topOff[0] || null,
+    opoy:  topOff.find((p: any) => p.position !== 'QB') || null,
+    dpoy:  topDef[0] || null,
+    oroty: topOff.filter((p: any) => p.age <= 23)[0] || null,
+    droty: topDef.filter((p: any) => p.age <= 23)[0] || null,
+    coy:   coyRow || null,
+  };
+});
+
 // ─── NFLverse Stats Import ────────────────────────────────────────────────────
 ipcMain.handle('import-nflverse-stats', () => {
   const players = db.prepare('SELECT id, position, age, overall_rating FROM players').all() as any[];

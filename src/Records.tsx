@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 
 declare const window: any;
 
-type RecordMode = 'alltime' | 'season';
+type RecordMode = 'alltime' | 'season' | 'awards';
 type StatCategory = 'passing' | 'rushing' | 'receiving' | 'tds' | 'tackles' | 'sacks' | 'defInts';
 
 interface RecordRow {
@@ -72,6 +72,21 @@ interface NflBenchmark {
   def_interceptions: number;
   pass_deflections: number;
   forced_fumbles: number;
+}
+
+interface AwardWinner {
+  id: number; name: string; position: string; position_label: string;
+  age: number; overall_rating: number; dev_trait: string;
+  team_name: string; team_city: string; games: number;
+  pass_yards?: number; pass_tds?: number; interceptions?: number;
+  rush_yards?: number; rush_tds?: number;
+  rec_yards?: number; rec_tds?: number; receptions?: number;
+  tackles?: number; sacks?: number; def_interceptions?: number;
+}
+interface SeasonAwards {
+  mvp: AwardWinner | null; opoy: AwardWinner | null; dpoy: AwardWinner | null;
+  oroty: AwardWinner | null; droty: AwardWinner | null;
+  coy: { city: string; name: string; wins: number } | null;
 }
 
 // Real NFL all-time and single-season records used as benchmarks
@@ -339,23 +354,100 @@ function BenchmarkRow({
   );
 }
 
+function StatLine({ label, value }: { label: string; value: any }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+      <span style={{ fontSize: 10, color: '#444', letterSpacing: 1 }}>{label}</span>
+      <span style={{ fontSize: 11, color: '#aaa' }}>{value ?? '—'}</span>
+    </div>
+  );
+}
+function AwardCard({ award, icon, winner, coy, type }: {
+  award: string; icon: string;
+  winner?: AwardWinner | null;
+  coy?: { city: string; name: string; wins: number } | null;
+  type: 'off' | 'def' | 'coy';
+}) {
+  const accent = type === 'def' ? '#4FC3F7' : type === 'coy' ? '#FF8740' : '#FFD700';
+  return (
+    <div style={{
+      background: '#0d0d0d', borderRadius: 6, padding: '18px 20px',
+      border: '1px solid #1a1a1a', borderTop: `2px solid ${accent}`,
+    }}>
+      <div style={{ fontSize: 10, color: accent, letterSpacing: 3, marginBottom: 14 }}>
+        {icon} {award}
+      </div>
+      {type === 'coy' ? (
+        coy ? (
+          <>
+            <div style={{ fontSize: 15, fontWeight: 'bold', color: '#fff', marginBottom: 4 }}>
+              {coy.city} {coy.name}
+            </div>
+            <div style={{ fontSize: 11, color: '#555' }}>{coy.wins}–{18 - coy.wins} record</div>
+          </>
+        ) : <div style={{ fontSize: 12, color: '#333' }}>Season in progress</div>
+      ) : winner ? (
+        <>
+          <div style={{ fontSize: 15, fontWeight: 'bold', color: '#fff', marginBottom: 2 }}>
+            {winner.name}
+          </div>
+          <div style={{ fontSize: 11, color: '#555', marginBottom: 14 }}>
+            {winner.team_city} {winner.team_name} · {winner.position_label || winner.position} · {winner.games}G
+          </div>
+          {type === 'off' && winner.position === 'QB' && <>
+            <StatLine label="PASS YDS" value={(winner.pass_yards || 0).toLocaleString()} />
+            <StatLine label="TD / INT" value={`${winner.pass_tds} / ${winner.interceptions}`} />
+            <StatLine label="RUSH YDS" value={winner.rush_yards} />
+          </>}
+          {type === 'off' && winner.position === 'RB' && <>
+            <StatLine label="RUSH YDS" value={(winner.rush_yards || 0).toLocaleString()} />
+            <StatLine label="RUSH TD" value={winner.rush_tds} />
+            <StatLine label="REC YDS" value={winner.rec_yards} />
+          </>}
+          {type === 'off' && (winner.position === 'WR' || winner.position === 'TE') && <>
+            <StatLine label="REC YDS" value={(winner.rec_yards || 0).toLocaleString()} />
+            <StatLine label="REC TD" value={winner.rec_tds} />
+            <StatLine label="RECEPTIONS" value={winner.receptions} />
+          </>}
+          {type === 'def' && <>
+            <StatLine label="TACKLES" value={winner.tackles} />
+            <StatLine label="SACKS" value={winner.sacks} />
+            <StatLine label="INT" value={winner.def_interceptions} />
+          </>}
+          <div style={{ marginTop: 14, fontSize: 12, color: accent, fontWeight: 'bold' }}>
+            {winner.overall_rating} OVR
+            {winner.dev_trait && winner.dev_trait !== 'Normal' && (
+              <span style={{ fontSize: 10, color: '#FF8740', marginLeft: 8 }}>{winner.dev_trait}</span>
+            )}
+          </div>
+        </>
+      ) : <div style={{ fontSize: 12, color: '#333' }}>No qualifying players</div>}
+    </div>
+  );
+}
+
 export default function Records() {
   const [mode, setMode]         = useState<RecordMode>('alltime');
   const [category, setCategory] = useState<StatCategory>('passing');
   const [alltime, setAlltime]   = useState<RecordsData | null>(null);
   const [season, setSeason]     = useState<RecordsData | null>(null);
   const [loading, setLoading]   = useState(true);
+  const [awards, setAwards] = useState<SeasonAwards | null>(null);
+  const [currentSeason, setCurrentSeason] = useState(2025);
 
   useEffect(() => {
-    Promise.all([
-      window.api.getAlltimeLeaders(),
-      window.api.getSeasonRecords(),
-    ]).then(([at, sr]: [RecordsData, RecordsData]) => {
-      setAlltime(at);
-      setSeason(sr);
-      setLoading(false);
-    });
-  }, []);
+ Promise.all([
+ window.api.getAlltimeLeaders(),
+ window.api.getSeasonRecords(),
+ window.api.getCurrentSeason(),
+ ]).then(([at, sr, season]: [RecordsData, RecordsData, number]) => {
+ setAlltime(at);
+ setSeason(sr);
+ setCurrentSeason(season);
+ setLoading(false);
+ window.api.getSeasonAwards(season).then((aw: SeasonAwards) => setAwards(aw));
+ });
+}, []);
 
   const data = mode === 'alltime' ? alltime : season;
   const rows: RecordRow[] = data ? (data[category] ?? []) : [];
@@ -377,6 +469,7 @@ export default function Records() {
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         <ModeBtn active={mode === 'alltime'} onClick={() => setMode('alltime')}>ALL-TIME LEADERS</ModeBtn>
         <ModeBtn active={mode === 'season'}  onClick={() => setMode('season')}>SEASON RECORDS</ModeBtn>
+        <ModeBtn active={mode === 'awards'} onClick={() => setMode('awards')}>SEASON AWARDS</ModeBtn>
       </div>
 
       {/* Category tabs */}
@@ -493,6 +586,28 @@ export default function Records() {
             {rows.length} player{rows.length !== 1 ? 's' : ''} · {mode === 'alltime' ? 'career totals' : 'single-season bests'} from all simulated games
           </div>
         </>
+        
+        {mode === 'awards' && (
+ <div style={{ marginTop: 24 }}>
+ <div style={{ fontSize: 10, color: '#444', letterSpacing: 3, marginBottom: 20 }}>
+ {currentSeason} SEASON AWARDS
+ </div>
+ {!awards?.mvp && !awards?.dpoy ? (
+ <div style={{ color: '#333', fontSize: 13, fontStyle: 'italic' }}>
+ No awards yet — simulate the full regular season first.
+ </div>
+ ) : (
+ <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+ <AwardCard award="MVP" icon="🏆" winner={awards?.mvp} type="off" />
+ <AwardCard award="OFF. PLAYER OF THE YEAR" icon="⚡" winner={awards?.opoy} type="off" />
+ <AwardCard award="DEF. PLAYER OF THE YEAR" icon="🛡" winner={awards?.dpoy} type="def" />
+ <AwardCard award="OFF. ROOKIE OF THE YEAR" icon="🌟" winner={awards?.oroty} type="off" />
+ <AwardCard award="DEF. ROOKIE OF THE YEAR" icon="🌟" winner={awards?.droty} type="def" />
+ <AwardCard award="COACH OF THE YEAR" icon="📋" coy={awards?.coy} type="coy" />
+ </div>
+ )}
+ </div>
+)}
       )}
     </div>
   );

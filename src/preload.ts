@@ -172,4 +172,7 @@ contextBridge.exposeInMainWorld('api', {
   getSeasonRecords: () =>
     ipcRenderer.invoke('get-season-records'),
 
+   getSeasonAwards: (season: number) =>
+    ipcRenderer.invoke('get-season-awards', season),
+
 });
