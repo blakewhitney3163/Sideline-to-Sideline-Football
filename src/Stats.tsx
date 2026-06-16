@@ -265,8 +265,8 @@ export default function Stats({ currentSeason }: Props) {
   ];
 
   const rowStyle = (i: number, p: BasePlayer): React.CSSProperties => ({
-    borderBottom: '1px solid #111',
-    background: selectedPlayer?.player_id === p.player_id ? T.bgGreen : i % 2 === 0 ? '#080808' : 'transparent',
+    borderBottom: `1px solid ${T.borderFaint}`,
+background: selectedPlayer?.player_id === p.player_id ? T.bgGreen : i % 2 === 0 ? T.bgCard : 'transparent',
     cursor: 'pointer',
   });
 
