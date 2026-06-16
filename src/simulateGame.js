@@ -88,8 +88,8 @@ function generatePlayerStats(teamId, score, offenseRating) {
     const passAttempts    = clamp(randomNormal(34, 5), 20, 50);
     // throw_accuracy drives completion %
     const throwAcc        = attr(qb, 'throw_accuracy');
-    const compPct         = Math.min(0.76, Math.max(0.48,
-      0.50 + (throwAcc - 70) * 0.004 + randomNormal(0, 0.035)
+    const compPct         = Math.min(0.76, Math.max(0.50,
+      0.55 + (throwAcc - 70) * 0.004 + randomNormal(0, 0.035)
     ));
     const completions     = clamp(passAttempts * compPct, 10, passAttempts);
     // awareness + throw_accuracy reduce INT rate
@@ -187,7 +187,7 @@ function generateDefensiveStats(teamId, opponentQBInts, defenseRating) {
 
   if (allDef.length === 0) return [];
 
-  const totalTackles = clamp(randomNormal(32, 5), 20, 48);
+  const totalTackles = clamp(randomNormal(38, 5), 25, 52);
   const totalSacks   = clampFloat(randomNormal(3.0 * defFactor, 1.2), 0, 8);
   const totalPDs     = clamp(randomNormal(6 * defFactor, 2), 1, 14);
   const totalINTs    = opponentQBInts;
