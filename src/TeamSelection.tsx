@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { T } from './theme';
 
 declare const window: any;
 
@@ -47,13 +48,13 @@ export default function TeamSelection({ onSelect }: Props) {
     }}>
       {/* Title */}
       <div style={{ marginBottom: 28, textAlign: 'center' }}>
-        <div style={{ fontSize: 12, color: '#444', letterSpacing: 3, marginBottom: 8 }}>
+        <div style={{ fontSize: 12, color: T.textDim, letterSpacing: 3, marginBottom: 8 }}>
           NFL SIMULATOR
         </div>
         <div style={{ fontSize: 26, fontWeight: 'bold', color: '#fff', marginBottom: 6 }}>
           Choose Your Franchise
         </div>
-        <div style={{ fontSize: 12, color: '#3a3a3a' }}>
+        <div style={{ fontSize: 12, color: T.borderStrong }}>
           You'll manage this team throughout the dynasty
         </div>
       </div>
@@ -86,22 +87,22 @@ export default function TeamSelection({ onSelect }: Props) {
                         onClick={() => setSelected(team)}
                         style={{
                           padding: '7px 10px', marginBottom: 4,
-                          background: isSelected ? '#1a0f00' : '#111',
-                          border: `1px solid ${isSelected ? '#FF8740' : '#1e1e1e'}`,
+                          background: isSelected ? T.bgOrange : T.bgPage,
+                          border: `1px solid ${isSelected ? '#FF8740' : T.bgCard}`,
                           borderRadius: 5, cursor: 'pointer',
                           transition: 'border-color 0.1s, background 0.1s',
                         }}
                         onMouseEnter={e => {
-                          if (!isSelected) (e.currentTarget as HTMLElement).style.borderColor = '#333';
+                          if (!isSelected) (e.currentTarget as HTMLElement).style.borderColor = T.borderStrong;
                         }}
                         onMouseLeave={e => {
-                          if (!isSelected) (e.currentTarget as HTMLElement).style.borderColor = '#1e1e1e';
+                          if (!isSelected) (e.currentTarget as HTMLElement).style.borderColor = T.bgCard;
                         }}
                       >
                         <div style={{ fontSize: 11, color: isSelected ? '#fff' : '#bbb', fontWeight: isSelected ? '700' : '400' }}>
                           {team.city}
                         </div>
-                        <div style={{ fontSize: 10, color: isSelected ? '#FF8740' : '#444' }}>
+                        <div style={{ fontSize: 10, color: isSelected ? '#FF8740' : T.textDim }}>
                           {team.name}
                         </div>
                       </div>
@@ -118,7 +119,7 @@ export default function TeamSelection({ onSelect }: Props) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, minHeight: 44 }}>
         {selected ? (
           <>
-            <span style={{ fontSize: 14, color: '#888' }}>
+            <span style={{ fontSize: 14, color: T.textMuted }}>
               {selected.city} {selected.name}
             </span>
             <button
@@ -126,9 +127,9 @@ export default function TeamSelection({ onSelect }: Props) {
               disabled={saving}
               style={{
                 padding: '11px 28px',
-                background: saving ? '#2a2a2a' : '#FF8740',
+                background: saving ? T.borderMid : '#FF8740',
                 border: 'none', borderRadius: 6,
-                color: saving ? '#555' : '#000',
+                color: saving ? T.textMuted : '#000',
                 fontWeight: 'bold', fontSize: 14,
                 cursor: saving ? 'not-allowed' : 'pointer',
               }}
@@ -137,7 +138,7 @@ export default function TeamSelection({ onSelect }: Props) {
             </button>
           </>
         ) : (
-          <span style={{ fontSize: 13, color: '#2a2a2a' }}>
+          <span style={{ fontSize: 13, color: T.borderMid }}>
             Select a team above to begin
           </span>
         )}

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { T } from './theme';
 
 declare const window: any;
 
@@ -45,7 +46,7 @@ const GROUP_LABELS: Record<string, string> = {
 };
 
 const TRAIT_META: Record<string, { color: string; short: string }> = {
-  Normal:     { color: '#444',    short: '' },
+  Normal:     { color: T.textDim,    short: '' },
   Star:       { color: '#4FC3F7', short: 'S' },
   Superstar:  { color: '#FF8740', short: 'SS' },
   'X-Factor': { color: '#FFD700', short: 'XF' },
@@ -55,13 +56,13 @@ function ovrColor(ovr: number): string {
   if (ovr >= 90) return '#FFD700';
   if (ovr >= 80) return '#4FC3F7';
   if (ovr >= 70) return '#81C784';
-  return '#aaa';
+  return T.textSecondary;
 }
 
 function injuryMeta(status: string): { label: string; color: string; bg: string } | null {
-  if (status === 'ir')           return { label: 'IR',  color: '#e57373', bg: '#2a0a0a' };
-  if (status === 'out')          return { label: 'OUT', color: '#FF8740', bg: '#2a1500' };
-  if (status === 'questionable') return { label: 'Q',   color: '#FFD700', bg: '#1a1500' };
+  if (status === 'ir')           return { label: 'IR',  color: '#e57373', bg: T.bgRed };
+  if (status === 'out')          return { label: 'OUT', color: '#FF8740', bg: T.bgOrange };
+  if (status === 'questionable') return { label: 'Q',   color: '#FFD700', bg: T.bgGold };
   return null;
 }
 
@@ -131,16 +132,16 @@ export default function DepthChart({ userTeam }: Props) {
   const injuredCount = Object.values(chart).flat().filter(p => p.injury_status !== 'healthy').length;
 
   if (loading) {
-    return <div style={{ color: '#555', padding: 40, fontFamily: 'monospace' }}>Loading depth chart...</div>;
+    return <div style={{ color: T.textMuted, padding: 40, fontFamily: 'monospace' }}>Loading depth chart...</div>;
   }
 
   return (
-    <div style={{ padding: '24px 32px', fontFamily: 'monospace', color: '#ccc', background: '#0d0d0d', minHeight: '100vh' }}>
+    <div style={{ padding: '24px 32px', fontFamily: 'monospace', color: T.textPrimary, background: T.bgPage, minHeight: '100vh' }}>
 
       {/* Toast */}
       {toast && (
         <div style={{
-          position: 'fixed', top: 20, right: 20, background: '#1a2a1a',
+          position: 'fixed', top: 20, right: 20, background: T.bgGreen,
           border: '1px solid #2a4a2a', borderRadius: 6, padding: '10px 16px',
           color: '#4caf50', fontSize: 12, zIndex: 999,
         }}>
@@ -152,7 +153,7 @@ export default function DepthChart({ userTeam }: Props) {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
           <div style={{ fontSize: 20, fontWeight: 'bold', color: '#fff' }}>Depth Chart</div>
-          <div style={{ fontSize: 12, color: '#555', marginTop: 4 }}>
+          <div style={{ fontSize: 12, color: T.textMuted, marginTop: 4 }}>
             {userTeam.city} {userTeam.name}
             {injuredCount > 0 && (
               <span style={{ marginLeft: 12, color: '#FF8740' }}>⚠ {injuredCount} injured</span>
@@ -160,8 +161,8 @@ export default function DepthChart({ userTeam }: Props) {
           </div>
         </div>
         <button onClick={handleReset} disabled={resetting} style={{
-          padding: '7px 14px', background: '#141414', border: '1px solid #2a2a2a',
-          borderRadius: 4, color: resetting ? '#333' : '#666', fontSize: 11,
+          padding: '7px 14px', background: T.bgPanel, border: `1px solid ${T.borderMid}`,
+          borderRadius: 4, color: resetting ? T.borderStrong : T.textMuted, fontSize: 11,
           cursor: resetting ? 'not-allowed' : 'pointer', fontFamily: 'monospace',
         }}>
           {resetting ? 'Resetting...' : '↺ Reset to OVR Order'}
@@ -177,10 +178,10 @@ export default function DepthChart({ userTeam }: Props) {
           return (
             <button key={group} onClick={() => setActiveGroup(group)} style={{
               padding: '6px 14px',
-              background: activeGroup === group ? '#1a2a1a' : '#111',
-              border: `1px solid ${activeGroup === group ? '#2a4a2a' : hasInjury ? '#2a1a00' : '#1a1a1a'}`,
+              background: activeGroup === group ? T.bgGreen : T.bgPage,
+              border: `1px solid ${activeGroup === group ? '#2a4a2a' : hasInjury ? '#2a1a00' : T.bgCard}`,
               borderRadius: 4,
-              color: activeGroup === group ? '#4caf50' : hasInjury ? '#FF8740' : '#555',
+              color: activeGroup === group ? '#4caf50' : hasInjury ? '#FF8740' : T.textMuted,
               fontWeight: activeGroup === group ? 'bold' : 'normal',
               fontSize: 12, cursor: 'pointer', fontFamily: 'monospace',
             }}>
@@ -192,16 +193,16 @@ export default function DepthChart({ userTeam }: Props) {
       </div>
 
       {/* Group Label */}
-      <div style={{ fontSize: 10, color: '#444', letterSpacing: 2, marginBottom: 16 }}>
+      <div style={{ fontSize: 10, color: T.textDim, letterSpacing: 2, marginBottom: 16 }}>
         {GROUP_LABELS[activeGroup]?.toUpperCase()} — {players.length} PLAYERS
-        {saving === activeGroup && <span style={{ color: '#333', marginLeft: 12 }}>saving...</span>}
+        {saving === activeGroup && <span style={{ color: T.borderStrong, marginLeft: 12 }}>saving...</span>}
       </div>
 
       {/* Main content */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 24 }}>
         <div>
           {players.length === 0 ? (
-            <div style={{ color: '#333', fontSize: 12 }}>No players at this position.</div>
+            <div style={{ color: T.borderStrong, fontSize: 12 }}>No players at this position.</div>
           ) : (
             players.map((player, idx) => {
               const trait   = TRAIT_META[player.dev_trait] ?? TRAIT_META['Normal'];
@@ -214,26 +215,26 @@ export default function DepthChart({ userTeam }: Props) {
                 <div key={player.player_id} style={{
                   display: 'flex', alignItems: 'center', gap: 12,
                   padding: '12px 16px', marginBottom: 4,
-                  background: isOut ? '#120a0a' : isStarter ? '#0f1a0f' : '#111',
-                  border: `1px solid ${isOut ? '#2a1010' : isStarter ? '#1a3a1a' : '#1a1a1a'}`,
+                  background: isOut ? '#120a0a' : isStarter ? T.bgGreen : T.bgPage,
+                  border: `1px solid ${isOut ? '#2a1010' : isStarter ? '#1a3a1a' : T.bgCard}`,
                   borderRadius: 6, opacity: isOut ? 0.75 : 1,
                 }}>
 
                   {/* Slot */}
                   <div style={{ width: 28, textAlign: 'right', flexShrink: 0 }}>
                     {isStarter ? (
-                      <span style={{ fontSize: 9, color: isOut ? '#555' : '#4caf50', letterSpacing: 1 }}>STR</span>
+                      <span style={{ fontSize: 9, color: isOut ? T.textMuted : '#4caf50', letterSpacing: 1 }}>STR</span>
                     ) : isBackup ? (
-                      <span style={{ fontSize: 9, color: '#555', letterSpacing: 1 }}>BU1</span>
+                      <span style={{ fontSize: 9, color: T.textMuted, letterSpacing: 1 }}>BU1</span>
                     ) : (
-                      <span style={{ fontSize: 11, color: '#333' }}>{idx + 1}</span>
+                      <span style={{ fontSize: 11, color: T.borderStrong }}>{idx + 1}</span>
                     )}
                   </div>
 
                   {/* OVR */}
                   <div style={{
                     width: 36, textAlign: 'center', fontSize: 14, fontWeight: 'bold',
-                    color: isOut ? '#444' : ovrColor(player.overall_rating), flexShrink: 0,
+                    color: isOut ? T.textDim : ovrColor(player.overall_rating), flexShrink: 0,
                   }}>
                     {player.overall_rating}
                   </div>
@@ -241,13 +242,13 @@ export default function DepthChart({ userTeam }: Props) {
                   {/* Name + info */}
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 13, color: isOut ? '#555' : isStarter ? '#fff' : '#ccc' }}>
+                      <span style={{ fontSize: 13, color: isOut ? T.textMuted : isStarter ? '#fff' : T.textPrimary }}>
                         {player.first_name} {player.last_name}
                       </span>
                       {trait.short && (
                         <span style={{
-                          fontSize: 9, color: isOut ? '#444' : trait.color,
-                          border: `1px solid ${isOut ? '#333' : trait.color}`,
+                          fontSize: 9, color: isOut ? T.textDim : trait.color,
+                          border: `1px solid ${isOut ? T.borderStrong : trait.color}`,
                           borderRadius: 2, padding: '1px 4px', letterSpacing: 0.5,
                         }}>{trait.short}</span>
                       )}
@@ -259,7 +260,7 @@ export default function DepthChart({ userTeam }: Props) {
                         }}>{injury.label}</span>
                       )}
                     </div>
-                    <div style={{ fontSize: 10, color: '#444', marginTop: 2 }}>
+                    <div style={{ fontSize: 10, color: T.textDim, marginTop: 2 }}>
                       {player.position_label || player.position} · Age {player.age} · SPD {player.speed} · STR {player.strength} · AWR {player.awareness}
                       {player.injury_type && player.weeks_out > 0 && (
                         <span style={{ color: '#3a2010', marginLeft: 8 }}>{player.injury_type} · {player.weeks_out}wk</span>
@@ -273,14 +274,14 @@ export default function DepthChart({ userTeam }: Props) {
                   {/* Move buttons */}
                   <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                     <button onClick={() => handleMoveUp(activeGroup, idx)} disabled={idx === 0} style={{
-                      width: 28, height: 28, background: '#141414', border: '1px solid #222',
-                      borderRadius: 3, color: idx === 0 ? '#252525' : '#666',
+                      width: 28, height: 28, background: T.bgPanel, border: `1px solid ${T.borderFaint}`,
+                      borderRadius: 3, color: idx === 0 ? '#252525' : T.textMuted,
                       cursor: idx === 0 ? 'not-allowed' : 'pointer', fontSize: 12,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>▲</button>
                     <button onClick={() => handleMoveDown(activeGroup, idx)} disabled={idx === players.length - 1} style={{
-                      width: 28, height: 28, background: '#141414', border: '1px solid #222',
-                      borderRadius: 3, color: idx === players.length - 1 ? '#252525' : '#666',
+                      width: 28, height: 28, background: T.bgPanel, border: `1px solid ${T.borderFaint}`,
+                      borderRadius: 3, color: idx === players.length - 1 ? '#252525' : T.textMuted,
                       cursor: idx === players.length - 1 ? 'not-allowed' : 'pointer', fontSize: 12,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>▼</button>
@@ -302,7 +303,7 @@ export default function DepthChart({ userTeam }: Props) {
 
           return (
             <div>
-              <div style={{ fontSize: 10, color: '#444', letterSpacing: 2, marginBottom: 12 }}>
+              <div style={{ fontSize: 10, color: T.textDim, letterSpacing: 2, marginBottom: 12 }}>
                 {isOut ? 'EXPECTED STARTER' : 'STARTER'}
               </div>
               {isOut && effective && (
@@ -311,7 +312,7 @@ export default function DepthChart({ userTeam }: Props) {
                 </div>
               )}
               <div style={{
-                background: '#111',
+                background: T.bgPage,
                 border: `1px solid ${isOut ? '#2a1010' : '#1a3a1a'}`,
                 borderRadius: 8, padding: '16px 18px',
               }}>
@@ -329,7 +330,7 @@ export default function DepthChart({ userTeam }: Props) {
                       <div style={{ fontSize: 18, fontWeight: 'bold', color: '#fff', marginBottom: 4 }}>
                         {display.first_name} {display.last_name}
                       </div>
-                      <div style={{ fontSize: 11, color: '#555', marginBottom: 16 }}>
+                      <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 16 }}>
                         {display.position_label || display.position} · Age {display.age}
                         {displayInjury && (
                           <span style={{ marginLeft: 8, color: displayInjury.color }}>
@@ -340,13 +341,13 @@ export default function DepthChart({ userTeam }: Props) {
                       <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
                         {[
                           { label: 'OVR', val: display.overall_rating, color: ovrColor(display.overall_rating) },
-                          { label: 'SPD', val: display.speed,           color: '#ccc' },
-                          { label: 'STR', val: display.strength,        color: '#ccc' },
-                          { label: 'AWR', val: display.awareness,       color: '#ccc' },
+                          { label: 'SPD', val: display.speed,           color: T.textPrimary },
+                          { label: 'STR', val: display.strength,        color: T.textPrimary },
+                          { label: 'AWR', val: display.awareness,       color: T.textPrimary },
                         ].map(({ label, val, color }) => (
                           <div key={label} style={{ textAlign: 'center', flex: 1, background: '#0a0a0a', borderRadius: 4, padding: '8px 0' }}>
                             <div style={{ fontSize: 18, fontWeight: 'bold', color }}>{val}</div>
-                            <div style={{ fontSize: 9, color: '#333', marginTop: 2 }}>{label}</div>
+                            <div style={{ fontSize: 9, color: T.borderStrong, marginTop: 2 }}>{label}</div>
                           </div>
                         ))}
                       </div>
@@ -364,13 +365,13 @@ export default function DepthChart({ userTeam }: Props) {
                 })()}
 
                 {players.length > 1 && (
-                  <div style={{ paddingTop: 12, borderTop: '1px solid #1a1a1a' }}>
-                    <div style={{ fontSize: 9, color: '#333', letterSpacing: 1, marginBottom: 8 }}>DEPTH</div>
+                  <div style={{ paddingTop: 12, borderTop: `1px solid ${T.borderFaint}` }}>
+                    <div style={{ fontSize: 9, color: T.borderStrong, letterSpacing: 1, marginBottom: 8 }}>DEPTH</div>
                     {players.slice(1, 5).map((p, i) => {
                       const pInjury = injuryMeta(p.injury_status);
                       return (
                         <div key={p.player_id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', fontSize: 11, borderBottom: '1px solid #111' }}>
-                          <span style={{ color: p.injury_status !== 'healthy' ? '#444' : '#555' }}>
+                          <span style={{ color: p.injury_status !== 'healthy' ? T.textDim : T.textMuted }}>
                             {i + 2}. {p.first_name[0]}. {p.last_name}
                           </span>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

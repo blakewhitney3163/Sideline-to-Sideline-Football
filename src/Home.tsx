@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { T } from './theme';
 
 declare const window: any;
 
@@ -107,10 +108,10 @@ interface Props {
 
 const btn = (bg: string, fg: string, disabled: boolean, border = 'none'): React.CSSProperties => ({
   padding: '9px 18px',
-  background: disabled ? '#2a2a2a' : bg,
+  background: disabled ? T.borderMid : bg,
   border,
   borderRadius: 5,
-  color: disabled ? '#555' : fg,
+  color: disabled ? T.textMuted : fg,
   fontWeight: 'bold',
   cursor: disabled ? 'not-allowed' : 'pointer',
   fontSize: 13,
@@ -118,20 +119,20 @@ const btn = (bg: string, fg: string, disabled: boolean, border = 'none'): React.
 
 const smallBtn = (bg: string, fg: string, disabled: boolean): React.CSSProperties => ({
   padding: '5px 12px',
-  background: disabled ? '#2a2a2a' : bg,
+  background: disabled ? T.borderMid : bg,
   border: 'none',
   borderRadius: 4,
-  color: disabled ? '#555' : fg,
+  color: disabled ? T.textMuted : fg,
   fontWeight: 'bold',
   cursor: disabled ? 'not-allowed' : 'pointer',
   fontSize: 12,
 });
 
 function injuryBadge(status: string): { label: string; color: string; bg: string } {
-  if (status === 'ir')           return { label: 'IR',  color: '#e57373', bg: '#2a0a0a' };
-  if (status === 'out')          return { label: 'OUT', color: '#FF8740', bg: '#2a1500' };
-  if (status === 'questionable') return { label: 'Q',   color: '#FFD700', bg: '#1a1500' };
-  return                                { label: '',    color: '#555',    bg: 'transparent' };
+  if (status === 'ir')           return { label: 'IR',  color: '#e57373', bg: T.bgRed };
+  if (status === 'out')          return { label: 'OUT', color: '#FF8740', bg: T.bgOrange };
+  if (status === 'questionable') return { label: 'Q',   color: '#FFD700', bg: T.bgGold };
+  return                                { label: '',    color: T.textMuted,    bg: 'transparent' };
 }
 
 // ─── Home ─────────────────────────────────────────────────────────────────────
@@ -313,17 +314,17 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
   const weekIsPlayed    = matchups.length > 0 && matchups.every(m => m.is_simulated === 1);
 
   if (loading) {
-    return <div style={{ color: '#555', padding: 40, fontFamily: 'monospace' }}>Loading...</div>;
+    return <div style={{ color: T.textMuted, padding: 40, fontFamily: 'monospace' }}>Loading...</div>;
   }
 
   return (
-    <div style={{ padding: '24px 32px', fontFamily: 'monospace', color: '#ccc', background: '#0d0d0d', minHeight: '100vh' }}>
+    <div style={{ padding: '24px 32px', fontFamily: 'monospace', color: T.textPrimary, background: T.bgPage, minHeight: '100vh' }}>
 
       {/* ─── Header ─────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <div style={{ fontSize: 20, fontWeight: 'bold', color: '#fff' }}>{currentSeason} NFL Season</div>
-          <div style={{ fontSize: 12, color: '#555', marginTop: 4 }}>
+          <div style={{ fontSize: 12, color: T.textMuted, marginTop: 4 }}>
             {!hasSchedule
               ? 'No schedule generated yet'
               : allWeeksDone && playoffsComplete
@@ -342,12 +343,12 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
         {/* Action buttons */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           {!hasSchedule && (
-            <button onClick={handleGenerateSchedule} disabled={generatingSchedule} style={btn('#1a2a1a', '#4caf50', generatingSchedule)}>
+            <button onClick={handleGenerateSchedule} disabled={generatingSchedule} style={btn(T.bgGreen, '#4caf50', generatingSchedule)}>
               {generatingSchedule ? 'Generating...' : `▶ Start ${currentSeason} Season`}
             </button>
           )}
           {hasSchedule && currentWeek !== null && (
-            <button onClick={handleSimulateWeek} disabled={simulating} style={btn('#1a2a1a', '#4caf50', simulating)}>
+            <button onClick={handleSimulateWeek} disabled={simulating} style={btn(T.bgGreen, '#4caf50', simulating)}>
               {simulating ? `Simulating Week ${currentWeek}...` : `▶ Simulate Week ${currentWeek}`}
             </button>
           )}
@@ -360,17 +361,17 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
             <>
               {!confirming && (
                 <button onClick={() => setConfirming(true)}
-                  style={btn('#1a1a1a', pendingResigns > 0 ? '#FF8740' : '#ccc', false, '1px solid #333')}>
+                  style={btn(T.bgCard, pendingResigns > 0 ? '#FF8740' : T.textPrimary, false, `1px solid ${T.borderStrong}`)}>
                   {pendingResigns > 0 ? `⚠ ${pendingResigns} pending — Advance anyway?` : `Advance to ${currentSeason + 1} →`}
                 </button>
               )}
               {confirming && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 12, color: '#555' }}>Ages players + retires veterans. Confirm?</span>
+                  <span style={{ fontSize: 12, color: T.textMuted }}>Ages players + retires veterans. Confirm?</span>
                   <button onClick={handleAdvance} disabled={advancing} style={btn('#1a4a1a', '#4caf50', advancing)}>
                     {advancing ? 'Advancing...' : 'Confirm'}
                   </button>
-                  <button onClick={() => setConfirming(false)} style={btn('#1a1a1a', '#666', false)}>Cancel</button>
+                  <button onClick={() => setConfirming(false)} style={btn(T.bgCard, T.textMuted, false)}>Cancel</button>
                 </div>
               )}
             </>
@@ -383,14 +384,14 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
         <div style={{ background: '#110a0a', border: '1px solid #2a1a1a', borderRadius: 8, padding: '14px 20px', marginBottom: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <div style={{ fontSize: 10, color: '#e57373', letterSpacing: 2 }}>RETIREMENTS — {currentSeason - 1} OFFSEASON</div>
-            <button onClick={() => setRetiredPlayers([])} style={{ fontSize: 10, background: 'none', border: 'none', color: '#444', cursor: 'pointer' }}>dismiss</button>
+            <button onClick={() => setRetiredPlayers([])} style={{ fontSize: 10, background: 'none', border: 'none', color: T.textDim, cursor: 'pointer' }}>dismiss</button>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 6 }}>
             {retiredPlayers.map((p, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-                <span style={{ color: '#555', fontSize: 10, width: 28 }}>{p.position}</span>
-                <span style={{ color: '#888' }}>{p.name}</span>
-                <span style={{ color: '#444', fontSize: 10, marginLeft: 'auto' }}>Age {p.age} · {p.ovr} OVR</span>
+                <span style={{ color: T.textMuted, fontSize: 10, width: 28 }}>{p.position}</span>
+                <span style={{ color: T.textMuted }}>{p.name}</span>
+                <span style={{ color: T.textDim, fontSize: 10, marginLeft: 'auto' }}>Age {p.age} · {p.ovr} OVR</span>
               </div>
             ))}
           </div>
@@ -399,16 +400,16 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
 
       {/* ─── Offseason Checklist ─────────────────────── */}
       {allWeeksDone && playoffsComplete && (
-        <div style={{ background: '#111', border: '1px solid #1e1e1e', borderRadius: 8, padding: '16px 20px', marginBottom: 24 }}>
+        <div style={{ background: T.bgPage, border: `1px solid ${T.borderFaint}`, borderRadius: 8, padding: '16px 20px', marginBottom: 24 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
             <div style={{ fontSize: 10, color: '#FF8740', letterSpacing: 2 }}>OFFSEASON CHECKLIST</div>
             <button onClick={refreshOffseasonStatus}
-              style={{ fontSize: 10, color: '#333', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+              style={{ fontSize: 10, color: T.borderStrong, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
               ↺ refresh
             </button>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid #1a1a1a' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: `1px solid ${T.borderFaint}` }}>
             <span style={{ fontSize: 16, width: 20, textAlign: 'center', color: pendingResigns === 0 ? '#4caf50' : '#FF8740' }}>
               {pendingResigns === 0 ? '✓' : '⚠'}
             </span>
@@ -416,47 +417,47 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
               <div style={{ fontSize: 12, color: pendingResigns === 0 ? '#4caf50' : '#FF8740' }}>
                 Re-signing Window {pendingResigns > 0 ? `— ${pendingResigns} decision${pendingResigns !== 1 ? 's' : ''} pending` : '— Complete'}
               </div>
-              <div style={{ fontSize: 10, color: '#444', marginTop: 2 }}>
+              <div style={{ fontSize: 10, color: T.textDim, marginTop: 2 }}>
                 {pendingResigns > 0 ? 'Players on expiring contracts need a decision before the season ends' : 'All expiring contracts addressed'}
               </div>
             </div>
             <button onClick={() => onNavigate('franchise')} style={{
-              padding: '4px 12px', background: '#141414', border: '1px solid #2a2a2a',
-              borderRadius: 3, color: '#555', fontSize: 10, cursor: 'pointer',
+              padding: '4px 12px', background: T.bgPanel, border: `1px solid ${T.borderMid}`,
+              borderRadius: 3, color: T.textMuted, fontSize: 10, cursor: 'pointer',
             }}>→ Franchise</button>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid #1a1a1a' }}>
-            <span style={{ fontSize: 9, width: 20, textAlign: 'center', color: '#444' }}>OPT</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: `1px solid ${T.borderFaint}` }}>
+            <span style={{ fontSize: 9, width: 20, textAlign: 'center', color: T.textDim }}>OPT</span>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 12, color: '#555' }}>
-                Free Agency <span style={{ fontSize: 9, color: '#333', marginLeft: 6, letterSpacing: 1 }}>OPTIONAL</span>
+              <div style={{ fontSize: 12, color: T.textMuted }}>
+                Free Agency <span style={{ fontSize: 9, color: T.borderStrong, marginLeft: 6, letterSpacing: 1 }}>OPTIONAL</span>
               </div>
-              <div style={{ fontSize: 10, color: '#444', marginTop: 2 }}>Sign replacements for departing players</div>
+              <div style={{ fontSize: 10, color: T.textDim, marginTop: 2 }}>Sign replacements for departing players</div>
             </div>
             <button onClick={() => onNavigate('franchise')} style={{
-              padding: '4px 12px', background: '#141414', border: '1px solid #2a2a2a',
-              borderRadius: 3, color: '#555', fontSize: 10, cursor: 'pointer',
+              padding: '4px 12px', background: T.bgPanel, border: `1px solid ${T.borderMid}`,
+              borderRadius: 3, color: T.textMuted, fontSize: 10, cursor: 'pointer',
             }}>→ Free Agents</button>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0' }}>
-            <span style={{ fontSize: 16, width: 20, textAlign: 'center', color: draftComplete ? '#4caf50' : '#555' }}>
+            <span style={{ fontSize: 16, width: 20, textAlign: 'center', color: draftComplete ? '#4caf50' : T.textMuted }}>
               {draftComplete ? '✓' : '○'}
             </span>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 12, color: draftComplete ? '#4caf50' : '#666' }}>
+              <div style={{ fontSize: 12, color: draftComplete ? '#4caf50' : T.textMuted }}>
                 NFL Draft {draftComplete ? '— Complete' : draftGenerated ? '— In Progress' : '— Not Started'}
               </div>
-              <div style={{ fontSize: 10, color: '#444', marginTop: 2 }}>
+              <div style={{ fontSize: 10, color: T.textDim, marginTop: 2 }}>
                 {draftComplete ? '7 rounds complete — rookies added to rosters' : '7 rounds · reverse standings order · CPU auto-picks'}
               </div>
             </div>
             <button onClick={() => onNavigate('draft')} style={{
               padding: '4px 12px',
-              background: draftComplete ? '#141414' : '#0a1a0a',
-              border: `1px solid ${draftComplete ? '#2a2a2a' : '#1a4a1a'}`,
-              borderRadius: 3, color: draftComplete ? '#555' : '#4caf50', fontSize: 10, cursor: 'pointer',
+              background: draftComplete ? T.bgPanel : T.bgGreen,
+              border: `1px solid ${draftComplete ? T.borderMid : '#1a4a1a'}`,
+              borderRadius: 3, color: draftComplete ? T.textMuted : '#4caf50', fontSize: 10, cursor: 'pointer',
             }}>
               {draftComplete ? '→ View' : '→ Draft'}
             </button>
@@ -470,7 +471,7 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
         {/* Main panel */}
         <div>
           {!hasSchedule ? (
-            <div style={{ textAlign: 'center', padding: '48px 0', color: '#333' }}>
+            <div style={{ textAlign: 'center', padding: '48px 0', color: T.borderStrong }}>
               <div style={{ fontSize: 32, marginBottom: 12 }}>🏈</div>
               <div style={{ fontSize: 14, marginBottom: 6 }}>No schedule for {currentSeason} yet.</div>
               <div style={{ fontSize: 12 }}>Click "Start {currentSeason} Season" to generate all 18 weeks.</div>
@@ -483,10 +484,10 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
                 <button onClick={() => handleViewWeek(viewWeek - 1)} disabled={viewWeek <= 1}
-                  style={{ padding: '4px 12px', background: '#141414', border: '1px solid #2a2a2a', borderRadius: 4, color: viewWeek <= 1 ? '#333' : '#888', cursor: viewWeek <= 1 ? 'not-allowed' : 'pointer', fontSize: 12 }}>←</button>
-                <span style={{ fontSize: 13, color: '#888', letterSpacing: 1 }}>WEEK {viewWeek}</span>
+                  style={{ padding: '4px 12px', background: T.bgPanel, border: `1px solid ${T.borderMid}`, borderRadius: 4, color: viewWeek <= 1 ? T.borderStrong : T.textMuted, cursor: viewWeek <= 1 ? 'not-allowed' : 'pointer', fontSize: 12 }}>←</button>
+                <span style={{ fontSize: 13, color: T.textMuted, letterSpacing: 1 }}>WEEK {viewWeek}</span>
                 <button onClick={() => handleViewWeek(viewWeek + 1)} disabled={viewWeek >= 18}
-                  style={{ padding: '4px 12px', background: '#141414', border: '1px solid #2a2a2a', borderRadius: 4, color: viewWeek >= 18 ? '#333' : '#888', cursor: viewWeek >= 18 ? 'not-allowed' : 'pointer', fontSize: 12 }}>→</button>
+                  style={{ padding: '4px 12px', background: T.bgPanel, border: `1px solid ${T.borderMid}`, borderRadius: 4, color: viewWeek >= 18 ? T.borderStrong : T.textMuted, cursor: viewWeek >= 18 ? 'not-allowed' : 'pointer', fontSize: 12 }}>→</button>
                 {matchups.length > 0 && (
                   <span style={{ fontSize: 10, color: weekIsPlayed ? '#4caf50' : '#FF8740', letterSpacing: 1 }}>
                     ● {weekIsPlayed ? 'FINAL' : 'UPCOMING'}
@@ -503,29 +504,29 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
                   const isUserGame = game.home_team_id === userTeam.id || game.away_team_id === userTeam.id;
 
                   return (
-                    <div key={game.id} style={{ background: '#111', border: `1px solid ${isUserGame ? '#1e2e1e' : '#1a1a1a'}`, borderRadius: 6, overflow: 'hidden' }}>
+                    <div key={game.id} style={{ background: T.bgPage, border: `1px solid ${isUserGame ? '#1e2e1e' : T.bgCard}`, borderRadius: 6, overflow: 'hidden' }}>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr auto', gap: 8, padding: '10px 14px', alignItems: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           {homeWon && <span style={{ color: '#4caf50', fontSize: 10 }}>▸</span>}
-                          <span style={{ color: played ? (homeWon ? '#fff' : '#555') : '#ccc', fontSize: 12 }}>{game.home_team}</span>
+                          <span style={{ color: played ? (homeWon ? '#fff' : T.textMuted) : T.textPrimary, fontSize: 12 }}>{game.home_team}</span>
                         </div>
-                        {played && <span style={{ fontSize: 15, fontWeight: 'bold', color: homeWon ? '#fff' : '#555' }}>{game.home_score}</span>}
+                        {played && <span style={{ fontSize: 15, fontWeight: 'bold', color: homeWon ? '#fff' : T.textMuted }}>{game.home_score}</span>}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
-                          <span style={{ color: played ? (awayWon ? '#fff' : '#555') : '#ccc', fontSize: 12 }}>{game.away_team}</span>
+                          <span style={{ color: played ? (awayWon ? '#fff' : T.textMuted) : T.textPrimary, fontSize: 12 }}>{game.away_team}</span>
                           {awayWon && <span style={{ color: '#4caf50', fontSize: 10 }}>▸</span>}
                         </div>
-                        {played && <span style={{ fontSize: 15, fontWeight: 'bold', color: awayWon ? '#fff' : '#555' }}>{game.away_score}</span>}
+                        {played && <span style={{ fontSize: 15, fontWeight: 'bold', color: awayWon ? '#fff' : T.textMuted }}>{game.away_score}</span>}
                         {!played && (
-                          <span style={{ fontSize: 9, color: isUserGame ? '#4caf50' : '#333', letterSpacing: 1, gridColumn: '2 / 5' }}>
+                          <span style={{ fontSize: 9, color: isUserGame ? '#4caf50' : T.borderStrong, letterSpacing: 1, gridColumn: '2 / 5' }}>
                             {isUserGame ? '◆ YOUR GAME' : 'PREVIEW'}
                           </span>
                         )}
                       </div>
                       {played && (
                         <button onClick={() => handleBoxScore(game.id)} style={{
-                          width: '100%', padding: '3px 0', background: expanded ? '#142014' : '#111',
-                          border: 'none', borderTop: `1px solid ${expanded ? '#1a381a' : '#161616'}`,
-                          color: expanded ? '#4caf50' : '#333', cursor: 'pointer', fontSize: 9, letterSpacing: 0.5,
+                          width: '100%', padding: '3px 0', background: expanded ? T.bgGreen : T.bgPage,
+                          border: 'none', borderTop: `1px solid ${expanded ? '#1a381a' : T.bgInput}`,
+                          color: expanded ? '#4caf50' : T.borderStrong, cursor: 'pointer', fontSize: 9, letterSpacing: 0.5,
                         }}>
                           {expanded ? '▲ BOX SCORE' : '▼ BOX SCORE'}
                         </button>
@@ -538,7 +539,7 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
               {(boxScore || boxScoreLoading) && (
                 <div style={{ marginTop: 16 }}>
                   {boxScoreLoading
-                    ? <div style={{ color: '#333', fontSize: 12 }}>Loading box score...</div>
+                    ? <div style={{ color: T.borderStrong, fontSize: 12 }}>Loading box score...</div>
                     : boxScore ? <BoxScore data={boxScore} /> : null}
                 </div>
               )}
@@ -555,22 +556,22 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
               {injuryReport.map((p, i) => {
                 const badge = injuryBadge(p.injury_status);
                 return (
-                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: '1px solid #141414' }}>
+                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: `1px solid ${T.bgPanel}` }}>
                     <span style={{
                       fontSize: 9, fontWeight: 'bold', color: badge.color,
                       background: badge.bg, border: `1px solid ${badge.color}`,
                       borderRadius: 2, padding: '1px 4px', minWidth: 24, textAlign: 'center', flexShrink: 0,
                     }}>{badge.label}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 11, color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div style={{ fontSize: 11, color: T.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {p.first_name[0]}. {p.last_name}
-                        <span style={{ color: '#444', marginLeft: 5 }}>{p.position_label || p.position}</span>
+                        <span style={{ color: T.textDim, marginLeft: 5 }}>{p.position_label || p.position}</span>
                       </div>
-                      <div style={{ fontSize: 9, color: '#444', marginTop: 1 }}>
+                      <div style={{ fontSize: 9, color: T.textDim, marginTop: 1 }}>
                         {p.injury_type}{p.weeks_out > 0 ? ` · ${p.weeks_out}wk` : ''}
                       </div>
                     </div>
-                    <span style={{ fontSize: 11, color: '#444', flexShrink: 0 }}>{p.overall_rating}</span>
+                    <span style={{ fontSize: 11, color: T.textDim, flexShrink: 0 }}>{p.overall_rating}</span>
                   </div>
                 );
               })}
@@ -593,7 +594,7 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
             </SidebarBlock>
           )}
           {topAFC.length === 0 && topNFC.length === 0 && (
-            <div style={{ color: '#333', fontSize: 12 }}>Simulate games to see standings</div>
+            <div style={{ color: T.borderStrong, fontSize: 12 }}>Simulate games to see standings</div>
           )}
         </div>
       </div>
@@ -604,10 +605,10 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
 // ─── Playoff Seedings ─────────────────────────────────────────────────────────
 
 function PlayoffSeedingsView({ seeds }: { seeds: { afc: SeedEntry[]; nfc: SeedEntry[] } | null }) {
-  if (!seeds) return <div style={{ color: '#333', fontSize: 12 }}>Loading seeds...</div>;
+  if (!seeds) return <div style={{ color: T.borderStrong, fontSize: 12 }}>Loading seeds...</div>;
   return (
     <div>
-      <div style={{ fontSize: 11, color: '#555', letterSpacing: 2, marginBottom: 16 }}>PLAYOFF SEEDINGS — TOP 7 PER CONFERENCE</div>
+      <div style={{ fontSize: 11, color: T.textMuted, letterSpacing: 2, marginBottom: 16 }}>PLAYOFF SEEDINGS — TOP 7 PER CONFERENCE</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
         <SeedingList title="AFC" seeds={seeds.afc} />
         <SeedingList title="NFC" seeds={seeds.nfc} />
@@ -619,12 +620,12 @@ function PlayoffSeedingsView({ seeds }: { seeds: { afc: SeedEntry[]; nfc: SeedEn
 function SeedingList({ title, seeds }: { title: string; seeds: SeedEntry[] }) {
   return (
     <div>
-      <div style={{ fontSize: 10, color: '#444', letterSpacing: 2, marginBottom: 8 }}>{title}</div>
+      <div style={{ fontSize: 10, color: T.textDim, letterSpacing: 2, marginBottom: 8 }}>{title}</div>
       {seeds.map((team, i) => (
         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0', borderBottom: '1px solid #111', fontSize: 12 }}>
-          <span style={{ color: '#444', width: 16, textAlign: 'right' }}>{i + 1}</span>
-          <span style={{ color: '#ccc', flex: 1 }}>{team.team_name}</span>
-          <span style={{ color: '#555' }}>{team.wins}-{team.losses}</span>
+          <span style={{ color: T.textDim, width: 16, textAlign: 'right' }}>{i + 1}</span>
+          <span style={{ color: T.textPrimary, flex: 1 }}>{team.team_name}</span>
+          <span style={{ color: T.textMuted }}>{team.wins}-{team.losses}</span>
           {i === 0 && <span style={{ fontSize: 9, color: '#FF8740', letterSpacing: 1 }}>BYE</span>}
         </div>
       ))}
@@ -635,7 +636,7 @@ function SeedingList({ title, seeds }: { title: string; seeds: SeedEntry[] }) {
 // ─── Playoff Results ──────────────────────────────────────────────────────────
 
 function PlayoffResultsView({ results, champion }: { results: PlayoffGame[] | null; champion?: Champion }) {
-  if (!results || results.length === 0) return <div style={{ color: '#333', fontSize: 12 }}>Loading playoff results...</div>;
+  if (!results || results.length === 0) return <div style={{ color: T.borderStrong, fontSize: 12 }}>Loading playoff results...</div>;
 
   const rounds = [
     { week: 18, label: 'WILD CARD',                cols: 'repeat(3, 1fr)' },
@@ -647,7 +648,7 @@ function PlayoffResultsView({ results, champion }: { results: PlayoffGame[] | nu
   return (
     <div>
       {champion && (
-        <div style={{ background: '#111', border: '1px solid #2a2a1a', borderRadius: 8, padding: '16px 20px', marginBottom: 20, textAlign: 'center' }}>
+        <div style={{ background: T.bgPage, border: '1px solid #2a2a1a', borderRadius: 8, padding: '16px 20px', marginBottom: 20, textAlign: 'center' }}>
           <div style={{ fontSize: 10, color: '#FF8740', letterSpacing: 2, marginBottom: 6 }}>{champion.season} SUPER BOWL CHAMPION</div>
           <div style={{ fontSize: 20, fontWeight: 'bold', color: '#FFD700' }}>🏆 {champion.team_name}</div>
         </div>
@@ -658,23 +659,23 @@ function PlayoffResultsView({ results, champion }: { results: PlayoffGame[] | nu
         const isSB = week === 21;
         return (
           <div key={week} style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 10, color: '#444', letterSpacing: 2, marginBottom: 10 }}>{label}</div>
+            <div style={{ fontSize: 10, color: T.textDim, letterSpacing: 2, marginBottom: 10 }}>{label}</div>
             <div style={{ display: 'grid', gridTemplateColumns: cols, gap: 8 }}>
               {games.map((game, i) => {
                 const homeWon = game.home_score > game.away_score;
                 return (
-                  <div key={i} style={{ background: '#111', border: `1px solid ${isSB ? '#2a2a1a' : '#1a1a1a'}`, borderRadius: 6, padding: '10px 14px' }}>
+                  <div key={i} style={{ background: T.bgPage, border: `1px solid ${isSB ? '#2a2a1a' : T.bgCard}`, borderRadius: 6, padding: '10px 14px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                      <span style={{ color: homeWon ? '#fff' : '#555', fontSize: 12 }}>
+                      <span style={{ color: homeWon ? '#fff' : T.textMuted, fontSize: 12 }}>
                         {homeWon && <span style={{ color: '#4caf50', marginRight: 4 }}>▸</span>}{game.home_team}
                       </span>
-                      <span style={{ fontWeight: 'bold', color: homeWon ? '#fff' : '#555' }}>{game.home_score}</span>
+                      <span style={{ fontWeight: 'bold', color: homeWon ? '#fff' : T.textMuted }}>{game.home_score}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ color: !homeWon ? '#fff' : '#555', fontSize: 12 }}>
+                      <span style={{ color: !homeWon ? '#fff' : T.textMuted, fontSize: 12 }}>
                         {!homeWon && <span style={{ color: '#4caf50', marginRight: 4 }}>▸</span>}{game.away_team}
                       </span>
-                      <span style={{ fontWeight: 'bold', color: !homeWon ? '#fff' : '#555' }}>{game.away_score}</span>
+                      <span style={{ fontWeight: 'bold', color: !homeWon ? '#fff' : T.textMuted }}>{game.away_score}</span>
                     </div>
                   </div>
                 );
@@ -691,8 +692,8 @@ function PlayoffResultsView({ results, champion }: { results: PlayoffGame[] | nu
 
 function SidebarBlock({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div style={{ background: '#111', border: '1px solid #1a1a1a', borderRadius: 6, padding: '12px 14px' }}>
-      <div style={{ fontSize: 10, color: '#444', letterSpacing: 2, marginBottom: 10 }}>{title}</div>
+    <div style={{ background: T.bgPage, border: `1px solid ${T.borderFaint}`, borderRadius: 6, padding: '12px 14px' }}>
+      <div style={{ fontSize: 10, color: T.textDim, letterSpacing: 2, marginBottom: 10 }}>{title}</div>
       {children}
     </div>
   );
@@ -700,9 +701,9 @@ function SidebarBlock({ title, children }: { title: string; children: React.Reac
 
 function SidebarRow({ left, right, dimLeft }: { left: string; right: string; dimLeft?: boolean }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 11, borderBottom: '1px solid #141414' }}>
-      <span style={{ color: dimLeft ? '#555' : '#888' }}>{left}</span>
-      <span style={{ color: '#ccc' }}>{right}</span>
+    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 11, borderBottom: `1px solid ${T.bgPanel}` }}>
+      <span style={{ color: dimLeft ? T.textMuted : T.textMuted }}>{left}</span>
+      <span style={{ color: T.textPrimary }}>{right}</span>
     </div>
   );
 }
@@ -713,16 +714,16 @@ function BoxScore({ data }: { data: BoxScoreData }) {
   const { game, players } = data;
   const homeWon = game.home_score > game.away_score;
   return (
-    <div style={{ background: '#0f0f0f', border: '1px solid #1a1a1a', borderRadius: 6, padding: '14px' }}>
+    <div style={{ background: '#0f0f0f', border: `1px solid ${T.borderFaint}`, borderRadius: 6, padding: '14px' }}>
       <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
         {[
           { name: game.home_team, score: game.home_score, won: homeWon,  side: 'HOME' },
           { name: game.away_team, score: game.away_score, won: !homeWon, side: 'AWAY' },
         ].map((t, i) => (
-          <div key={i} style={{ flex: 1, background: '#111', borderRadius: 4, padding: '10px 14px', textAlign: 'center' }}>
-            <div style={{ fontSize: 9, color: '#444', letterSpacing: 1, marginBottom: 4 }}>{t.side}</div>
-            <div style={{ fontSize: 12, color: '#888' }}>{t.name}</div>
-            <div style={{ fontSize: 24, fontWeight: 'bold', color: t.won ? '#fff' : '#444' }}>{t.score}</div>
+          <div key={i} style={{ flex: 1, background: T.bgPage, borderRadius: 4, padding: '10px 14px', textAlign: 'center' }}>
+            <div style={{ fontSize: 9, color: T.textDim, letterSpacing: 1, marginBottom: 4 }}>{t.side}</div>
+            <div style={{ fontSize: 12, color: T.textMuted }}>{t.name}</div>
+            <div style={{ fontSize: 24, fontWeight: 'bold', color: t.won ? '#fff' : T.textDim }}>{t.score}</div>
           </div>
         ))}
       </div>
@@ -741,7 +742,7 @@ function TeamStats({ teamName, players }: { teamName: string; players: BoxScoreP
   const nickname  = teamName.split(' ').pop()?.toUpperCase() ?? teamName;
   return (
     <div>
-      <div style={{ fontSize: 10, color: '#444', letterSpacing: 1, marginBottom: 8 }}>{nickname}</div>
+      <div style={{ fontSize: 10, color: T.textDim, letterSpacing: 1, marginBottom: 8 }}>{nickname}</div>
       {passers.length > 0 && (
         <StatSection title="PASSING">
           {passers.map((p, i) => <StatRow key={i} name={p.player_name} line={`${p.completions}/${p.pass_attempts} ${p.pass_yards}yd ${p.pass_tds}td`} />)}
@@ -764,7 +765,7 @@ function TeamStats({ teamName, players }: { teamName: string; players: BoxScoreP
 function StatSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 10 }}>
-      <div style={{ fontSize: 9, color: '#333', letterSpacing: 1, marginBottom: 4 }}>{title}</div>
+      <div style={{ fontSize: 9, color: T.borderStrong, letterSpacing: 1, marginBottom: 4 }}>{title}</div>
       {children}
     </div>
   );
@@ -773,8 +774,8 @@ function StatSection({ title, children }: { title: string; children: React.React
 function StatRow({ name, line }: { name: string; line: string }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, padding: '2px 0', borderBottom: '1px solid #111' }}>
-      <span style={{ color: '#777' }}>{name}</span>
-      <span style={{ color: '#555' }}>{line}</span>
+      <span style={{ color: T.textMuted }}>{name}</span>
+      <span style={{ color: T.textMuted }}>{line}</span>
     </div>
   );
 }

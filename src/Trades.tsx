@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { T } from './theme';
 
 declare const window: any;
 
@@ -46,15 +47,15 @@ interface Props {
 const POSITIONS = ['ALL', 'QB', 'RB', 'WR', 'TE', 'OL', 'DL', 'LB', 'CB', 'S', 'K'];
 
 const STATUS_META: Record<string, { color: string; bg: string }> = {
-  Contender:  { color: '#FFD700', bg: '#1a1500' },
-  Buyer:      { color: '#4caf50', bg: '#0a1a0a' },
-  Seller:     { color: '#4FC3F7', bg: '#001a2a' },
-  Rebuilding: { color: '#9E9E9E', bg: '#141414' },
-  Neutral:    { color: '#FF8740', bg: '#1a0f00' },
+  Contender:  { color: '#FFD700', bg: T.bgGold },
+  Buyer:      { color: '#4caf50', bg: T.bgGreen },
+  Seller:     { color: '#4FC3F7', bg: T.bgBlue },
+  Rebuilding: { color: '#9E9E9E', bg: T.bgPanel },
+  Neutral:    { color: '#FF8740', bg: T.bgOrange },
 };
 
 const TRAIT_META: Record<string, { color: string }> = {
-  'Normal':    { color: '#444' },
+  'Normal':    { color: T.textDim },
   'Star':      { color: '#4FC3F7' },
   'Superstar': { color: '#FF8740' },
   'X-Factor':  { color: '#FFD700' },
@@ -64,7 +65,7 @@ function ratingColor(r: number): string {
   if (r >= 90) return '#FFD700';
   if (r >= 80) return '#4caf50';
   if (r >= 70) return '#FF8740';
-  return '#888';
+  return T.textMuted;
 }
 
 function calcTradeValue(overall: number, age: number, position: string, devTrait: string = 'Normal'): number {
@@ -90,7 +91,7 @@ function calcTradeValue(overall: number, age: number, position: string, devTrait
 function trajectory(age: number): { label: string; color: string } {
   if (age <= 26) return { label: '↑ Rising', color: '#4caf50' };
   if (age <= 30) return { label: '→ Prime',  color: '#FF8740' };
-  return { label: '↓ Declining', color: '#777' };
+  return { label: '↓ Declining', color: T.textMuted };
 }
 
 export default function Trades({ userTeam }: Props) {
@@ -202,7 +203,7 @@ export default function Trades({ userTeam }: Props) {
     no:    `✗ ${teamStatus?.status ?? 'CPU'} will likely decline — offer more value`,
   };
   const likelihoodColor: Record<string, string> = {
-    idle: '#333', yes: '#4caf50', maybe: '#FF8740', no: '#e57373',
+    idle: T.borderStrong, yes: '#4caf50', maybe: '#FF8740', no: '#e57373',
   };
 
   return (
@@ -212,10 +213,10 @@ export default function Trades({ userTeam }: Props) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
         <h1 style={{ color: '#fff', fontSize: 22, fontWeight: 700, margin: 0 }}>Trade Center</h1>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ color: '#444', fontSize: 12 }}>Trade with:</span>
+          <span style={{ color: T.textDim, fontSize: 12 }}>Trade with:</span>
           <select
             onChange={e => e.target.value && handleSelectTeam(Number(e.target.value))}
-            style={{ background: '#161616', border: '1px solid #2a2a2a', borderRadius: 5, color: '#ccc', padding: '6px 12px', fontSize: 13, cursor: 'pointer' }}
+            style={{ background: T.bgInput, border: `1px solid ${T.borderMid}`, borderRadius: 5, color: T.textPrimary, padding: '6px 12px', fontSize: 13, cursor: 'pointer' }}
           >
             <option value="">— Select a team —</option>
             {(['AFC', 'NFC'] as const).map(conf => (
@@ -232,14 +233,14 @@ export default function Trades({ userTeam }: Props) {
        {/* Deadline Banner */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 10, padding: '7px 14px',
-        background: isPastDeadline ? '#1a0505' : '#0a1a0a',
+        background: isPastDeadline ? '#1a0505' : T.bgGreen,
         border: `1px solid ${isPastDeadline ? '#e5737333' : '#4caf5033'}`,
         borderRadius: 6, marginBottom: 10,
       }}>
         <span style={{ fontSize: 12, fontWeight: 700, color: isPastDeadline ? '#e57373' : '#4caf50' }}>
           {isPastDeadline ? '🔒 TRADE DEADLINE PASSED' : '🟢 TRADES OPEN'}
         </span>
-        <span style={{ color: '#444', fontSize: 11 }}>
+        <span style={{ color: T.textDim, fontSize: 11 }}>
           {isPastDeadline
             ? 'Trades are locked after Week 8 · Reopen in the offseason'
             : weeksToDeadline !== null
@@ -249,11 +250,11 @@ export default function Trades({ userTeam }: Props) {
       </div>
       {/* Team Needs Strip */}
       {needs.length > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', background: '#0d0d0d', border: '1px solid #1a1a1a', borderRadius: 6, marginBottom: 14, flexWrap: 'wrap' }}>
-          <span style={{ color: '#555', fontSize: 10, letterSpacing: 1, marginRight: 4 }}>YOUR NEEDS</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', background: T.bgPage, border: `1px solid ${T.borderFaint}`, borderRadius: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+          <span style={{ color: T.textMuted, fontSize: 10, letterSpacing: 1, marginRight: 4 }}>YOUR NEEDS</span>
           {needs.map(n => (
             <span key={n.position} style={{
-              background: n.severity === 'critical' ? '#3a0a0a' : '#1a1500',
+              background: n.severity === 'critical' ? T.bgRed : T.bgGold,
               border: `1px solid ${n.severity === 'critical' ? '#e57373' : '#e8b800'}`,
               color: n.severity === 'critical' ? '#e57373' : '#e8b800',
               fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4,
@@ -263,7 +264,7 @@ export default function Trades({ userTeam }: Props) {
       )}
 
       {!selectedTeamId ? (
-        <div style={{ color: '#444', padding: '40px 0', fontSize: 13 }}>Select a team above to build a trade.</div>
+        <div style={{ color: T.textDim, padding: '40px 0', fontSize: 13 }}>Select a team above to build a trade.</div>
       ) : (
         <>
           {/* Team Status Banner */}
@@ -278,14 +279,14 @@ export default function Trades({ userTeam }: Props) {
                     {teamStatus.status.toUpperCase()}
                   </span>
                 </div>
-                <div style={{ color: '#666', fontSize: 11, marginTop: 3 }}>{teamStatus.description}</div>
+                <div style={{ color: T.textMuted, fontSize: 11, marginTop: 3 }}>{teamStatus.description}</div>
               </div>
               <div style={{ marginLeft: 'auto', display: 'flex', gap: 20 }}>
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ color: statusMeta.color, fontWeight: 700, fontSize: 16 }}>{teamStatus.wins}–{teamStatus.losses}</div>
                 </div>
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ color: '#888', fontSize: 11 }}>Avg OVR: {teamStatus.avgOverall}</div>
+                  <div style={{ color: T.textMuted, fontSize: 11 }}>Avg OVR: {teamStatus.avgOverall}</div>
                 </div>
               </div>
             </div>
@@ -317,26 +318,26 @@ export default function Trades({ userTeam }: Props) {
           </div>
 
           {/* Trade summary bar */}
-          <div style={{ background: '#111', border: '1px solid #1e1e1e', borderRadius: 8, padding: '14px 16px', marginBottom: 16 }}>
+          <div style={{ background: T.bgPage, border: `1px solid ${T.borderFaint}`, borderRadius: 8, padding: '14px 16px', marginBottom: 16 }}>
 
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
 
               {/* You offer */}
               <div style={{ flex: 1, minWidth: 200 }}>
-                <div style={{ color: '#444', fontSize: 10, letterSpacing: 1, marginBottom: 6 }}>YOU OFFER</div>
+                <div style={{ color: T.textDim, fontSize: 10, letterSpacing: 1, marginBottom: 6 }}>YOU OFFER</div>
                 {mySelected.length === 0
-                  ? <div style={{ color: '#333', fontSize: 12 }}>No players selected</div>
+                  ? <div style={{ color: T.borderStrong, fontSize: 12 }}>No players selected</div>
                   : mySelected.map(id => {
                       const p = myRoster.find(x => x.id === id);
                       return p ? (
-                        <div key={id} style={{ color: '#ccc', fontSize: 12, marginBottom: 3 }}>
+                        <div key={id} style={{ color: T.textPrimary, fontSize: 12, marginBottom: 3 }}>
                           {p.first_name} {p.last_name}
                           {p.dev_trait && p.dev_trait !== 'Normal' && (
                             <span style={{ color: TRAIT_META[p.dev_trait]?.color, fontSize: 10 }}> · {p.dev_trait}</span>
                           )}
-                          <span style={{ color: '#555' }}> · {p.position_label || p.position} · </span>
+                          <span style={{ color: T.textMuted }}> · {p.position_label || p.position} · </span>
                           <span style={{ color: ratingColor(p.overall_rating) }}>{p.overall_rating} OVR</span>
-                          <span style={{ color: '#444' }}> · {calcTradeValue(p.overall_rating, p.age, p.position, p.dev_trait)} val</span>
+                          <span style={{ color: T.textDim }}> · {calcTradeValue(p.overall_rating, p.age, p.position, p.dev_trait)} val</span>
                         </div>
                       ) : null;
                     })}
@@ -347,24 +348,24 @@ export default function Trades({ userTeam }: Props) {
                 )}
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', color: '#444', fontSize: 20, padding: '0 8px' }}>⇄</div>
+              <div style={{ display: 'flex', alignItems: 'center', color: T.textDim, fontSize: 20, padding: '0 8px' }}>⇄</div>
 
               {/* You receive */}
               <div style={{ flex: 1, minWidth: 200 }}>
-                <div style={{ color: '#444', fontSize: 10, letterSpacing: 1, marginBottom: 6 }}>YOU RECEIVE</div>
+                <div style={{ color: T.textDim, fontSize: 10, letterSpacing: 1, marginBottom: 6 }}>YOU RECEIVE</div>
                 {theirSelected.length === 0
-                  ? <div style={{ color: '#333', fontSize: 12 }}>No players selected</div>
+                  ? <div style={{ color: T.borderStrong, fontSize: 12 }}>No players selected</div>
                   : theirSelected.map(id => {
                       const p = theirRoster.find(x => x.id === id);
                       return p ? (
-                        <div key={id} style={{ color: '#ccc', fontSize: 12, marginBottom: 3 }}>
+                        <div key={id} style={{ color: T.textPrimary, fontSize: 12, marginBottom: 3 }}>
                           {p.first_name} {p.last_name}
                           {p.dev_trait && p.dev_trait !== 'Normal' && (
                             <span style={{ color: TRAIT_META[p.dev_trait]?.color, fontSize: 10 }}> · {p.dev_trait}</span>
                           )}
-                          <span style={{ color: '#555' }}> · {p.position_label || p.position} · </span>
+                          <span style={{ color: T.textMuted }}> · {p.position_label || p.position} · </span>
                           <span style={{ color: ratingColor(p.overall_rating) }}>{p.overall_rating} OVR</span>
-                          <span style={{ color: '#444' }}> · {calcTradeValue(p.overall_rating, p.age, p.position, p.dev_trait)} val</span>
+                          <span style={{ color: T.textDim }}> · {calcTradeValue(p.overall_rating, p.age, p.position, p.dev_trait)} val</span>
                         </div>
                       ) : null;
                     })}
@@ -399,9 +400,9 @@ export default function Trades({ userTeam }: Props) {
                 onClick={handlePropose}
                 disabled={!canPropose || proposing || isPastDeadline}
                 style={{
-                  padding: '8px 20px', background: canPropose ? '#1a3a1a' : '#111',
-                  border: `1px solid ${canPropose ? '#4caf50' : '#2a2a2a'}`,
-                  borderRadius: 5, color: canPropose ? '#4caf50' : '#333',
+                  padding: '8px 20px', background: canPropose ? '#1a3a1a' : T.bgPage,
+                  border: `1px solid ${canPropose ? '#4caf50' : T.borderMid}`,
+                  borderRadius: 5, color: canPropose ? '#4caf50' : T.borderStrong,
                   fontSize: 12, fontWeight: 700, cursor: canPropose ? 'pointer' : 'default',
                   letterSpacing: 0.5,
                 }}
@@ -438,20 +439,20 @@ interface RosterPanelProps {
 
 function RosterPanel({ title, subtitle, players, selected, posFilter, onPosFilter, onToggle, accent, needs }: RosterPanelProps) {
   return (
-    <div style={{ background: '#111', border: '1px solid #1e1e1e', borderRadius: 8, padding: '12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div style={{ background: T.bgPage, border: `1px solid ${T.borderFaint}`, borderRadius: 8, padding: '12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div>
         <div style={{ color: '#fff', fontWeight: 700, fontSize: 13 }}>{title}</div>
-        <div style={{ color: '#444', fontSize: 11 }}>{subtitle}</div>
+        <div style={{ color: T.textDim, fontSize: 11 }}>{subtitle}</div>
       </div>
       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
         {POSITIONS.map(pos => (
           <button key={pos} onClick={() => onPosFilter(pos)}
             style={{
               padding: '2px 7px',
-              background: posFilter === pos ? accent : '#141414',
-              border: `1px solid ${posFilter === pos ? accent : '#222'}`,
+              background: posFilter === pos ? accent : T.bgPanel,
+              border: `1px solid ${posFilter === pos ? accent : T.borderFaint}`,
               borderRadius: 3,
-              color: posFilter === pos ? '#000' : '#555',
+              color: posFilter === pos ? '#000' : T.textMuted,
               fontSize: 10, cursor: 'pointer',
               fontWeight: posFilter === pos ? 'bold' : 'normal',
             }}
@@ -463,13 +464,13 @@ function RosterPanel({ title, subtitle, players, selected, posFilter, onPosFilte
 
       <div style={{ overflowY: 'auto', maxHeight: 420, display: 'flex', flexDirection: 'column', gap: 2 }}>
         {players.length === 0 ? (
-          <div style={{ color: '#333', fontSize: 12, padding: 8 }}>No players</div>
+          <div style={{ color: T.borderStrong, fontSize: 12, padding: 8 }}>No players</div>
         ) : (
           players.map(player => {
             const isSelected  = selected.includes(player.id);
             const traj        = trajectory(player.age);
             const val         = calcTradeValue(player.overall_rating, player.age, player.position, player.dev_trait);
-            const traitColor  = TRAIT_META[player.dev_trait]?.color ?? '#444';
+            const traitColor  = TRAIT_META[player.dev_trait]?.color ?? T.textDim;
             const showTrait   = player.dev_trait && player.dev_trait !== 'Normal';
             const need        = needs?.find(n => n.position === player.position);
             return (
@@ -477,14 +478,14 @@ function RosterPanel({ title, subtitle, players, selected, posFilter, onPosFilte
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   padding: '6px 8px', marginBottom: 3,
-                  background: isSelected ? '#0a0e18' : '#141414',
-                  border: `1px solid ${isSelected ? accent : '#1e1e1e'}`,
+                  background: isSelected ? T.bgSelected : T.bgPanel,
+                  border: `1px solid ${isSelected ? accent : T.bgCard}`,
                   borderRadius: 4, cursor: 'pointer',
                 }}
               >
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <span style={{ color: '#ddd', fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <span style={{ color: T.textPrimary, fontWeight: 600, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {player.first_name} {player.last_name}
                     </span>
                     {showTrait && (
@@ -501,7 +502,7 @@ function RosterPanel({ title, subtitle, players, selected, posFilter, onPosFilte
                     )}
                   </div>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <span style={{ color: '#555', fontSize: 10 }}>{player.position_label || player.position} · Age {player.age}</span>
+                    <span style={{ color: T.textMuted, fontSize: 10 }}>{player.position_label || player.position} · Age {player.age}</span>
                     <span style={{ color: traj.color, fontSize: 10 }}>{traj.label}</span>
                   </div>
                 </div>
@@ -509,7 +510,7 @@ function RosterPanel({ title, subtitle, players, selected, posFilter, onPosFilte
                   <span style={{ color: ratingColor(player.overall_rating), fontWeight: 700, fontSize: 13 }}>
                     {player.overall_rating}
                   </span>
-                  <span style={{ color: '#444', fontSize: 10 }}>{val} val</span>
+                  <span style={{ color: T.textDim, fontSize: 10 }}>{val} val</span>
                 </div>
               </div>
             );

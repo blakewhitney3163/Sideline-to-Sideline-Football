@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { T } from './theme';
 
 declare const window: any;
 
@@ -68,7 +69,7 @@ interface Props {
 const POSITIONS = ['ALL', 'QB', 'RB', 'WR', 'TE', 'OL', 'DL', 'LB', 'CB', 'S', 'K'];
 
 const TRAIT_META: Record<string, { color: string; short: string }> = {
-  'Normal':    { color: '#444',    short: '' },
+  'Normal':    { color: T.textDim,    short: '' },
   'Star':      { color: '#4FC3F7', short: 'S' },
   'Superstar': { color: '#FF8740', short: 'SS' },
   'X-Factor':  { color: '#FFD700', short: 'XF' },
@@ -78,13 +79,13 @@ function ratingColor(r: number): string {
   if (r >= 90) return '#FFD700';
   if (r >= 80) return '#4caf50';
   if (r >= 70) return '#FF8740';
-  return '#888';
+  return T.textMuted;
 }
 
 function trajectory(age: number): { label: string; color: string } {
   if (age <= 26) return { label: '↑', color: '#4caf50' };
   if (age <= 30) return { label: '→', color: '#FF8740' };
-  return { label: '↓', color: '#777' };
+  return { label: '↓', color: T.textMuted };
 }
 
 function fmtSalary(m: number): string {
@@ -145,11 +146,11 @@ type Decision = 'pending' | 'resigned' | 'walking';
 function TeamNeedsBar({ needs }: { needs: TeamNeed[] }) {
   if (needs.length === 0) return null;
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: '#0d0d0d', border: '1px solid #1a1a1a', borderRadius: 6, marginBottom: 14, flexWrap: 'wrap' }}>
-      <span style={{ color: '#555', fontSize: 10, letterSpacing: 1, marginRight: 4 }}>TEAM NEEDS</span>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: T.bgPage, border: `1px solid ${T.borderFaint}`, borderRadius: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+      <span style={{ color: T.textMuted, fontSize: 10, letterSpacing: 1, marginRight: 4 }}>TEAM NEEDS</span>
       {needs.map(n => (
         <span key={n.position} style={{
-          background: n.severity === 'critical' ? '#3a0a0a' : '#1a1500',
+          background: n.severity === 'critical' ? T.bgRed : T.bgGold,
           border: `1px solid ${n.severity === 'critical' ? '#e57373' : '#e8b800'}`,
           color: n.severity === 'critical' ? '#e57373' : '#e8b800',
           fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4,
@@ -394,7 +395,7 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
       {toast && (
         <div style={{
           position: 'fixed', top: 20, right: 24, zIndex: 1000,
-          background: toast.type === 'error' ? '#2a0a0a' : '#0a2a0a',
+          background: toast.type === 'error' ? T.bgRed : '#0a2a0a',
           border: `1px solid ${toast.type === 'error' ? '#e57373' : '#4caf50'}`,
           borderRadius: 6, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10,
           color: toast.type === 'error' ? '#e57373' : '#4caf50', fontSize: 13, maxWidth: 380,
@@ -408,25 +409,25 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
       {/* Header */}
       <div style={{ marginBottom: 20 }}>
         <h1 style={{ color: '#fff', fontSize: 20, fontWeight: 700, margin: 0 }}>Franchise Management</h1>
-        <p style={{ color: '#444', fontSize: 12, margin: '2px 0 0' }}>{userTeam.city} {userTeam.name} · {currentSeason} Season</p>
+        <p style={{ color: T.textDim, fontSize: 12, margin: '2px 0 0' }}>{userTeam.city} {userTeam.name} · {currentSeason} Season</p>
       </div>
 
       {/* Cap Bar */}
       {cap && (
-        <div style={{ background: '#111', border: '1px solid #1a1a1a', borderRadius: 8, padding: '12px 16px', marginBottom: 16 }}>
+        <div style={{ background: T.bgPage, border: `1px solid ${T.borderFaint}`, borderRadius: 8, padding: '12px 16px', marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
-            <span style={{ color: '#444', fontSize: 10, letterSpacing: 1, fontWeight: 700 }}>SALARY CAP</span>
+            <span style={{ color: T.textDim, fontSize: 10, letterSpacing: 1, fontWeight: 700 }}>SALARY CAP</span>
             <span style={{ color: capColor, fontSize: 14, fontWeight: 700 }}>{fmtSalary(cap.used_cap)} used</span>
-            <span style={{ color: '#333', fontSize: 12 }}>/</span>
-            <span style={{ color: '#555', fontSize: 12 }}>{fmtSalary(cap.total_cap)} cap</span>
+            <span style={{ color: T.borderStrong, fontSize: 12 }}>/</span>
+            <span style={{ color: T.textMuted, fontSize: 12 }}>{fmtSalary(cap.total_cap)} cap</span>
             <span style={{ marginLeft: 'auto', color: cap.available_cap < 0 ? '#e57373' : '#4caf50', fontWeight: 700, fontSize: 13 }}>
               {cap.available_cap < 0 ? '⚠ OVER CAP ' : ''}{fmtSalary(cap.available_cap)}{cap.available_cap >= 0 ? ' available' : ''}
             </span>
           </div>
-          <div style={{ background: '#1a1a1a', borderRadius: 4, height: 6, overflow: 'hidden' }}>
+          <div style={{ background: T.bgCard, borderRadius: 4, height: 6, overflow: 'hidden' }}>
             <div style={{ background: capColor, height: '100%', width: `${Math.min(capPct, 100)}%`, transition: 'width 0.3s' }} />
           </div>
-          <div style={{ display: 'flex', gap: 16, marginTop: 6, fontSize: 11, color: '#444' }}>
+          <div style={{ display: 'flex', gap: 16, marginTop: 6, fontSize: 11, color: T.textDim }}>
             <span>Guaranteed on books: {fmtSalary(totalGuaranteed)}</span>
             {expiringCount > 0 && <span style={{ color: '#FF8740' }}>⚠ {expiringCount} expiring this offseason</span>}
             {rosterSpots && <span>{rosterSpots.active}/53 active · {rosterSpots.ps}/16 PS</span>}
@@ -448,10 +449,10 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
           }}
           style={{
             padding: '5px 14px', fontSize: 11, letterSpacing: 1, cursor: 'pointer', borderRadius: 4,
-            background: '#0a1a0a', border: '1px solid #4caf50', color: '#4caf50', fontWeight: 'bold',
+            background: T.bgGreen, border: '1px solid #4caf50', color: '#4caf50', fontWeight: 'bold',
           }}
         >IMPORT OTC CONTRACTS</button>
-        <span style={{ color: '#333', fontSize: 10, marginLeft: 10 }}>otc-contracts.htm detected in repo root</span>
+        <span style={{ color: T.borderStrong, fontSize: 10, marginLeft: 10 }}>otc-contracts.htm detected in repo root</span>
       </div>
 
       {/* Tabs */}
@@ -464,9 +465,9 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
         ] as const).map(tab => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{
             padding: '5px 16px', fontSize: 11, letterSpacing: 1, cursor: 'pointer', borderRadius: 4,
-            background: activeTab === tab.key ? '#FF8740' : (tab.warn ? '#1a1000' : '#111'),
-            border: `1px solid ${activeTab === tab.key ? '#FF8740' : tab.warn ? '#FF8740' : '#222'}`,
-            color: activeTab === tab.key ? '#000' : tab.warn ? '#FF8740' : '#555',
+            background: activeTab === tab.key ? '#FF8740' : (tab.warn ? T.bgOrange : T.bgPage),
+            border: `1px solid ${activeTab === tab.key ? '#FF8740' : tab.warn ? '#FF8740' : T.borderFaint}`,
+            color: activeTab === tab.key ? '#000' : tab.warn ? '#FF8740' : T.textMuted,
             fontWeight: activeTab === tab.key || tab.warn ? 'bold' : 'normal',
           }}>{tab.label}</button>
         ))}
@@ -479,16 +480,16 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
               {POSITIONS.map(pos => (
                 <button key={pos} onClick={() => setPosFilter(pos)} style={{
-                  padding: '3px 9px', background: posFilter === pos ? '#FF8740' : '#141414',
-                  border: `1px solid ${posFilter === pos ? '#FF8740' : '#222'}`, borderRadius: 3,
-                  color: posFilter === pos ? '#000' : '#555', fontSize: 11, cursor: 'pointer',
+                  padding: '3px 9px', background: posFilter === pos ? '#FF8740' : T.bgPanel,
+                  border: `1px solid ${posFilter === pos ? '#FF8740' : T.borderFaint}`, borderRadius: 3,
+                  color: posFilter === pos ? '#000' : T.textMuted, fontSize: 11, cursor: 'pointer',
                   fontWeight: posFilter === pos ? 'bold' : 'normal',
                 }}>{pos}</button>
               ))}
             </div>
             <select onChange={e => setSortBy(e.target.value as any)} value={sortBy} style={{
-              background: '#161616', border: '1px solid #2a2a2a', borderRadius: 5,
-              color: '#ccc', padding: '4px 10px', fontSize: 12, marginLeft: 'auto',
+              background: T.bgInput, border: `1px solid ${T.borderMid}`, borderRadius: 5,
+              color: T.textPrimary, padding: '4px 10px', fontSize: 12, marginLeft: 'auto',
             }}>
               <option value="salary">Sort: Salary</option>
               <option value="years">Sort: Expiring First</option>
@@ -500,18 +501,18 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
               value={rosterSearch}
               onChange={e => setRosterSearch(e.target.value)}
               style={{
-                background: '#161616', border: '1px solid #2a2a2a', borderRadius: 5,
-                color: '#ccc', padding: '4px 10px', fontSize: 12, width: 160,
+                background: T.bgInput, border: `1px solid ${T.borderMid}`, borderRadius: 5,
+                color: T.textPrimary, padding: '4px 10px', fontSize: 12, width: 160,
               }}
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 80px auto', gap: 8, padding: '6px 12px', fontSize: 10, color: '#333', letterSpacing: 1, borderBottom: '1px solid #1a1a1a', marginBottom: 4 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 80px auto', gap: 8, padding: '6px 12px', fontSize: 10, color: T.borderStrong, letterSpacing: 1, borderBottom: `1px solid ${T.borderFaint}`, marginBottom: 4 }}>
             <span>PLAYER</span><span>AGE / OVR</span><span>DEV</span><span>SALARY / GTD</span><span style={{ gridColumn: '5' }}>YEARS</span>
           </div>
 
           {filtered.length === 0 ? (
-            <div style={{ color: '#333', padding: '20px 12px', fontSize: 13 }}>No contracts found</div>
+            <div style={{ color: T.borderStrong, padding: '20px 12px', fontSize: 13 }}>No contracts found</div>
           ) : filtered.map(contract => {
             const isExpiring = contract.years_remaining === 1;
             const trait = TRAIT_META[contract.dev_trait] ?? TRAIT_META['Normal'];
@@ -526,23 +527,23 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', flexWrap: 'wrap' }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ color: '#ddd', fontWeight: 600, fontSize: 13 }}>{contract.first_name} {contract.last_name}</span>
+                      <span style={{ color: T.textPrimary, fontWeight: 600, fontSize: 13 }}>{contract.first_name} {contract.last_name}</span>
                       {trait.short && <span style={{ background: trait.color, color: '#000', fontSize: 8, fontWeight: 700, padding: '1px 4px', borderRadius: 3 }}>{trait.short}</span>}
                       {grade && <span style={{ color: grade.color, fontSize: 9, fontWeight: 700 }}>{grade.label}</span>}
                     </div>
-                    <span style={{ color: '#444', fontSize: 11 }}>{contract.position_label || contract.position}</span>
+                    <span style={{ color: T.textDim, fontSize: 11 }}>{contract.position_label || contract.position}</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 60 }}>
                     <span style={{ color: traj.color, fontSize: 12 }}>{contract.age} {traj.label}</span>
                     <span style={{ color: ratingColor(contract.overall_rating), fontWeight: 700, fontSize: 14 }}>{contract.overall_rating}</span>
                   </div>
-                  <div style={{ width: 70, color: '#555', fontSize: 11, textAlign: 'center' }}>
+                  <div style={{ width: 70, color: T.textMuted, fontSize: 11, textAlign: 'center' }}>
                     {contract.dev_trait === 'Normal' ? '—' : contract.dev_trait}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', width: 110 }}>
-                    <span style={{ color: '#ddd', fontWeight: 600, fontSize: 13 }}>{fmtSalary(contract.annual_salary)}</span>
+                    <span style={{ color: T.textPrimary, fontWeight: 600, fontSize: 13 }}>{fmtSalary(contract.annual_salary)}</span>
                     {gtdPct > 0 && (
-                      <span style={{ color: gtdPct >= 60 ? '#4caf50' : gtdPct >= 35 ? '#FF8740' : '#555', fontSize: 10, marginTop: 1 }}>
+                      <span style={{ color: gtdPct >= 60 ? '#4caf50' : gtdPct >= 35 ? '#FF8740' : T.textMuted, fontSize: 10, marginTop: 1 }}>
                         {fmtSalary(contract.guaranteed_amount ?? 0)} GTD · {gtdPct.toFixed(0)}%
                       </span>
                     )}
@@ -550,16 +551,16 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', width: 90 }}>
                     <div style={{ display: 'flex', gap: 2 }}>
                       {Array.from({ length: contract.years_total }).map((_, i) => (
-                        <div key={i} style={{ width: 8, height: 8, borderRadius: 2, background: i < contract.years_remaining ? '#FF8740' : '#1a1a1a' }} />
+                        <div key={i} style={{ width: 8, height: 8, borderRadius: 2, background: i < contract.years_remaining ? '#FF8740' : T.bgCard }} />
                       ))}
                     </div>
-                    <span style={{ color: isExpiring ? '#FF8740' : '#555', fontSize: 11, marginTop: 2 }}>{contract.years_remaining}yr{isExpiring ? ' ⚠' : ''}</span>
+                    <span style={{ color: isExpiring ? '#FF8740' : T.textMuted, fontSize: 11, marginTop: 2 }}>{contract.years_remaining}yr{isExpiring ? ' ⚠' : ''}</span>
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <button onClick={() => isExtending ? setExtendingId(null) : openExtend(contract)} style={{ padding: '4px 10px', background: isExtending ? '#1a3a1a' : '#141414', border: `1px solid ${isExtending ? '#4caf50' : '#2a2a2a'}`, borderRadius: 4, color: isExtending ? '#4caf50' : '#555', fontSize: 11, cursor: 'pointer' }}>
+                    <button onClick={() => isExtending ? setExtendingId(null) : openExtend(contract)} style={{ padding: '4px 10px', background: isExtending ? '#1a3a1a' : T.bgPanel, border: `1px solid ${isExtending ? '#4caf50' : T.borderMid}`, borderRadius: 4, color: isExtending ? '#4caf50' : T.textMuted, fontSize: 11, cursor: 'pointer' }}>
                       {isExtending ? 'Cancel' : 'Extend'}
                     </button>
-                    <button onClick={() => isReleasing ? setReleasingId(null) : (setReleasingId(contract.id), setExtendingId(null))} style={{ padding: '4px 10px', background: isReleasing ? '#3a0a0a' : '#141414', border: `1px solid ${isReleasing ? '#e57373' : '#2a2a2a'}`, borderRadius: 4, color: isReleasing ? '#e57373' : '#555', fontSize: 11, cursor: 'pointer' }}>
+                    <button onClick={() => isReleasing ? setReleasingId(null) : (setReleasingId(contract.id), setExtendingId(null))} style={{ padding: '4px 10px', background: isReleasing ? T.bgRed : T.bgPanel, border: `1px solid ${isReleasing ? '#e57373' : T.borderMid}`, borderRadius: 4, color: isReleasing ? '#e57373' : T.textMuted, fontSize: 11, cursor: 'pointer' }}>
                       {isReleasing ? 'Cancel' : 'Cut'}
                     </button>
                   </div>
@@ -570,30 +571,30 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
                     <div style={{ color: '#4caf50', fontSize: 11, fontWeight: 700, marginBottom: 10 }}>OFFER EXTENSION — {contract.first_name} {contract.last_name}</div>
                     <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
                       <div>
-                        <div style={{ color: '#333', fontSize: 10, marginBottom: 6 }}>YEARS</div>
+                        <div style={{ color: T.borderStrong, fontSize: 10, marginBottom: 6 }}>YEARS</div>
                         <div style={{ display: 'flex', gap: 4 }}>
                           {[1,2,3,4,5].map(y => (
-                            <button key={y} onClick={() => setExtendYears(y)} style={{ width: 32, height: 32, background: extendYears === y ? '#4caf50' : '#141414', border: `1px solid ${extendYears === y ? '#4caf50' : '#2a2a2a'}`, borderRadius: 4, color: extendYears === y ? '#000' : '#555', fontWeight: 'bold', fontSize: 12, cursor: 'pointer' }}>{y}</button>
+                            <button key={y} onClick={() => setExtendYears(y)} style={{ width: 32, height: 32, background: extendYears === y ? '#4caf50' : T.bgPanel, border: `1px solid ${extendYears === y ? '#4caf50' : T.borderMid}`, borderRadius: 4, color: extendYears === y ? '#000' : T.textMuted, fontWeight: 'bold', fontSize: 12, cursor: 'pointer' }}>{y}</button>
                           ))}
                         </div>
                       </div>
                       <div>
-                        <div style={{ color: '#333', fontSize: 10, marginBottom: 6 }}>ANNUAL SALARY (M)</div>
+                        <div style={{ color: T.borderStrong, fontSize: 10, marginBottom: 6 }}>ANNUAL SALARY (M)</div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ color: '#555', fontSize: 13 }}>$</span>
+                          <span style={{ color: T.textMuted, fontSize: 13 }}>$</span>
                           <input type="number" value={extendSalary} onChange={e => setExtendSalary(e.target.value)} min="0.1" step="0.5"
-                            style={{ background: '#141414', border: '1px solid #2a2a2a', borderRadius: 4, color: '#ccc', padding: '6px 10px', fontSize: 13, width: 80 }} />
-                          <span style={{ color: '#555', fontSize: 13 }}>M</span>
+                            style={{ background: T.bgPanel, border: `1px solid ${T.borderMid}`, borderRadius: 4, color: T.textPrimary, padding: '6px 10px', fontSize: 13, width: 80 }} />
+                          <span style={{ color: T.textMuted, fontSize: 13 }}>M</span>
                         </div>
                       </div>
                       <div>
-                        <div style={{ color: '#333', fontSize: 10, marginBottom: 6 }}>CAP IMPACT</div>
+                        <div style={{ color: T.borderStrong, fontSize: 10, marginBottom: 6 }}>CAP IMPACT</div>
                         <div style={{ color: capDelta > 0 ? '#e57373' : '#4caf50', fontSize: 13 }}>{capDelta > 0 ? '+' : ''}{fmtSalary(capDelta)} vs current</div>
-                        <div style={{ color: '#555', fontSize: 11 }}>{fmtSalary(Math.max(0, newAvailable))} remaining after</div>
+                        <div style={{ color: T.textMuted, fontSize: 11 }}>{fmtSalary(Math.max(0, newAvailable))} remaining after</div>
                       </div>
                     </div>
                     <div style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <button onClick={handleExtend} disabled={working || newAvailable < 0} style={{ padding: '6px 16px', background: newAvailable < 0 ? '#1a1a1a' : '#1a3a1a', border: `1px solid ${newAvailable < 0 ? '#2a2a2a' : '#4caf50'}`, borderRadius: 4, color: newAvailable < 0 ? '#333' : '#4caf50', fontSize: 12, cursor: newAvailable < 0 ? 'not-allowed' : 'pointer' }}>
+                      <button onClick={handleExtend} disabled={working || newAvailable < 0} style={{ padding: '6px 16px', background: newAvailable < 0 ? T.bgCard : '#1a3a1a', border: `1px solid ${newAvailable < 0 ? T.borderMid : '#4caf50'}`, borderRadius: 4, color: newAvailable < 0 ? T.borderStrong : '#4caf50', fontSize: 12, cursor: newAvailable < 0 ? 'not-allowed' : 'pointer' }}>
                         {working ? '...' : 'Confirm Extension'}
                       </button>
                       {newAvailable < 0 && <span style={{ color: '#e57373', fontSize: 11 }}>Over cap by {fmtSalary(Math.abs(newAvailable))} — reduce salary or cut a player first.</span>}
@@ -605,10 +606,10 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
                   <div style={{ background: '#180a0a', border: '1px solid #3a1a1a', borderRadius: 6, margin: '0 12px 10px', padding: '12px 16px' }}>
                     <div style={{ color: '#e57373', fontSize: 12, marginBottom: 10 }}>Release {contract.first_name} {contract.last_name}? Frees {fmtSalary(contract.annual_salary)} in cap space.</div>
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <button onClick={handleRelease} style={{ padding: '6px 16px', background: '#2a0a0a', border: '1px solid #e57373', borderRadius: 4, color: '#e57373', fontSize: 12, cursor: 'pointer' }}>
+                      <button onClick={handleRelease} style={{ padding: '6px 16px', background: T.bgRed, border: '1px solid #e57373', borderRadius: 4, color: '#e57373', fontSize: 12, cursor: 'pointer' }}>
                         {working ? '...' : 'Confirm Release'}
                       </button>
-                      <button onClick={() => setReleasingId(null)} style={{ padding: '6px 16px', background: '#141414', border: '1px solid #2a2a2a', borderRadius: 4, color: '#555', fontSize: 12, cursor: 'pointer' }}>Cancel</button>
+                      <button onClick={() => setReleasingId(null)} style={{ padding: '6px 16px', background: T.bgPanel, border: `1px solid ${T.borderMid}`, borderRadius: 4, color: T.textMuted, fontSize: 12, cursor: 'pointer' }}>Cancel</button>
                     </div>
                   </div>
                 )}
@@ -617,7 +618,7 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
           })}
 
           {contracts.length > 0 && (
-            <div style={{ color: '#333', fontSize: 11, padding: '10px 12px' }}>
+            <div style={{ color: T.borderStrong, fontSize: 11, padding: '10px 12px' }}>
               {filtered.length} player{filtered.length !== 1 ? 's' : ''} · {fmtSalary(filtered.reduce((s, c) => s + c.annual_salary, 0))} shown
             </div>
           )}
@@ -627,11 +628,11 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
       {/* ── Practice Squad ── */}
       {activeTab === 'ps' && (
         <div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 80px 80px auto', gap: 8, padding: '6px 12px', fontSize: 10, color: '#333', letterSpacing: 1, borderBottom: '1px solid #1a1a1a', marginBottom: 4 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 80px 80px auto', gap: 8, padding: '6px 12px', fontSize: 10, color: T.borderStrong, letterSpacing: 1, borderBottom: `1px solid ${T.borderFaint}`, marginBottom: 4 }}>
             <span>PLAYER</span><span>AGE / OVR</span><span>DEV</span><span>SALARY</span>
           </div>
           {practiceSquad.length === 0 ? (
-            <div style={{ color: '#333', padding: '20px 12px', fontSize: 13 }}>No practice squad players</div>
+            <div style={{ color: T.borderStrong, padding: '20px 12px', fontSize: 13 }}>No practice squad players</div>
           ) : practiceSquad.map(p => {
             const trait = TRAIT_META[p.dev_trait] ?? TRAIT_META['Normal'];
             const traj = trajectory(p.age);
@@ -639,17 +640,17 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
               <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderBottom: '1px solid #0d0d0d' }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ color: '#ddd', fontWeight: 600, fontSize: 13 }}>{p.first_name} {p.last_name}</span>
+                    <span style={{ color: T.textPrimary, fontWeight: 600, fontSize: 13 }}>{p.first_name} {p.last_name}</span>
                     {trait.short && <span style={{ background: trait.color, color: '#000', fontSize: 8, fontWeight: 700, padding: '1px 4px', borderRadius: 3 }}>{trait.short}</span>}
                   </div>
-                  <span style={{ color: '#444', fontSize: 11 }}>{p.position_label || p.position}</span>
+                  <span style={{ color: T.textDim, fontSize: 11 }}>{p.position_label || p.position}</span>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 60 }}>
                   <span style={{ color: traj.color, fontSize: 12 }}>{p.age} {traj.label}</span>
                   <span style={{ color: ratingColor(p.overall_rating), fontWeight: 700, fontSize: 14 }}>{p.overall_rating}</span>
                 </div>
-                <div style={{ width: 70, color: '#555', fontSize: 11, textAlign: 'center' }}>{p.dev_trait === 'Normal' ? '—' : p.dev_trait}</div>
-                <div style={{ width: 80, color: '#888', fontSize: 12 }}>{fmtSalary(p.annual_salary ?? 1.165)}</div>
+                <div style={{ width: 70, color: T.textMuted, fontSize: 11, textAlign: 'center' }}>{p.dev_trait === 'Normal' ? '—' : p.dev_trait}</div>
+                <div style={{ width: 80, color: T.textMuted, fontSize: 12 }}>{fmtSalary(p.annual_salary ?? 1.165)}</div>
                 <button
                   onClick={async () => {
                     const result = await window.api.promoteFromPs(p.id);
@@ -663,7 +664,7 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
                   disabled={!!(rosterSpots && rosterSpots.activeFree <= 0)}
                   style={{
                     padding: '4px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4,
-                    background: '#0a1a0a', border: '1px solid #1a4a1a', color: '#4caf50',
+                    background: T.bgGreen, border: '1px solid #1a4a1a', color: '#4caf50',
                     opacity: rosterSpots && rosterSpots.activeFree <= 0 ? 0.3 : 1,
                   }}>
                   Promote
@@ -671,7 +672,7 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
               </div>
             );
           })}
-          <div style={{ color: '#333', fontSize: 11, padding: '10px 12px' }}>{practiceSquad.length} / 16 practice squad slots used</div>
+          <div style={{ color: T.borderStrong, fontSize: 11, padding: '10px 12px' }}>{practiceSquad.length} / 16 practice squad slots used</div>
         </div>
       )}
 
@@ -682,16 +683,16 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
               {POSITIONS.map(pos => (
                 <button key={pos} onClick={() => { setFaPos(pos); setSigningId(null); }} style={{
-                  padding: '3px 9px', background: faPos === pos ? '#4FC3F7' : '#141414',
-                  border: `1px solid ${faPos === pos ? '#4FC3F7' : '#222'}`, borderRadius: 3,
-                  color: faPos === pos ? '#000' : '#555', fontSize: 11, cursor: 'pointer',
+                  padding: '3px 9px', background: faPos === pos ? '#4FC3F7' : T.bgPanel,
+                  border: `1px solid ${faPos === pos ? '#4FC3F7' : T.borderFaint}`, borderRadius: 3,
+                  color: faPos === pos ? '#000' : T.textMuted, fontSize: 11, cursor: 'pointer',
                   fontWeight: faPos === pos ? 'bold' : 'normal',
                 }}>{pos}</button>
               ))}
             </div>
             <select onChange={e => setFaSortBy(e.target.value as any)} value={faSortBy} style={{
-              marginLeft: 'auto', background: '#161616', border: '1px solid #2a2a2a',
-              borderRadius: 5, color: '#ccc', padding: '4px 10px', fontSize: 12,
+              marginLeft: 'auto', background: T.bgInput, border: `1px solid ${T.borderMid}`,
+              borderRadius: 5, color: T.textPrimary, padding: '4px 10px', fontSize: 12,
             }}>
               <option value="ovr">Sort: OVR</option>
               <option value="value">Sort: Market Value</option>
@@ -702,8 +703,8 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
               value={faSearch}
               onChange={e => setFaSearch(e.target.value)}
               style={{
-                background: '#161616', border: '1px solid #2a2a2a', borderRadius: 5,
-                color: '#ccc', padding: '4px 10px', fontSize: 12, width: 160,
+                background: T.bgInput, border: `1px solid ${T.borderMid}`, borderRadius: 5,
+                color: T.textPrimary, padding: '4px 10px', fontSize: 12, width: 160,
               }}
             />
           </div>
@@ -719,12 +720,12 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
             </div>
           )}
 <TeamNeedsBar needs={needs} />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 80px 100px auto', gap: 8, padding: '6px 12px', fontSize: 10, color: '#333', letterSpacing: 1, borderBottom: '1px solid #1a1a1a', marginBottom: 4 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 80px 100px auto', gap: 8, padding: '6px 12px', fontSize: 10, color: T.borderStrong, letterSpacing: 1, borderBottom: `1px solid ${T.borderFaint}`, marginBottom: 4 }}>
             <span>PLAYER</span><span>AGE / OVR</span><span>DEV</span><span>MARKET VALUE</span>
           </div>
 
           {filteredFa.length === 0 ? (
-            <div style={{ color: '#333', padding: '20px 12px', fontSize: 13 }}>No free agents found</div>
+            <div style={{ color: T.borderStrong, padding: '20px 12px', fontSize: 13 }}>No free agents found</div>
           ) : filteredFa.map(fa => {
             const trait = TRAIT_META[fa.dev_trait] ?? TRAIT_META['Normal'];
             const traj = trajectory(fa.age);
@@ -736,7 +737,7 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px' }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ color: '#ddd', fontWeight: 600, fontSize: 13 }}>{fa.first_name} {fa.last_name}</span>
+                      <span style={{ color: T.textPrimary, fontWeight: 600, fontSize: 13 }}>{fa.first_name} {fa.last_name}</span>
                       {trait.short && <span style={{ background: trait.color, color: '#000', fontSize: 8, fontWeight: 700, padding: '1px 4px', borderRadius: 3 }}>{trait.short}</span>}
                       {needs.some(n => n.position === fa.position) && (
                   <span style={{
@@ -746,22 +747,22 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
                   }}>NEED</span>
                 )}
                     </div>
-                    <span style={{ color: '#444', fontSize: 11 }}>{fa.position_label || fa.position}</span>
+                    <span style={{ color: T.textDim, fontSize: 11 }}>{fa.position_label || fa.position}</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 60 }}>
                     <span style={{ color: traj.color, fontSize: 12 }}>{fa.age} {traj.label}</span>
                     <span style={{ color: ratingColor(fa.overall_rating), fontWeight: 700, fontSize: 14 }}>{fa.overall_rating}</span>
                   </div>
-                  <div style={{ width: 70, color: '#555', fontSize: 11, textAlign: 'center' }}>{fa.dev_trait === 'Normal' ? '—' : fa.dev_trait}</div>
-                  <div style={{ width: 100, color: '#888', fontSize: 12 }}>{fmtSalary(mv)}/yr</div>
+                  <div style={{ width: 70, color: T.textMuted, fontSize: 11, textAlign: 'center' }}>{fa.dev_trait === 'Normal' ? '—' : fa.dev_trait}</div>
+                  <div style={{ width: 100, color: T.textMuted, fontSize: 12 }}>{fmtSalary(mv)}/yr</div>
                   <button
                     onClick={() => isSigning ? setSigningId(null) : openSign(fa)}
                     disabled={!!(rosterSpots && rosterSpots.activeFree <= 0)}
                     style={{
                       padding: '4px 12px', fontSize: 11, cursor: 'pointer', borderRadius: 4,
-                      background: isSigning ? '#0a1a3a' : '#141414',
-                      border: `1px solid ${isSigning ? '#4FC3F7' : rosterSpots && rosterSpots.activeFree <= 0 ? '#1a1a1a' : '#2a2a2a'}`,
-                      color: isSigning ? '#4FC3F7' : rosterSpots && rosterSpots.activeFree <= 0 ? '#2a2a2a' : '#555',
+                      background: isSigning ? T.bgBlue : T.bgPanel,
+                      border: `1px solid ${isSigning ? '#4FC3F7' : rosterSpots && rosterSpots.activeFree <= 0 ? T.bgCard : T.borderMid}`,
+                      color: isSigning ? '#4FC3F7' : rosterSpots && rosterSpots.activeFree <= 0 ? T.borderMid : T.textMuted,
                     }}>
                     {isSigning ? 'Cancel' : 'Sign'}
                   </button>
@@ -772,30 +773,30 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
                     <div style={{ color: '#4FC3F7', fontSize: 11, fontWeight: 700, marginBottom: 10 }}>OFFER CONTRACT — {fa.first_name} {fa.last_name}</div>
                     <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
                       <div>
-                        <div style={{ color: '#333', fontSize: 10, marginBottom: 6 }}>YEARS</div>
+                        <div style={{ color: T.borderStrong, fontSize: 10, marginBottom: 6 }}>YEARS</div>
                         <div style={{ display: 'flex', gap: 4 }}>
                           {[1,2,3,4,5].map(y => (
-                            <button key={y} onClick={() => setSignYears(y)} style={{ width: 32, height: 32, background: signYears === y ? '#4FC3F7' : '#141414', border: `1px solid ${signYears === y ? '#4FC3F7' : '#2a2a2a'}`, borderRadius: 4, color: signYears === y ? '#000' : '#555', fontWeight: 'bold', fontSize: 12, cursor: 'pointer' }}>{y}</button>
+                            <button key={y} onClick={() => setSignYears(y)} style={{ width: 32, height: 32, background: signYears === y ? '#4FC3F7' : T.bgPanel, border: `1px solid ${signYears === y ? '#4FC3F7' : T.borderMid}`, borderRadius: 4, color: signYears === y ? '#000' : T.textMuted, fontWeight: 'bold', fontSize: 12, cursor: 'pointer' }}>{y}</button>
                           ))}
                         </div>
                       </div>
                       <div>
-                        <div style={{ color: '#333', fontSize: 10, marginBottom: 6 }}>ANNUAL SALARY (M)</div>
+                        <div style={{ color: T.borderStrong, fontSize: 10, marginBottom: 6 }}>ANNUAL SALARY (M)</div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ color: '#555', fontSize: 13 }}>$</span>
+                          <span style={{ color: T.textMuted, fontSize: 13 }}>$</span>
                           <input type="number" value={signSalary} onChange={e => setSignSalary(e.target.value)} min="0.9" step="0.5"
-                            style={{ background: '#141414', border: '1px solid #2a2a2a', borderRadius: 4, color: '#ccc', padding: '6px 10px', fontSize: 13, width: 80 }} />
-                          <span style={{ color: '#555', fontSize: 13 }}>M</span>
+                            style={{ background: T.bgPanel, border: `1px solid ${T.borderMid}`, borderRadius: 4, color: T.textPrimary, padding: '6px 10px', fontSize: 13, width: 80 }} />
+                          <span style={{ color: T.textMuted, fontSize: 13 }}>M</span>
                         </div>
-                        <div style={{ color: '#333', fontSize: 10, marginTop: 4 }}>Market: {fmtSalary(mv)}/yr</div>
+                        <div style={{ color: T.borderStrong, fontSize: 10, marginTop: 4 }}>Market: {fmtSalary(mv)}/yr</div>
                       </div>
                       <div>
-                        <div style={{ color: '#333', fontSize: 10, marginBottom: 6 }}>CAP AFTER SIGNING</div>
+                        <div style={{ color: T.borderStrong, fontSize: 10, marginBottom: 6 }}>CAP AFTER SIGNING</div>
                         <div style={{ color: signCapLeft < 0 ? '#e57373' : '#4caf50', fontSize: 13 }}>{fmtSalary(signCapLeft)} remaining</div>
-                        <div style={{ color: '#555', fontSize: 11 }}>{rosterSpots && `${rosterSpots.activeFree - 1} roster spot${rosterSpots.activeFree - 1 !== 1 ? 's' : ''} left after`}</div>
+                        <div style={{ color: T.textMuted, fontSize: 11 }}>{rosterSpots && `${rosterSpots.activeFree - 1} roster spot${rosterSpots.activeFree - 1 !== 1 ? 's' : ''} left after`}</div>
                       </div>
                     </div>
-                    <button onClick={handleSign} disabled={working || signCapLeft < 0} style={{ marginTop: 10, padding: '6px 16px', background: signCapLeft < 0 ? '#1a1a1a' : '#0a1a3a', border: `1px solid ${signCapLeft < 0 ? '#2a2a2a' : '#4FC3F7'}`, borderRadius: 4, color: signCapLeft < 0 ? '#333' : '#4FC3F7', fontSize: 12, cursor: signCapLeft < 0 ? 'not-allowed' : 'pointer' }}>
+                    <button onClick={handleSign} disabled={working || signCapLeft < 0} style={{ marginTop: 10, padding: '6px 16px', background: signCapLeft < 0 ? T.bgCard : T.bgBlue, border: `1px solid ${signCapLeft < 0 ? T.borderMid : '#4FC3F7'}`, borderRadius: 4, color: signCapLeft < 0 ? T.borderStrong : '#4FC3F7', fontSize: 12, cursor: signCapLeft < 0 ? 'not-allowed' : 'pointer' }}>
                       {working ? '...' : signCapLeft < 0 ? 'OVER CAP' : 'Confirm Signing'}
                     </button>
                   </div>
@@ -803,7 +804,7 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
               </div>
             );
           })}
-          <div style={{ color: '#333', fontSize: 11, padding: '10px 12px' }}>
+          <div style={{ color: T.borderStrong, fontSize: 11, padding: '10px 12px' }}>
             {filteredFa.length} free agent{filteredFa.length !== 1 ? 's' : ''} shown (top 200 by OVR)
           </div>
         </div>
@@ -815,7 +816,7 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
           {/* Your Re-signing Window */}
           <div style={{ marginBottom: 24 }}>
             <div style={{ color: '#FF8740', fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>RE-SIGNING WINDOW</div>
-            <div style={{ color: '#555', fontSize: 12, marginBottom: 10 }}>
+            <div style={{ color: T.textMuted, fontSize: 12, marginBottom: 10 }}>
               {expiringPlayers.length === 0
                 ? 'No players entering the final year of their contract.'
                 : `${expiringPlayers.length} player${expiringPlayers.length !== 1 ? 's' : ''} in the final year of their contract. Make your decisions before advancing the season.`}
@@ -830,7 +831,7 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
           </div>
 
           {expiringPlayers.length === 0 ? (
-            <div style={{ color: '#333', padding: '16px 0', fontSize: 13 }}>
+            <div style={{ color: T.borderStrong, padding: '16px 0', fontSize: 13 }}>
               No expiring contracts — you're good to advance the season.
             </div>
           ) : expiringPlayers.map(player => {
@@ -853,22 +854,22 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', flexWrap: 'wrap' }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ color: '#ddd', fontWeight: 600, fontSize: 13 }}>{player.first_name} {player.last_name}</span>
+                      <span style={{ color: T.textPrimary, fontWeight: 600, fontSize: 13 }}>{player.first_name} {player.last_name}</span>
                       {trait.short && <span style={{ background: trait.color, color: '#000', fontSize: 8, fontWeight: 700, padding: '1px 4px', borderRadius: 3 }}>{trait.short}</span>}
                     </div>
-                    <span style={{ color: '#444', fontSize: 11 }}>{player.position_label || player.position}</span>
+                    <span style={{ color: T.textDim, fontSize: 11 }}>{player.position_label || player.position}</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 60 }}>
                     <span style={{ color: traj.color, fontSize: 12 }}>{player.age} {traj.label}</span>
                     <span style={{ color: ratingColor(player.overall_rating), fontWeight: 700, fontSize: 14 }}>{player.overall_rating}</span>
                   </div>
-                  <div style={{ width: 70, color: '#555', fontSize: 11, textAlign: 'center' }}>{player.dev_trait === 'Normal' ? '—' : player.dev_trait}</div>
+                  <div style={{ width: 70, color: T.textMuted, fontSize: 11, textAlign: 'center' }}>{player.dev_trait === 'Normal' ? '—' : player.dev_trait}</div>
                   <div style={{ display: 'flex', flexDirection: 'column', width: 100 }}>
-                    <span style={{ color: '#444', fontSize: 10 }}>Current</span>
-                    <span style={{ color: '#888', fontSize: 12 }}>{fmtSalary(player.annual_salary)}/yr</span>
+                    <span style={{ color: T.textDim, fontSize: 10 }}>Current</span>
+                    <span style={{ color: T.textMuted, fontSize: 12 }}>{fmtSalary(player.annual_salary)}/yr</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', width: 100 }}>
-                    <span style={{ color: '#444', fontSize: 10 }}>Asking ~</span>
+                    <span style={{ color: T.textDim, fontSize: 10 }}>Asking ~</span>
                     <span style={{ color: '#FF8740', fontSize: 12 }}>{fmtSalary(ap)}/yr</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -877,20 +878,20 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
                       <>
                         <button onClick={() => isResigning ? setResigningId(null) : openResign(player)} style={{
                           padding: '3px 9px', fontSize: 10, cursor: 'pointer', borderRadius: 3,
-                          background: isResigning ? '#1a3a1a' : '#141414',
-                          border: `1px solid ${isResigning ? '#4caf50' : '#2a2a2a'}`,
-                          color: isResigning ? '#4caf50' : '#555',
+                          background: isResigning ? '#1a3a1a' : T.bgPanel,
+                          border: `1px solid ${isResigning ? '#4caf50' : T.borderMid}`,
+                          color: isResigning ? '#4caf50' : T.textMuted,
                         }}>{isResigning ? 'Cancel' : 'Re-Sign'}</button>
                         <button onClick={() => handleLetWalk(player.id)} style={{
                           padding: '3px 9px', fontSize: 10, cursor: 'pointer', borderRadius: 3,
-                          background: '#141414', border: '1px solid #2a2a2a', color: '#555',
+                          background: T.bgPanel, border: `1px solid ${T.borderMid}`, color: T.textMuted,
                         }}>Let Walk</button>
                       </>
                     )}
                     {decision === 'walking' && (
                       <button onClick={() => setPlayerDecisions(prev => ({ ...prev, [player.id]: 'pending' }))} style={{
                         padding: '3px 9px', fontSize: 10, cursor: 'pointer', borderRadius: 3,
-                        background: '#141414', border: '1px solid #2a2a2a', color: '#555',
+                        background: T.bgPanel, border: `1px solid ${T.borderMid}`, color: T.textMuted,
                       }}>Undo</button>
                     )}
                   </div>
@@ -903,29 +904,29 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
                     </div>
                     <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
                       <div>
-                        <div style={{ color: '#333', fontSize: 10, marginBottom: 6 }}>YEARS</div>
+                        <div style={{ color: T.borderStrong, fontSize: 10, marginBottom: 6 }}>YEARS</div>
                         <div style={{ display: 'flex', gap: 4 }}>
                           {[1,2,3,4,5].map(y => (
-                            <button key={y} onClick={() => setResignYears(y)} style={{ width: 32, height: 32, background: resignYears === y ? '#4caf50' : '#141414', border: `1px solid ${resignYears === y ? '#4caf50' : '#2a2a2a'}`, borderRadius: 4, color: resignYears === y ? '#000' : '#555', fontWeight: 'bold', fontSize: 12, cursor: 'pointer' }}>{y}</button>
+                            <button key={y} onClick={() => setResignYears(y)} style={{ width: 32, height: 32, background: resignYears === y ? '#4caf50' : T.bgPanel, border: `1px solid ${resignYears === y ? '#4caf50' : T.borderMid}`, borderRadius: 4, color: resignYears === y ? '#000' : T.textMuted, fontWeight: 'bold', fontSize: 12, cursor: 'pointer' }}>{y}</button>
                           ))}
                         </div>
                       </div>
                       <div>
-                        <div style={{ color: '#333', fontSize: 10, marginBottom: 6 }}>ANNUAL SALARY (M)</div>
+                        <div style={{ color: T.borderStrong, fontSize: 10, marginBottom: 6 }}>ANNUAL SALARY (M)</div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ color: '#555', fontSize: 13 }}>$</span>
+                          <span style={{ color: T.textMuted, fontSize: 13 }}>$</span>
                           <input type="number" value={resignSalary} onChange={e => setResignSalary(e.target.value)} min="0.9" step="0.5"
-                            style={{ background: '#141414', border: '1px solid #2a2a2a', borderRadius: 4, color: '#ccc', padding: '6px 10px', fontSize: 13, width: 80 }} />
-                          <span style={{ color: '#555', fontSize: 13 }}>M</span>
+                            style={{ background: T.bgPanel, border: `1px solid ${T.borderMid}`, borderRadius: 4, color: T.textPrimary, padding: '6px 10px', fontSize: 13, width: 80 }} />
+                          <span style={{ color: T.textMuted, fontSize: 13 }}>M</span>
                         </div>
-                        <div style={{ color: '#333', fontSize: 10, marginTop: 4 }}>Asking: ~{fmtSalary(ap)}/yr</div>
+                        <div style={{ color: T.borderStrong, fontSize: 10, marginTop: 4 }}>Asking: ~{fmtSalary(ap)}/yr</div>
                       </div>
                       <div>
-                        <div style={{ color: '#333', fontSize: 10, marginBottom: 6 }}>CAP AFTER SIGNING</div>
+                        <div style={{ color: T.borderStrong, fontSize: 10, marginBottom: 6 }}>CAP AFTER SIGNING</div>
                         <div style={{ color: resignCapLeft < 0 ? '#e57373' : '#4caf50', fontSize: 13 }}>{fmtSalary(resignCapLeft)} remaining</div>
                       </div>
                     </div>
-                    <button onClick={handleResign} disabled={working || resignCapLeft < 0} style={{ marginTop: 10, padding: '6px 16px', background: resignCapLeft < 0 ? '#1a1a1a' : '#0a1a0a', border: `1px solid ${resignCapLeft < 0 ? '#2a2a2a' : '#4caf50'}`, borderRadius: 4, color: resignCapLeft < 0 ? '#333' : '#4caf50', fontSize: 12, cursor: resignCapLeft < 0 ? 'not-allowed' : 'pointer' }}>
+                    <button onClick={handleResign} disabled={working || resignCapLeft < 0} style={{ marginTop: 10, padding: '6px 16px', background: resignCapLeft < 0 ? T.bgCard : T.bgGreen, border: `1px solid ${resignCapLeft < 0 ? T.borderMid : '#4caf50'}`, borderRadius: 4, color: resignCapLeft < 0 ? T.borderStrong : '#4caf50', fontSize: 12, cursor: resignCapLeft < 0 ? 'not-allowed' : 'pointer' }}>
                       {working ? '...' : resignCapLeft < 0 ? 'OVER CAP' : 'Confirm Re-Sign'}
                     </button>
                   </div>
@@ -935,7 +936,7 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
           })}
 
           {expiringPlayers.length > 0 && (
-            <div style={{ color: '#333', fontSize: 11, padding: '12px 0', borderBottom: '1px solid #1a1a1a', marginBottom: 24 }}>
+            <div style={{ color: T.borderStrong, fontSize: 11, padding: '12px 0', borderBottom: `1px solid ${T.borderFaint}`, marginBottom: 24 }}>
               Once you've made your decisions, advance the season from the main menu. Players marked "Letting Walk" will automatically become free agents when the season advances.
             </div>
           )}
@@ -945,11 +946,11 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
             <div style={{ color: '#4FC3F7', fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>
               CPU FREE AGENCY
             </div>
-            <div style={{ color: '#444', fontSize: 12, marginBottom: 14, lineHeight: 1.5 }}>
+            <div style={{ color: T.textDim, fontSize: 12, marginBottom: 14, lineHeight: 1.5 }}>
               Run CPU free agency to let the other 31 teams fill their roster gaps.
               CPU teams also automatically re-sign their own key players when you advance the season.
               <br />
-              <span style={{ color: '#333' }}>Best done after you've finished your own FA signings.</span>
+              <span style={{ color: T.borderStrong }}>Best done after you've finished your own FA signings.</span>
             </div>
 
             {cpuFaDone && cpuFaResult ? (
@@ -957,13 +958,13 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
                 <div style={{ color: '#4FC3F7', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
                   ✓ CPU Free Agency Complete
                 </div>
-                <div style={{ color: '#888', fontSize: 12 }}>
+                <div style={{ color: T.textMuted, fontSize: 12 }}>
                   <span style={{ color: '#fff', fontWeight: 600 }}>{cpuFaResult.totalSigned}</span> players signed across{' '}
                   <span style={{ color: '#fff', fontWeight: 600 }}>{cpuFaResult.teamsActive}</span> teams.
                 </div>
                 <button
                   onClick={() => { setCpuFaDone(false); setCpuFaResult(null); }}
-                  style={{ marginTop: 10, padding: '4px 12px', background: 'transparent', border: '1px solid #2a2a3a', borderRadius: 4, color: '#444', fontSize: 11, cursor: 'pointer' }}>
+                  style={{ marginTop: 10, padding: '4px 12px', background: 'transparent', border: '1px solid #2a2a3a', borderRadius: 4, color: T.textDim, fontSize: 11, cursor: 'pointer' }}>
                   Run Again
                 </button>
               </div>
@@ -976,7 +977,7 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
                   cursor: working ? 'not-allowed' : 'pointer', borderRadius: 5,
                   background: working ? '#141420' : '#0a1020',
                   border: `1px solid ${working ? '#2a2a3a' : '#4FC3F7'}`,
-                  color: working ? '#333' : '#4FC3F7',
+                  color: working ? T.borderStrong : '#4FC3F7',
                 }}>
                 {working ? 'Running...' : 'RUN CPU FREE AGENCY'}
               </button>

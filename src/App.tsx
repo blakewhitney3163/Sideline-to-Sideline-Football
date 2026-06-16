@@ -11,6 +11,7 @@ import Franchise from './Franchise';
 import Draft from './Draft';
 import DepthChart from './DepthChart';
 import Records from './Records';
+import { T } from './theme';
 
 declare const window: any;
 
@@ -117,7 +118,7 @@ useEffect(() => {
         fontFamily: 'monospace',
       }}>
         <div style={{ textAlign: 'center', marginBottom: 60 }}>
-          <div style={{ fontSize: 11, letterSpacing: 6, color: '#333', marginBottom: 12 }}>PRESENTED BY</div>
+          <div style={{ fontSize: 11, letterSpacing: 6, color: T.borderStrong, marginBottom: 12 }}>PRESENTED BY</div>
           <div style={{ fontSize: 48, fontWeight: 'bold', color: '#fff', letterSpacing: 4, marginBottom: 8 }}>
             NFL
           </div>
@@ -125,7 +126,7 @@ useEffect(() => {
             SIMULATOR
           </div>
           <div style={{ width: 80, height: 2, background: '#4caf50', margin: '20px auto' }} />
-          <div style={{ fontSize: 11, color: '#333', letterSpacing: 2 }}>DYNASTY MODE</div>
+          <div style={{ fontSize: 11, color: T.borderStrong, letterSpacing: 2 }}>DYNASTY MODE</div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: 280 }}>
@@ -145,8 +146,8 @@ useEffect(() => {
     style={{
       padding: '16px 24px', fontSize: 13, fontWeight: 'bold', letterSpacing: 3,
       background: 'transparent',
-      color: hasSave ? '#555' : '#222',
-      border: `1px solid ${hasSave ? '#333' : '#1a1a1a'}`,
+      color: hasSave ? T.textMuted : T.borderFaint,
+      border: `1px solid ${hasSave ? T.borderStrong : T.bgCard}`,
       borderRadius: 4, cursor: hasSave ? 'pointer' : 'default',
       fontFamily: 'monospace',
     }}
@@ -183,14 +184,14 @@ useEffect(() => {
         </div>
 
         <div style={{ width: 360, marginBottom: 40 }}>
-          <div style={{ fontSize: 10, color: '#333', letterSpacing: 3, marginBottom: 20 }}>
+          <div style={{ fontSize: 10, color: T.borderStrong, letterSpacing: 3, marginBottom: 20 }}>
             SETTING UP YOUR DYNASTY
           </div>
           {setupSteps.map((step, i) => (
             <div key={i} style={{
               display: 'flex', alignItems: 'center', gap: 12,
               padding: '10px 0', borderBottom: '1px solid #0f0f0f',
-              color: step.done ? '#4caf50' : '#666',
+              color: step.done ? '#4caf50' : T.textMuted,
             }}>
               <span style={{ fontSize: 14, width: 20, textAlign: 'center' }}>
                 {step.done ? '✓' : '…'}
@@ -207,7 +208,7 @@ useEffect(() => {
         )}
 
         {!setupComplete && (
-          <div style={{ fontSize: 10, color: '#222', letterSpacing: 2 }}>
+          <div style={{ fontSize: 10, color: T.borderFaint, letterSpacing: 2 }}>
             PLEASE WAIT
           </div>
         )}
@@ -221,7 +222,7 @@ useEffect(() => {
       <div style={{
         minHeight: '100vh', background: '#060606', display: 'flex',
         alignItems: 'center', justifyContent: 'center',
-        fontFamily: 'monospace', color: '#333', fontSize: 11, letterSpacing: 3,
+        fontFamily: 'monospace', color: T.borderStrong, fontSize: 11, letterSpacing: 3,
       }}>
         LOADING...
       </div>
@@ -230,7 +231,7 @@ useEffect(() => {
 
   // ── Main Game ─────────────────────────────────────────────────────────────
   return (
-    <div style={{ minHeight: '100vh', background: '#080808', color: '#ccc', fontFamily: 'monospace' }}>
+    <div style={{ minHeight: '100vh', background: '#080808', color: T.textPrimary, fontFamily: 'monospace' }}>
       <div style={{
         display: 'flex', alignItems: 'center', gap: 16, padding: '10px 20px',
         borderBottom: '1px solid #111', background: '#060606',
@@ -238,8 +239,8 @@ useEffect(() => {
         <span style={{ fontSize: 13, fontWeight: 'bold', color: '#4caf50', letterSpacing: 2 }}>
           NFL SIMULATOR
         </span>
-        <span style={{ color: '#222' }}>|</span>
-        <span style={{ fontSize: 12, color: '#aaa' }}>
+        <span style={{ color: T.borderFaint }}>|</span>
+        <span style={{ fontSize: 12, color: T.textSecondary }}>
           {userTeam.city} {userTeam.name}
         </span>
         <button
@@ -253,11 +254,11 @@ useEffect(() => {
       setScreen('start');
     }
   }}
-  style={{ fontSize: 10, color: '#333', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+  style={{ fontSize: 10, color: T.borderStrong, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
 >
   new dynasty
 </button>
-        <span style={{ marginLeft: 'auto', fontSize: 11, color: '#444' }}>
+        <span style={{ marginLeft: 'auto', fontSize: 11, color: T.textDim }}>
           {currentSeason} Season
         </span>
       </div>
@@ -266,7 +267,7 @@ useEffect(() => {
         {tabs.map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
             padding: '11px 22px', background: 'none', border: 'none', cursor: 'pointer',
-            color: activeTab === tab.id ? '#4FC3F7' : tab.id === 'draft' ? '#FF8740' : '#555',
+            color: activeTab === tab.id ? '#4FC3F7' : tab.id === 'draft' ? '#FF8740' : T.textMuted,
             borderBottom: activeTab === tab.id ? '2px solid #4FC3F7' : '2px solid transparent',
             fontWeight: activeTab === tab.id ? 'bold' : 'normal',
             fontSize: 13, whiteSpace: 'nowrap', fontFamily: 'monospace',

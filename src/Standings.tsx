@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { T } from './theme';
 
 declare const window: any;
 
@@ -73,13 +74,13 @@ function DivisionBlock({
   const leader = sorted[0];
 
   return (
-    <div style={{ background: '#111', border: '1px solid #1a1a1a', borderRadius: 6, overflow: 'hidden', marginBottom: 12 }}>
-      <div style={{ padding: '8px 14px', background: '#0d0d0d', borderBottom: '1px solid #1a1a1a' }}>
-        <span style={{ fontSize: 10, color: '#444', letterSpacing: 2 }}>{conf.toUpperCase()} {division.toUpperCase()}</span>
+    <div style={{ background: T.bgPage, border: `1px solid ${T.borderFaint}`, borderRadius: 6, overflow: 'hidden', marginBottom: 12 }}>
+      <div style={{ padding: '8px 14px', background: T.bgPage, borderBottom: `1px solid ${T.borderFaint}` }}>
+        <span style={{ fontSize: 10, color: T.textDim, letterSpacing: 2 }}>{conf.toUpperCase()} {division.toUpperCase()}</span>
       </div>
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
-          <tr style={{ fontSize: 9, color: '#333', textAlign: 'right', letterSpacing: 1 }}>
+          <tr style={{ fontSize: 9, color: T.borderStrong, textAlign: 'right', letterSpacing: 1 }}>
             <th style={{ padding: '6px 14px', textAlign: 'left', fontWeight: 'normal' }}>TEAM</th>
             <th style={{ padding: '6px 10px', fontWeight: 'normal' }}>W</th>
             <th style={{ padding: '6px 10px', fontWeight: 'normal' }}>L</th>
@@ -94,8 +95,8 @@ function DivisionBlock({
             const isLeader   = i === 0;
             return (
               <tr key={team.id} style={{
-                borderTop: '1px solid #141414',
-                background: isUser ? '#0f1a0f' : 'transparent',
+                borderTop: `1px solid ${T.bgPanel}`,
+                background: isUser ? T.bgGreen : 'transparent',
               }}>
                 <td style={{ padding: '8px 14px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -111,7 +112,7 @@ function DivisionBlock({
                     )}
                     <span style={{
                       fontSize: 12,
-                      color: isUser ? '#4caf50' : isLeader ? '#fff' : '#888',
+                      color: isUser ? '#4caf50' : isLeader ? '#fff' : T.textMuted,
                       fontWeight: isLeader ? 'bold' : 'normal',
                     }}>
                       {team.city} {team.name}
@@ -120,9 +121,9 @@ function DivisionBlock({
                   </div>
                 </td>
                 <td style={{ padding: '8px 10px', textAlign: 'right', color: '#4FC3F7', fontWeight: 'bold', fontSize: 12 }}>{team.wins}</td>
-                <td style={{ padding: '8px 10px', textAlign: 'right', color: '#555', fontSize: 12 }}>{team.losses}</td>
-                <td style={{ padding: '8px 10px', textAlign: 'right', color: '#444', fontSize: 11 }}>{pct(team.wins, team.losses)}</td>
-                <td style={{ padding: '8px 14px', textAlign: 'right', color: '#333', fontSize: 11 }}>
+                <td style={{ padding: '8px 10px', textAlign: 'right', color: T.textMuted, fontSize: 12 }}>{team.losses}</td>
+                <td style={{ padding: '8px 10px', textAlign: 'right', color: T.textDim, fontSize: 11 }}>{pct(team.wins, team.losses)}</td>
+                <td style={{ padding: '8px 14px', textAlign: 'right', color: T.borderStrong, fontSize: 11 }}>
                   {leader ? gb(leader.wins, leader.losses, team.wins, team.losses) : '—'}
                 </td>
               </tr>
@@ -136,13 +137,13 @@ function DivisionBlock({
 
 function PlayoffSeedPanel({ seeds, conf }: { seeds: Team[]; conf: string }) {
   return (
-    <div style={{ background: '#111', border: '1px solid #1a1a1a', borderRadius: 6, overflow: 'hidden', marginBottom: 16 }}>
-      <div style={{ padding: '8px 14px', background: '#0d0d0d', borderBottom: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: 10, color: '#444', letterSpacing: 2 }}>{conf} PLAYOFF PICTURE</span>
-        <span style={{ fontSize: 9, color: '#2a2a2a' }}>TOP 7</span>
+    <div style={{ background: T.bgPage, border: `1px solid ${T.borderFaint}`, borderRadius: 6, overflow: 'hidden', marginBottom: 16 }}>
+      <div style={{ padding: '8px 14px', background: T.bgPage, borderBottom: `1px solid ${T.borderFaint}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontSize: 10, color: T.textDim, letterSpacing: 2 }}>{conf} PLAYOFF PICTURE</span>
+        <span style={{ fontSize: 9, color: T.borderMid }}>TOP 7</span>
       </div>
       {seeds.length === 0 && (
-        <div style={{ padding: '12px 14px', fontSize: 11, color: '#333' }}>Simulate games to see seedings</div>
+        <div style={{ padding: '12px 14px', fontSize: 11, color: T.borderStrong }}>Simulate games to see seedings</div>
       )}
       {seeds.map((team, i) => {
         const isDivWinner = i < 4;
@@ -151,17 +152,17 @@ function PlayoffSeedPanel({ seeds, conf }: { seeds: Team[]; conf: string }) {
           <div key={team.id} style={{
             display: 'flex', alignItems: 'center', gap: 10,
             padding: '7px 14px',
-            borderTop: i === 4 ? '1px dashed #1e1e1e' : '1px solid #141414',
+            borderTop: i === 4 ? `1px dashed ${T.borderFaint}` : `1px solid ${T.bgPanel}`,
             background: hasBye ? '#0f1a0a' : 'transparent',
           }}>
             <span style={{
               fontSize: 11, fontWeight: 'bold', width: 18, textAlign: 'center',
               color: isDivWinner ? '#FF8740' : '#4FC3F7',
             }}>{i + 1}</span>
-            <span style={{ flex: 1, fontSize: 11, color: '#888' }}>
+            <span style={{ flex: 1, fontSize: 11, color: T.textMuted }}>
               {team.city} {team.name}
             </span>
-            <span style={{ fontSize: 11, color: '#555' }}>{team.wins}-{team.losses}</span>
+            <span style={{ fontSize: 11, color: T.textMuted }}>{team.wins}-{team.losses}</span>
             {hasBye && <span style={{ fontSize: 8, color: '#4caf50', letterSpacing: 1 }}>BYE</span>}
           </div>
         );
@@ -195,19 +196,19 @@ export default function Standings({ currentSeason }: Props) {
   const playoffIds = new Set([...afcSeeds, ...nfcSeeds].map(t => t.id));
 
   return (
-    <div style={{ padding: '24px 32px', fontFamily: 'monospace', color: '#ccc', background: '#0d0d0d', minHeight: '100vh' }}>
+    <div style={{ padding: '24px 32px', fontFamily: 'monospace', color: T.textPrimary, background: T.bgPage, minHeight: '100vh' }}>
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div style={{ fontSize: 20, fontWeight: 'bold', color: '#fff' }}>{viewSeason} Standings</div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <div style={{ display: 'flex', background: '#111', border: '1px solid #1a1a1a', borderRadius: 4, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', background: T.bgPage, border: `1px solid ${T.borderFaint}`, borderRadius: 4, overflow: 'hidden' }}>
             {(['division', 'conference'] as const).map(v => (
               <button key={v} onClick={() => setView(v)} style={{
                 padding: '5px 14px',
-                background: view === v ? '#1a2a1a' : 'transparent',
+                background: view === v ? T.bgGreen : 'transparent',
                 border: 'none',
-                color: view === v ? '#4caf50' : '#444',
+                color: view === v ? '#4caf50' : T.textDim,
                 cursor: 'pointer', fontSize: 11, fontFamily: 'monospace',
                 fontWeight: view === v ? 'bold' : 'normal',
               }}>
@@ -220,7 +221,7 @@ export default function Standings({ currentSeason }: Props) {
               value={viewSeason}
               onChange={e => setViewSeason(Number(e.target.value))}
               style={{
-                background: '#111', color: '#ccc', border: '1px solid #1a1a1a',
+                background: T.bgPage, color: T.textPrimary, border: `1px solid ${T.borderFaint}`,
                 borderRadius: 4, padding: '5px 12px', fontSize: 11,
                 cursor: 'pointer', fontFamily: 'monospace',
               }}
@@ -277,10 +278,10 @@ export default function Standings({ currentSeason }: Props) {
 
           {/* Playoff Picture */}
           <div>
-            <div style={{ fontSize: 10, color: '#444', letterSpacing: 2, marginBottom: 12 }}>PLAYOFF PICTURE</div>
+            <div style={{ fontSize: 10, color: T.textDim, letterSpacing: 2, marginBottom: 12 }}>PLAYOFF PICTURE</div>
             <PlayoffSeedPanel seeds={afcSeeds} conf="AFC" />
             <PlayoffSeedPanel seeds={nfcSeeds} conf="NFC" />
-            <div style={{ fontSize: 9, color: '#2a2a2a', lineHeight: 1.8, marginTop: 8 }}>
+            <div style={{ fontSize: 9, color: T.borderMid, lineHeight: 1.8, marginTop: 8 }}>
               <div>■ Orange = division winner (seeds 1–4)</div>
               <div>■ Blue = wildcard (seeds 5–7)</div>
               <div>■ Seed 1 receives bye week</div>
@@ -298,10 +299,10 @@ export default function Standings({ currentSeason }: Props) {
             return (
               <div key={conf}>
                 <div style={{ fontSize: 10, color: conf === 'AFC' ? '#FF8740' : '#4FC3F7', letterSpacing: 2, marginBottom: 12 }}>{conf}</div>
-                <div style={{ background: '#111', border: '1px solid #1a1a1a', borderRadius: 6, overflow: 'hidden' }}>
+                <div style={{ background: T.bgPage, border: `1px solid ${T.borderFaint}`, borderRadius: 6, overflow: 'hidden' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
-                      <tr style={{ fontSize: 9, color: '#333', textAlign: 'right', letterSpacing: 1, borderBottom: '1px solid #1a1a1a' }}>
+                      <tr style={{ fontSize: 9, color: T.borderStrong, textAlign: 'right', letterSpacing: 1, borderBottom: `1px solid ${T.borderFaint}` }}>
                         <th style={{ padding: '6px 14px', textAlign: 'left', fontWeight: 'normal' }}>TEAM</th>
                         <th style={{ padding: '6px 10px', fontWeight: 'normal' }}>W</th>
                         <th style={{ padding: '6px 10px', fontWeight: 'normal' }}>L</th>
@@ -315,8 +316,8 @@ export default function Standings({ currentSeason }: Props) {
                         const isDivWinner = seedNum >= 1 && seedNum <= 4;
                         return (
                           <tr key={team.id} style={{
-                            borderTop: '1px solid #141414',
-                            background: team.id === userTeamId ? '#0f1a0f' : 'transparent',
+                            borderTop: `1px solid ${T.bgPanel}`,
+                            background: team.id === userTeamId ? T.bgGreen : 'transparent',
                           }}>
                             <td style={{ padding: '8px 14px' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -328,7 +329,7 @@ export default function Standings({ currentSeason }: Props) {
                                 )}
                                 <span style={{
                                   fontSize: 12,
-                                  color: team.id === userTeamId ? '#4caf50' : i < 7 ? '#ccc' : '#444',
+                                  color: team.id === userTeamId ? '#4caf50' : i < 7 ? T.textPrimary : T.textDim,
                                 }}>
                                   {team.city} {team.name}
                                   {team.id === userTeamId && <span style={{ fontSize: 9, color: '#4caf50', marginLeft: 6 }}>◆</span>}
@@ -336,15 +337,15 @@ export default function Standings({ currentSeason }: Props) {
                               </div>
                             </td>
                             <td style={{ padding: '8px 10px', textAlign: 'right', color: '#4FC3F7', fontWeight: 'bold', fontSize: 12 }}>{team.wins}</td>
-                            <td style={{ padding: '8px 10px', textAlign: 'right', color: '#555', fontSize: 12 }}>{team.losses}</td>
-                            <td style={{ padding: '8px 10px', textAlign: 'right', color: '#444', fontSize: 11 }}>{pct(team.wins, team.losses)}</td>
-                            <td style={{ padding: '8px 14px', textAlign: 'left', fontSize: 10, color: '#333' }}>{team.division}</td>
+                            <td style={{ padding: '8px 10px', textAlign: 'right', color: T.textMuted, fontSize: 12 }}>{team.losses}</td>
+                            <td style={{ padding: '8px 10px', textAlign: 'right', color: T.textDim, fontSize: 11 }}>{pct(team.wins, team.losses)}</td>
+                            <td style={{ padding: '8px 14px', textAlign: 'left', fontSize: 10, color: T.borderStrong }}>{team.division}</td>
                           </tr>
                         );
                       })}
                     </tbody>
                   </table>
-                  <div style={{ padding: '5px 14px', borderTop: '1px dashed #1e1e1e', fontSize: 9, color: '#252525' }}>
+                  <div style={{ padding: '5px 14px', borderTop: `1px dashed ${T.borderFaint}`, fontSize: 9, color: '#252525' }}>
                     — playoff cutline (after seed 7) —
                   </div>
                 </div>

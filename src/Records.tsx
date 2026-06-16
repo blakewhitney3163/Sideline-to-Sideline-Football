@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { T } from './theme';
 
 declare const window: any;
 
@@ -47,7 +48,7 @@ interface SeasonAwards {
 }
 
 const TRAIT_META: Record<string, { color: string; short: string }> = {
-  'Normal':    { color: '#444',    short: '' },
+  'Normal':    { color: T.textDim,    short: '' },
   'Star':      { color: '#4FC3F7', short: 'S' },
   'Superstar': { color: '#FF8740', short: 'SS' },
   'X-Factor':  { color: '#FFD700', short: 'XF' },
@@ -57,7 +58,7 @@ function ratingColor(r: number): string {
   if (r >= 90) return '#FFD700';
   if (r >= 80) return '#4caf50';
   if (r >= 70) return '#FF8740';
-  return '#888';
+  return T.textMuted;
 }
 
 const CATEGORIES: { id: StatCategory; label: string }[] = [
@@ -115,8 +116,8 @@ function gridTemplate(cols: ColDef[], mode: RecordMode): string {
 function TabBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button onClick={onClick} style={{
-      padding: '6px 14px', background: active ? '#2a2a2a' : 'transparent',
-      color: active ? '#fff' : '#555', border: 'none', borderRadius: 4,
+      padding: '6px 14px', background: active ? T.borderMid : 'transparent',
+      color: active ? '#fff' : T.textMuted, border: 'none', borderRadius: 4,
       fontSize: 11, fontWeight: active ? 700 : 400, cursor: 'pointer', letterSpacing: 0.5,
     }}>
       {children}
@@ -127,8 +128,8 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
 function ModeBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <button onClick={onClick} style={{
-      padding: '8px 20px', background: active ? '#e8b800' : '#1a1a1a',
-      color: active ? '#000' : '#666', border: 'none', borderRadius: 4,
+      padding: '8px 20px', background: active ? '#e8b800' : T.bgCard,
+      color: active ? '#000' : T.textMuted, border: 'none', borderRadius: 4,
       fontSize: 12, fontWeight: active ? 700 : 400, cursor: 'pointer', letterSpacing: 0.5,
     }}>
       {children}
@@ -140,7 +141,7 @@ function StatLine({ label, value }: { label: string; value: any }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 56 }}>
       <span style={{ color: '#fff', fontWeight: 700, fontSize: 16 }}>{value ?? '—'}</span>
-      <span style={{ color: '#555', fontSize: 9, letterSpacing: 0.5, marginTop: 1 }}>{label}</span>
+      <span style={{ color: T.textMuted, fontSize: 9, letterSpacing: 0.5, marginTop: 1 }}>{label}</span>
     </div>
   );
 }
@@ -154,7 +155,7 @@ function AwardCard({ award, icon, winner, coy, type }: {
   const accent = type === 'def' ? '#4FC3F7' : type === 'coy' ? '#FF8740' : '#FFD700';
   return (
     <div style={{
-      background: '#111', border: `1px solid ${accent}22`,
+      background: T.bgPage, border: `1px solid ${accent}22`,
       borderRadius: 8, padding: '18px 20px', flex: '1 1 260px', minWidth: 240,
     }}>
       <div style={{ fontSize: 11, fontWeight: 700, color: accent, letterSpacing: 1, marginBottom: 12 }}>
@@ -166,13 +167,13 @@ function AwardCard({ award, icon, winner, coy, type }: {
             <div style={{ color: '#fff', fontWeight: 700, fontSize: 16, marginBottom: 4 }}>
               {coy.city} {coy.name}
             </div>
-            <div style={{ color: '#555', fontSize: 11 }}>{coy.wins}–{18 - coy.wins} record</div>
+            <div style={{ color: T.textMuted, fontSize: 11 }}>{coy.wins}–{18 - coy.wins} record</div>
           </>
-        ) : <div style={{ color: '#444', fontSize: 12 }}>Season in progress</div>
+        ) : <div style={{ color: T.textDim, fontSize: 12 }}>Season in progress</div>
       ) : winner ? (
         <>
           <div style={{ color: '#fff', fontWeight: 700, fontSize: 18, marginBottom: 4 }}>{winner.name}</div>
-          <div style={{ color: '#555', fontSize: 11, marginBottom: 12 }}>
+          <div style={{ color: T.textMuted, fontSize: 11, marginBottom: 12 }}>
             {winner.team_city} {winner.team_name} · {winner.position_label || winner.position} · {winner.games}G
           </div>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
@@ -202,7 +203,7 @@ function AwardCard({ award, icon, winner, coy, type }: {
             </span>
             {winner.dev_trait && winner.dev_trait !== 'Normal' && (
               <span style={{
-                background: TRAIT_META[winner.dev_trait]?.color ?? '#444',
+                background: TRAIT_META[winner.dev_trait]?.color ?? T.textDim,
                 color: '#000', fontSize: 8, fontWeight: 700,
                 padding: '1px 5px', borderRadius: 3, letterSpacing: 0.8,
               }}>
@@ -211,7 +212,7 @@ function AwardCard({ award, icon, winner, coy, type }: {
             )}
           </div>
         </>
-      ) : <div style={{ color: '#444', fontSize: 12 }}>No qualifying players</div>}
+      ) : <div style={{ color: T.textDim, fontSize: 12 }}>No qualifying players</div>}
     </div>
   );
 }
@@ -249,7 +250,7 @@ export default function Records() {
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ color: '#fff', fontSize: 22, fontWeight: 700, margin: 0 }}>Historical Records</h1>
-        <p style={{ color: '#444', fontSize: 12, margin: '4px 0 0' }}>
+        <p style={{ color: T.textDim, fontSize: 12, margin: '4px 0 0' }}>
           In-game leaders · gold rows are real NFL records to beat
         </p>
       </div>
@@ -279,7 +280,7 @@ export default function Records() {
             {currentSeason} SEASON AWARDS
           </div>
           {!awards?.mvp && !awards?.dpoy ? (
-            <div style={{ color: '#444', padding: '40px 12px', fontSize: 13 }}>
+            <div style={{ color: T.textDim, padding: '40px 12px', fontSize: 13 }}>
               No awards yet — simulate the full regular season first.
             </div>
           ) : (
@@ -298,7 +299,7 @@ export default function Records() {
       {/* Leaderboard — hidden in awards mode */}
       {mode !== 'awards' && (
         loading ? (
-          <div style={{ color: '#444', padding: 40, textAlign: 'center' }}>Loading records…</div>
+          <div style={{ color: T.textDim, padding: 40, textAlign: 'center' }}>Loading records…</div>
         ) : (
           <>
             {/* Column header row */}
@@ -306,8 +307,8 @@ export default function Records() {
               display: 'grid',
               gridTemplateColumns: gridTemplate(cols, mode),
               gap: 8, padding: '6px 12px',
-              fontSize: 10, color: '#333', letterSpacing: 1,
-              borderBottom: '1px solid #1a1a1a', marginBottom: 4,
+              fontSize: 10, color: T.borderStrong, letterSpacing: 1,
+              borderBottom: `1px solid ${T.borderFaint}`, marginBottom: 4,
             }}>
               <div>#</div>
               <div>PLAYER</div>
@@ -319,7 +320,7 @@ export default function Records() {
 
             {/* Player rows — historical records styled with gold accent */}
             {rows.length === 0 ? (
-              <div style={{ color: '#444', padding: '24px 12px', fontSize: 13 }}>
+              <div style={{ color: T.textDim, padding: '24px 12px', fontSize: 13 }}>
                 No records yet — simulate some games first.
               </div>
             ) : (
@@ -331,13 +332,13 @@ export default function Records() {
                     display: 'grid',
                     gridTemplateColumns: gridTemplate(cols, mode),
                     gap: 8, padding: '8px 12px',
-                    borderBottom: `1px solid ${isHist ? '#e8b80033' : '#111'}`,
+                    borderBottom: `1px solid ${isHist ? '#e8b80033' : T.bgPage}`,
                     borderTop: isHist ? '1px solid #e8b80033' : undefined,
                     background: isHist ? '#130f00' : (idx === 0 ? '#0f0e00' : 'transparent'),
                     marginBottom: isHist ? 2 : 0,
                   }}>
                     {/* Rank / trophy */}
-                    <div style={{ display: 'flex', alignItems: 'center', color: isHist ? '#e8b800' : '#444', fontSize: isHist ? 14 : 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', color: isHist ? '#e8b800' : T.textDim, fontSize: isHist ? 14 : 12 }}>
                       {isHist ? '🏆' : idx + 1}
                     </div>
 
@@ -345,7 +346,7 @@ export default function Records() {
                     <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
                         <span style={{
-                          color: isHist ? '#e8b800' : '#ddd',
+                          color: isHist ? '#e8b800' : T.textPrimary,
                           fontWeight: isHist ? 700 : 600,
                           fontSize: 13, whiteSpace: 'nowrap',
                           overflow: 'hidden', textOverflow: 'ellipsis',
@@ -369,19 +370,19 @@ export default function Records() {
                           </span>
                         )}
                       </div>
-                      <div style={{ color: isHist ? '#665500' : '#555', fontSize: 10, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <div style={{ color: isHist ? '#665500' : T.textMuted, fontSize: 10, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {row.team_name}
                       </div>
                     </div>
 
                     {/* Position */}
-                    <div style={{ display: 'flex', alignItems: 'center', color: isHist ? '#997700' : '#888', fontSize: 11 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', color: isHist ? '#997700' : T.textMuted, fontSize: 11 }}>
                       {row.position}
                     </div>
 
                     {/* OVR — blank for historical */}
                     <div style={{ display: 'flex', alignItems: 'center', fontWeight: 700, fontSize: 13,
-                                  color: isHist ? '#444' : ratingColor(row.overall_rating) }}>
+                                  color: isHist ? T.textDim : ratingColor(row.overall_rating) }}>
                       {isHist ? '—' : row.overall_rating}
                     </div>
 
@@ -393,7 +394,7 @@ export default function Records() {
                       return (
                         <div key={col.key} style={{
                           display: 'flex', alignItems: 'center',
-                          color: isMainStat ? (isHist ? '#e8b800' : '#fff') : (isHist ? '#665500' : '#888'),
+                          color: isMainStat ? (isHist ? '#e8b800' : '#fff') : (isHist ? '#665500' : T.textMuted),
                           fontWeight: isMainStat ? 700 : 400,
                           fontSize: isMainStat ? 14 : 12,
                         }}>
@@ -404,7 +405,7 @@ export default function Records() {
 
                     {/* Season year */}
                     {mode === 'season' && (
-                      <div style={{ display: 'flex', alignItems: 'center', color: isHist ? '#665500' : '#555', fontSize: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', color: isHist ? '#665500' : T.textMuted, fontSize: 12 }}>
                         {row.season}
                       </div>
                     )}
@@ -413,7 +414,7 @@ export default function Records() {
               })
             )}
 
-            <div style={{ color: '#333', fontSize: 10, padding: '10px 12px' }}>
+            <div style={{ color: T.borderStrong, fontSize: 10, padding: '10px 12px' }}>
               {rows.filter(r => !r.is_historical).length} in-game player{rows.filter(r => !r.is_historical).length !== 1 ? 's' : ''} ·{' '}
               {mode === 'alltime' ? 'career totals' : 'single-season bests'} · gold rows are real NFL benchmarks
             </div>
