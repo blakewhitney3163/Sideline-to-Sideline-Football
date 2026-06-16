@@ -48,8 +48,7 @@ db.exec(`
   try { db.exec(`ALTER TABLE career_stats_history ADD COLUMN ${col} INTEGER DEFAULT 0`); } catch (_) {}
 });
 try { db.exec(`ALTER TABLE career_stats_history ADD COLUMN sacks REAL DEFAULT 0`); } catch (_) {}
-try { db.exec(`ALTER TABLE career_stats_history ADD COLUMN tfl  REAL DEFAULT 0`); } catch (_) {}
-
+try { db.exec(`ALTER TABLE career_stats_history ADD COLUMN tfl REAL DEFAULT 0`); } catch (_) {}
 
 // Auto-balance rosters on startup if FA pool is empty
 {
@@ -88,7 +87,6 @@ function initDepthChart(teamId: number) {
   });
   run();
 }
-
 
 function balanceRosters() {
   const teams = db.prepare('SELECT id FROM teams').all() as any[];
@@ -139,6 +137,37 @@ const createWindow = (): void => {
 function getCurrentSeason(): number {
   const row = db.prepare("SELECT value FROM settings WHERE key = 'current_season'").get() as any;
   return row ? parseInt(row.value) : 2025;
+}
+
+// ─── Market Rate Helper ───────────────────────────────────────────────────────
+
+const MARKET_RATE_TABLE: Record<string, [number, number][]> = {
+  QB: [[99,65],[93,50],[88,35],[83,20],[78,10],[73,4],[70,1.5]],
+  WR: [[99,45],[93,35],[88,25],[83,16],[78,8],[73,3],[70,1.5]],
+  DL: [[99,38],[93,30],[88,22],[83,14],[78,7],[73,3],[70,1.5]],
+  CB: [[99,32],[93,25],[88,18],[83,11],[78,5],[73,2.5],[70,1.5]],
+  OL: [[99,36],[93,30],[88,24],[83,18],[78,9],[73,3],[70,1.5]],
+  LB: [[99,26],[93,20],[88,15],[83,9],[78,4.5],[73,2],[70,1.5]],
+  TE: [[99,24],[93,19],[88,14],[83,8],[78,4],[73,2],[70,1.5]],
+  S:  [[99,22],[93,17],[88,12],[83,7],[78,3.5],[73,1.8],[70,1.5]],
+  RB: [[99,18],[93,14],[88,10],[83,6],[78,3],[73,1.5],[70,1.2]],
+  K:  [[99,8],[93,6],[88,5],[83,4],[78,3],[73,2],[70,1]],
+};
+const TRAIT_MUL: Record<string, number> = { Normal: 1.0, Star: 1.1, Superstar: 1.25, 'X-Factor': 1.45 };
+
+function calcFairMarket(ovr: number, position: string, devTrait: string): number {
+  const rates = MARKET_RATE_TABLE[position] ?? MARKET_RATE_TABLE['LB'];
+  let base = rates[rates.length - 1][1];
+  for (let i = 0; i < rates.length - 1; i++) {
+    const [highOvr, highSal] = rates[i];
+    const [lowOvr, lowSal] = rates[i + 1];
+    if (ovr >= lowOvr) {
+      const t = (ovr - lowOvr) / (highOvr - lowOvr);
+      base = lowSal + t * (highSal - lowSal);
+      break;
+    }
+  }
+  return Math.round(base * (TRAIT_MUL[devTrait] ?? 1.0) * 10) / 10;
 }
 
 // ─── Trade Value Helpers ──────────────────────────────────────────────────────
@@ -255,7 +284,7 @@ ipcMain.handle('get-teams', () => {
 ipcMain.handle('get-roster', (_event: any, teamId: number) => {
   return db.prepare(`
     SELECT id, first_name, last_name, position, position_label, overall_rating, age,
-      speed, strength, awareness, dev_trait
+           speed, strength, awareness, dev_trait
     FROM players WHERE team_id = ?
     ORDER BY CASE position
       WHEN 'QB' THEN 1 WHEN 'RB' THEN 2 WHEN 'WR' THEN 3 WHEN 'TE' THEN 4
@@ -300,8 +329,8 @@ ipcMain.handle('get-player-career-stats', (_event: any, playerId: number) => {
 
   const history = db.prepare(`
     SELECT season, games, completions, pass_attempts, pass_yards, pass_tds, interceptions,
-      rush_attempts, rush_yards, rush_tds, targets, receptions, rec_yards, rec_tds,
-      tackles, assisted_tackles, sacks, tfl, def_interceptions, pass_deflections
+           rush_attempts, rush_yards, rush_tds, targets, receptions, rec_yards, rec_tds,
+           tackles, assisted_tackles, sacks, tfl, def_interceptions, pass_deflections
     FROM career_stats_history WHERE player_id = ?
   `).all(playerId) as any[];
 
@@ -318,7 +347,7 @@ ipcMain.handle('get-schedule', (_event: any, season?: number) => {
   const s = season ?? getCurrentSeason();
   return db.prepare(`
     SELECT g.id, g.week, g.home_score, g.away_score,
-      ht.city || ' ' || ht.name AS home_team, at.city || ' ' || at.name AS away_team
+           ht.city || ' ' || ht.name AS home_team, at.city || ' ' || at.name AS away_team
     FROM games g JOIN teams ht ON g.home_team_id = ht.id JOIN teams at ON g.away_team_id = at.id
     WHERE g.season = ? AND g.is_simulated = 1 ORDER BY g.week, g.id
   `).all(s);
@@ -344,7 +373,7 @@ ipcMain.handle('get-dashboard', (_event: any, season?: number) => {
   `).all(s);
   const recentGames = db.prepare(`
     SELECT g.week, g.home_score, g.away_score,
-      ht.city || ' ' || ht.name AS home_team, at.city || ' ' || at.name AS away_team
+           ht.city || ' ' || ht.name AS home_team, at.city || ' ' || at.name AS away_team
     FROM games g JOIN teams ht ON g.home_team_id = ht.id JOIN teams at ON g.away_team_id = at.id
     WHERE g.season = ? AND g.is_simulated = 1 ORDER BY g.week DESC, g.id DESC LIMIT 8
   `).all(s);
@@ -456,7 +485,7 @@ ipcMain.handle('get-playoffs', (_event: any, season?: number) => {
   const s = season ?? getCurrentSeason();
   return db.prepare(`
     SELECT g.week, g.home_score, g.away_score,
-      ht.city || ' ' || ht.name AS home_team, at.city || ' ' || at.name AS away_team
+           ht.city || ' ' || ht.name AS home_team, at.city || ' ' || at.name AS away_team
     FROM games g JOIN teams ht ON g.home_team_id = ht.id JOIN teams at ON g.away_team_id = at.id
     WHERE g.season = ? AND g.is_playoff = 1 ORDER BY g.week, g.id
   `).all(s);
@@ -487,9 +516,9 @@ ipcMain.handle('advance-season', () => {
   ).all() as any[];
 
   const progressionTable: Record<string, Record<string, [number, number]>> = {
-    young:   { Normal: [0, 1],  Star: [1, 2],  Superstar: [2, 3],  'X-Factor': [3, 4] },
-    rising:  { Normal: [0, 1],  Star: [0, 2],  Superstar: [1, 2],  'X-Factor': [2, 3] },
-    prime:   { Normal: [-1, 0], Star: [0, 1],  Superstar: [0, 1],  'X-Factor': [0, 1] },
+    young:   { Normal: [0, 1], Star: [1, 2], Superstar: [2, 3], 'X-Factor': [3, 4] },
+    rising:  { Normal: [0, 1], Star: [0, 2], Superstar: [1, 2], 'X-Factor': [2, 3] },
+    prime:   { Normal: [-1, 0], Star: [0, 1], Superstar: [0, 1], 'X-Factor': [0, 1] },
     decline: { Normal: [-2,-1], Star: [-1, 0], Superstar: [-1, 0], 'X-Factor': [-1, 0] },
     old:     { Normal: [-3,-2], Star: [-2,-1], Superstar: [-2,-1], 'X-Factor': [-1, 0] },
     veteran: { Normal: [-4,-3], Star: [-3,-2], Superstar: [-3,-2], 'X-Factor': [-2,-1] },
@@ -508,13 +537,13 @@ ipcMain.handle('advance-season', () => {
       const newOvr = Math.max(40, Math.min(99, p.overall_rating + ovrChange));
 
       let speedChange = 0;
-      if      (p.age >= 34)                        speedChange = -(Math.floor(Math.random() * 2) + 1);
+      if (p.age >= 34) speedChange = -(Math.floor(Math.random() * 2) + 1);
       else if (p.age >= 31 && Math.random() < 0.6) speedChange = -1;
       else if (p.age >= 29 && Math.random() < 0.2) speedChange = -1;
       const newSpeed = Math.max(40, Math.min(99, (p.speed ?? 70) + speedChange));
 
       let awarenessChange = 0;
-      if      (p.age <= 26 && Math.random() < 0.4) awarenessChange = 1;
+      if (p.age <= 26 && Math.random() < 0.4) awarenessChange = 1;
       else if (p.age >= 35 && Math.random() < 0.3) awarenessChange = -1;
       const newAwareness = Math.max(40, Math.min(99, (p.awareness ?? 70) + awarenessChange));
 
@@ -534,10 +563,10 @@ ipcMain.handle('advance-season', () => {
       } else if (trait === 'Superstar') {
         if (p.age >= 34 || p.overall_rating < 82 || rand < 0.05) setTrait.run('Star', p.id);
       } else if (trait === 'Star') {
-        if      (p.age >= 36 || p.overall_rating < 76 || rand < 0.06) setTrait.run('Normal', p.id);
+        if (p.age >= 36 || p.overall_rating < 76 || rand < 0.06) setTrait.run('Normal', p.id);
         else if (p.age <= 27 && p.overall_rating >= 84 && rand < 0.05) setTrait.run('Superstar', p.id);
       } else {
-        if      (p.age <= 26 && p.overall_rating >= 76 && rand < 0.08) setTrait.run('Star', p.id);
+        if (p.age <= 26 && p.overall_rating >= 76 && rand < 0.08) setTrait.run('Star', p.id);
         else if (p.age <= 24 && p.overall_rating >= 83 && rand < 0.04) setTrait.run('Superstar', p.id);
       }
     }
@@ -567,6 +596,45 @@ ipcMain.handle('advance-season', () => {
   });
   retirePlayers();
 
+  // ─── CPU Re-signing ────────────────────────────────────────────────────────
+  // Before contracts expire, CPU teams try to keep their own players.
+  // The user's team is excluded — the user handles their re-signings manually.
+  const userTeamIdRow = db.prepare("SELECT value FROM settings WHERE key = 'user_team_id'").get() as any;
+  const userTeamId = userTeamIdRow ? parseInt(userTeamIdRow.value) : -1;
+
+  const expiringCpuPlayers = db.prepare(`
+    SELECT p.id, p.overall_rating, p.age, p.position, p.dev_trait, c.team_id
+    FROM contracts c
+    JOIN players p ON c.player_id = p.id
+    WHERE c.years_remaining = 1
+      AND c.team_id != ?
+      AND p.roster_status = 'active'
+  `).all(userTeamId) as any[];
+
+  let cpuResigns = 0;
+  const doResigns = db.transaction(() => {
+    for (const p of expiringCpuPlayers) {
+      // Re-sign probability scales with player quality
+      const resignChance =
+        p.overall_rating >= 88 ? 0.90 :
+        p.overall_rating >= 82 ? 0.80 :
+        p.overall_rating >= 75 ? 0.65 :
+        p.overall_rating >= 70 ? 0.40 : 0.20;
+
+      if (Math.random() < resignChance) {
+        const fair = calcFairMarket(p.overall_rating, p.position, p.dev_trait);
+        // CPU pays a small loyalty premium (0–10% over market)
+        const salary = Math.round(fair * (1.0 + Math.random() * 0.10) * 10) / 10;
+        const years = p.age <= 26 ? 3 : p.age <= 30 ? 2 : 1;
+        db.prepare('UPDATE contracts SET years_total = ?, years_remaining = ?, annual_salary = ? WHERE player_id = ?')
+          .run(years, years, salary, p.id);
+        cpuResigns++;
+      }
+      // If not re-signed, the contract decrement below will release them to FA
+    }
+  });
+  doResigns();
+
   // Decrement contract years, release expired players to free agency
   db.prepare('UPDATE contracts SET years_remaining = years_remaining - 1').run();
   const expiredPlayers = db.prepare('SELECT player_id FROM contracts WHERE years_remaining <= 0').all() as any[];
@@ -593,34 +661,34 @@ ipcMain.handle('advance-season', () => {
     )
     SELECT s.player_id, g.season,
       COUNT(DISTINCT s.game_id),
-      SUM(s.completions),        SUM(s.pass_attempts),   SUM(s.pass_yards),
-      SUM(s.pass_tds),           SUM(s.interceptions),
-      SUM(s.rush_attempts),      SUM(s.rush_yards),      SUM(s.rush_tds),
-      SUM(s.targets),            SUM(s.receptions),      SUM(s.rec_yards),      SUM(s.rec_tds),
-      SUM(s.tackles),            SUM(s.assisted_tackles), SUM(s.sacks),         SUM(s.tfl),
-      SUM(s.forced_fumbles),     SUM(s.fumble_recoveries),
-      SUM(s.def_interceptions),  SUM(s.pass_deflections), SUM(s.def_tds)
+      SUM(s.completions), SUM(s.pass_attempts), SUM(s.pass_yards),
+      SUM(s.pass_tds), SUM(s.interceptions),
+      SUM(s.rush_attempts), SUM(s.rush_yards), SUM(s.rush_tds),
+      SUM(s.targets), SUM(s.receptions), SUM(s.rec_yards), SUM(s.rec_tds),
+      SUM(s.tackles), SUM(s.assisted_tackles), SUM(s.sacks), SUM(s.tfl),
+      SUM(s.forced_fumbles), SUM(s.fumble_recoveries),
+      SUM(s.def_interceptions), SUM(s.pass_deflections), SUM(s.def_tds)
     FROM stats s JOIN games g ON s.game_id = g.id
     WHERE g.season = ? AND g.is_simulated = 1
     GROUP BY s.player_id, g.season
     ON CONFLICT(player_id, season) DO UPDATE SET
       games = excluded.games,
-      completions = excluded.completions,         pass_attempts = excluded.pass_attempts,
-      pass_yards = excluded.pass_yards,           pass_tds = excluded.pass_tds,
-      interceptions = excluded.interceptions,     rush_attempts = excluded.rush_attempts,
-      rush_yards = excluded.rush_yards,           rush_tds = excluded.rush_tds,
-      targets = excluded.targets,                 receptions = excluded.receptions,
-      rec_yards = excluded.rec_yards,             rec_tds = excluded.rec_tds,
-      tackles = excluded.tackles,                 assisted_tackles = excluded.assisted_tackles,
-      sacks = excluded.sacks,                     tfl = excluded.tfl,
-      forced_fumbles = excluded.forced_fumbles,   fumble_recoveries = excluded.fumble_recoveries,
+      completions = excluded.completions, pass_attempts = excluded.pass_attempts,
+      pass_yards = excluded.pass_yards, pass_tds = excluded.pass_tds,
+      interceptions = excluded.interceptions, rush_attempts = excluded.rush_attempts,
+      rush_yards = excluded.rush_yards, rush_tds = excluded.rush_tds,
+      targets = excluded.targets, receptions = excluded.receptions,
+      rec_yards = excluded.rec_yards, rec_tds = excluded.rec_tds,
+      tackles = excluded.tackles, assisted_tackles = excluded.assisted_tackles,
+      sacks = excluded.sacks, tfl = excluded.tfl,
+      forced_fumbles = excluded.forced_fumbles, fumble_recoveries = excluded.fumble_recoveries,
       def_interceptions = excluded.def_interceptions,
       pass_deflections = excluded.pass_deflections, def_tds = excluded.def_tds
   `).run(current);
 
   db.prepare("UPDATE settings SET value = ? WHERE key = 'current_season'").run(String(next));
 
-  return { nextSeason: next, retired };
+  return { nextSeason: next, retired, cpuResigns };
 });
 
 // ─── Week-by-Week Simulation ──────────────────────────────────────────────────
@@ -669,8 +737,8 @@ ipcMain.handle('get-week-matchups', (_event: any, week: number) => {
   const season = getCurrentSeason();
   return db.prepare(`
     SELECT g.id, g.week, g.home_score, g.away_score, g.is_simulated,
-      ht.id as home_team_id, ht.city || ' ' || ht.name AS home_team,
-      at.id as away_team_id, at.city || ' ' || at.name AS away_team
+           ht.id as home_team_id, ht.city || ' ' || ht.name AS home_team,
+           at.id as away_team_id, at.city || ' ' || at.name AS away_team
     FROM games g JOIN teams ht ON g.home_team_id = ht.id JOIN teams at ON g.away_team_id = at.id
     WHERE g.season = ? AND g.week = ? AND g.is_playoff = 0 ORDER BY g.id
   `).all(season, week);
@@ -721,8 +789,8 @@ ipcMain.handle('simulate-week', (_event: any, week: number) => {
 ipcMain.handle('get-injury-report', (_event: any, teamId: number) => {
   return db.prepare(`
     SELECT p.id, p.first_name, p.last_name, p.position, p.position_label,
-      p.overall_rating, p.age, p.dev_trait,
-      p.injury_status, p.weeks_out, p.injury_type
+           p.overall_rating, p.age, p.dev_trait,
+           p.injury_status, p.weeks_out, p.injury_type
     FROM players p
     WHERE p.team_id = ? AND p.injury_status != 'healthy'
     ORDER BY CASE p.injury_status WHEN 'ir' THEN 1 WHEN 'out' THEN 2 ELSE 3 END, p.overall_rating DESC
@@ -732,15 +800,15 @@ ipcMain.handle('get-injury-report', (_event: any, teamId: number) => {
 ipcMain.handle('get-game-box-score', (_event: any, gameId: number) => {
   const game = db.prepare(`
     SELECT g.id, g.week, g.home_score, g.away_score,
-      ht.id as home_team_id, ht.city || ' ' || ht.name AS home_team,
-      at.id as away_team_id, at.city || ' ' || at.name AS away_team
+           ht.id as home_team_id, ht.city || ' ' || ht.name AS home_team,
+           at.id as away_team_id, at.city || ' ' || at.name AS away_team
     FROM games g JOIN teams ht ON g.home_team_id = ht.id JOIN teams at ON g.away_team_id = at.id WHERE g.id = ?
   `).get(gameId) as any;
   if (!game) return null;
   const players = db.prepare(`
     SELECT p.first_name || ' ' || p.last_name as player_name, p.position, s.team_id,
-      s.pass_attempts, s.completions, s.pass_yards, s.pass_tds, s.interceptions,
-      s.rush_attempts, s.rush_yards, s.rush_tds, s.targets, s.receptions, s.rec_yards, s.rec_tds
+           s.pass_attempts, s.completions, s.pass_yards, s.pass_tds, s.interceptions,
+           s.rush_attempts, s.rush_yards, s.rush_tds, s.targets, s.receptions, s.rec_yards, s.rec_tds
     FROM stats s JOIN players p ON s.player_id = p.id
     WHERE s.game_id = ? AND (s.pass_yards > 0 OR s.rush_yards > 0 OR s.rec_yards > 0)
     ORDER BY s.team_id, s.pass_yards DESC, s.rush_yards DESC, s.rec_yards DESC
@@ -847,10 +915,10 @@ ipcMain.handle('propose-trade', (_event: any, { myPlayerIds, theirPlayerIds, the
 
   const reason =
     availabilityPremium > 40 ? 'That player is a cornerstone of our franchise — not available at any reasonable price.' :
-    availabilityPremium > 0  ? "We're protective of that player. You'll need to significantly sweeten the offer." :
-    valueDiff < -20          ? "Not enough value — we need significantly more to make this work." :
-    valueDiff < -10          ? "The offer is too light for us right now." :
-                               "We're not interested at this time.";
+    availabilityPremium > 0 ? "We're protective of that player. You'll need to significantly sweeten the offer." :
+    valueDiff < -20 ? "Not enough value — we need significantly more to make this work." :
+    valueDiff < -10 ? "The offer is too light for us right now." :
+    "We're not interested at this time.";
   return { accepted: false, reason };
 });
 
@@ -859,10 +927,10 @@ ipcMain.handle('propose-trade', (_event: any, { myPlayerIds, theirPlayerIds, the
 ipcMain.handle('get-team-contracts', (_event: any, teamId: number) => {
   return db.prepare(`
     SELECT p.id, p.first_name, p.last_name, p.position, p.position_label,
-      p.overall_rating, p.age, p.dev_trait, p.roster_status,
-      c.annual_salary, c.years_remaining, c.years_total,
-      c.guaranteed_amount, c.guaranteed_pct,
-      c.id as contract_id
+           p.overall_rating, p.age, p.dev_trait, p.roster_status,
+           c.annual_salary, c.years_remaining, c.years_total,
+           c.guaranteed_amount, c.guaranteed_pct,
+           c.id as contract_id
     FROM contracts c
     JOIN players p ON c.player_id = p.id
     WHERE c.team_id = ? AND p.roster_status = 'active'
@@ -873,8 +941,8 @@ ipcMain.handle('get-team-contracts', (_event: any, teamId: number) => {
 ipcMain.handle('get-practice-squad', (_event: any, teamId: number) => {
   return db.prepare(`
     SELECT p.id, p.first_name, p.last_name, p.position, p.position_label,
-      p.overall_rating, p.age, p.dev_trait,
-      c.annual_salary, c.years_remaining
+           p.overall_rating, p.age, p.dev_trait,
+           c.annual_salary, c.years_remaining
     FROM players p
     LEFT JOIN contracts c ON c.player_id = p.id
     WHERE p.team_id = ? AND p.roster_status = 'practice_squad'
@@ -983,31 +1051,7 @@ ipcMain.handle('sign-free-agent', (_event: any, { playerId, years, salary }: {
   const player = db.prepare('SELECT id, overall_rating, age, position, dev_trait FROM players WHERE id = ?').get(playerId) as any;
   if (!player) return { success: false, reason: 'Player not found.' };
 
-  const marketRates: Record<string, [number, number][]> = {
-    QB: [[99,65],[93,50],[88,35],[83,20],[78,10],[73,4],[70,1.5]],
-    WR: [[99,45],[93,35],[88,25],[83,16],[78,8],[73,3],[70,1.5]],
-    DL: [[99,38],[93,30],[88,22],[83,14],[78,7],[73,3],[70,1.5]],
-    CB: [[99,32],[93,25],[88,18],[83,11],[78,5],[73,2.5],[70,1.5]],
-    OL: [[99,36],[93,30],[88,24],[83,18],[78,9],[73,3],[70,1.5]],
-    LB: [[99,26],[93,20],[88,15],[83,9],[78,4.5],[73,2],[70,1.5]],
-    TE: [[99,24],[93,19],[88,14],[83,8],[78,4],[73,2],[70,1.5]],
-    S:  [[99,22],[93,17],[88,12],[83,7],[78,3.5],[73,1.8],[70,1.5]],
-    RB: [[99,18],[93,14],[88,10],[83,6],[78,3],[73,1.5],[70,1.2]],
-    K:  [[99,8],[93,6],[88,5],[83,4],[78,3],[73,2],[70,1]],
-  };
-  const traitMul: Record<string, number> = { Normal: 1.0, Star: 1.1, Superstar: 1.25, 'X-Factor': 1.45 };
-  const rates = marketRates[player.position] ?? marketRates['LB'];
-  let baseMarket = rates[rates.length - 1][1];
-  for (let i = 0; i < rates.length - 1; i++) {
-    const [highOvr, highSal] = rates[i];
-    const [lowOvr, lowSal] = rates[i + 1];
-    if (player.overall_rating >= lowOvr) {
-      const t = (player.overall_rating - lowOvr) / (highOvr - lowOvr);
-      baseMarket = lowSal + t * (highSal - lowSal);
-      break;
-    }
-  }
-  const fairMarket = Math.round(baseMarket * (traitMul[player.dev_trait] ?? 1.0) * 10) / 10;
+  const fairMarket = calcFairMarket(player.overall_rating, player.position, player.dev_trait);
   const ratio = salary / Math.max(fairMarket, 1);
 
   let acceptChance =
@@ -1038,7 +1082,7 @@ ipcMain.handle('sign-free-agent', (_event: any, { playerId, years, salary }: {
       ratio < 0.50 ? `Insulted by the offer. ${player.dev_trait === 'X-Factor' || player.dev_trait === 'Superstar' ? 'Elite players' : 'Players'} don't sign for that salary.` :
       ratio < 0.70 ? `Not enough money. Looking for closer to ${fairMarket.toFixed(1)}M/yr on the open market.` :
       ratio < 0.85 ? `Decided to explore other options. Try sweetening the offer slightly.` :
-                     `Chose to sign elsewhere. Sometimes it just doesn't work out.`;
+      `Chose to sign elsewhere. Sometimes it just doesn't work out.`;
     return { success: false, reason };
   }
 
@@ -1058,9 +1102,9 @@ ipcMain.handle('get-expiring-contracts', () => {
   const teamId = parseInt(teamRow.value);
   return db.prepare(`
     SELECT p.id, p.first_name, p.last_name, p.position, p.position_label,
-      p.overall_rating, p.age, p.dev_trait,
-      c.annual_salary, c.years_remaining, c.years_total,
-      c.guaranteed_amount, c.guaranteed_pct, c.id as contract_id
+           p.overall_rating, p.age, p.dev_trait,
+           c.annual_salary, c.years_remaining, c.years_total,
+           c.guaranteed_amount, c.guaranteed_pct, c.id as contract_id
     FROM contracts c
     JOIN players p ON c.player_id = p.id
     WHERE c.team_id = ? AND p.roster_status = 'active' AND c.years_remaining = 1
@@ -1074,31 +1118,7 @@ ipcMain.handle('resign-player', (_event: any, { playerId, years, salary }: {
   const player = db.prepare('SELECT id, overall_rating, age, position, dev_trait FROM players WHERE id = ?').get(playerId) as any;
   if (!player) return { success: false, reason: 'Player not found.' };
 
-  const marketRates: Record<string, [number, number][]> = {
-    QB: [[99,65],[93,50],[88,35],[83,20],[78,10],[73,4],[70,1.5]],
-    WR: [[99,45],[93,35],[88,25],[83,16],[78,8],[73,3],[70,1.5]],
-    DL: [[99,38],[93,30],[88,22],[83,14],[78,7],[73,3],[70,1.5]],
-    CB: [[99,32],[93,25],[88,18],[83,11],[78,5],[73,2.5],[70,1.5]],
-    OL: [[99,36],[93,30],[88,24],[83,18],[78,9],[73,3],[70,1.5]],
-    LB: [[99,26],[93,20],[88,15],[83,9],[78,4.5],[73,2],[70,1.5]],
-    TE: [[99,24],[93,19],[88,14],[83,8],[78,4],[73,2],[70,1.5]],
-    S:  [[99,22],[93,17],[88,12],[83,7],[78,3.5],[73,1.8],[70,1.5]],
-    RB: [[99,18],[93,14],[88,10],[83,6],[78,3],[73,1.5],[70,1.2]],
-    K:  [[99,8],[93,6],[88,5],[83,4],[78,3],[73,2],[70,1]],
-  };
-  const traitMul: Record<string, number> = { Normal: 1.0, Star: 1.1, Superstar: 1.25, 'X-Factor': 1.45 };
-  const rates = marketRates[player.position] ?? marketRates['LB'];
-  let baseMarket = rates[rates.length - 1][1];
-  for (let i = 0; i < rates.length - 1; i++) {
-    const [highOvr, highSal] = rates[i];
-    const [lowOvr, lowSal] = rates[i + 1];
-    if (player.overall_rating >= lowOvr) {
-      const t = (player.overall_rating - lowOvr) / (highOvr - lowOvr);
-      baseMarket = lowSal + t * (highSal - lowSal);
-      break;
-    }
-  }
-  const fairMarket = Math.round(baseMarket * (traitMul[player.dev_trait] ?? 1.0) * 10) / 10;
+  const fairMarket = calcFairMarket(player.overall_rating, player.position, player.dev_trait);
   const ratio = salary / Math.max(fairMarket, 1);
 
   let acceptChance =
@@ -1119,7 +1139,7 @@ ipcMain.handle('resign-player', (_event: any, { playerId, years, salary }: {
       ratio < 0.50 ? `Insulted by the offer. Looking for around ${fairMarket.toFixed(1)}M/yr.` :
       ratio < 0.70 ? `Not enough to stay. Asking price is closer to ${fairMarket.toFixed(1)}M/yr.` :
       ratio < 0.85 ? `Wants to test the market. Try offering closer to ${fairMarket.toFixed(1)}M/yr.` :
-                     `Decided to explore other options despite the offer.`;
+      `Decided to explore other options despite the offer.`;
     return { success: false, reason, willHitFA: true };
   }
 
@@ -1149,6 +1169,80 @@ ipcMain.handle('get-offseason-status', () => {
   `).get(teamId) as any).count;
   return { playoffsComplete: !!champion, pendingResigns: pending, draftGenerated, draftComplete };
 });
+
+// ─── CPU Free Agency ──────────────────────────────────────────────────────────
+// CPU teams scan for thin positions and sign the best available free agents.
+// Call this from the frontend after the user has finished their own FA signings.
+
+ipcMain.handle('cpu-fa-signing', () => {
+  const userTeamIdRow = db.prepare("SELECT value FROM settings WHERE key = 'user_team_id'").get() as any;
+  const userTeamId = userTeamIdRow ? parseInt(userTeamIdRow.value) : -1;
+
+  // Minimum roster thresholds per position group
+  const MIN_ROSTER: Record<string, number> = {
+    QB: 2, RB: 3, WR: 4, TE: 2, OL: 6, DL: 4, LB: 4, CB: 4, S: 2, K: 1,
+  };
+
+  const cpuTeams = db.prepare('SELECT id FROM teams WHERE id != ?').all(userTeamId) as any[];
+  let totalSigned = 0;
+  const signingsByTeam: Record<number, number> = {};
+
+  const runSignings = db.transaction(() => {
+    for (const team of cpuTeams) {
+      const activeCount = (db.prepare("SELECT COUNT(*) as cnt FROM players WHERE team_id = ? AND roster_status = 'active'").get(team.id) as any).cnt;
+      let slotsLeft = 53 - activeCount;
+      if (slotsLeft <= 0) continue;
+
+      const posCounts = db.prepare(`
+        SELECT position, COUNT(*) as cnt
+        FROM players WHERE team_id = ? AND roster_status = 'active'
+        GROUP BY position
+      `).all(team.id) as any[];
+      const byPos: Record<string, number> = {};
+      for (const r of posCounts) byPos[r.position] = r.cnt;
+
+      let teamSigned = 0;
+      for (const [pos, minCount] of Object.entries(MIN_ROSTER)) {
+        if (slotsLeft <= 0) break;
+        const current = byPos[pos] ?? 0;
+        const needed = Math.max(0, minCount - current);
+
+        for (let i = 0; i < needed && slotsLeft > 0; i++) {
+          const fa = db.prepare(`
+            SELECT id, overall_rating, age, position, dev_trait
+            FROM players WHERE is_free_agent = 1 AND position = ?
+            ORDER BY overall_rating DESC LIMIT 1
+          `).get(pos) as any;
+          if (!fa) break;
+
+          const fair = calcFairMarket(fa.overall_rating, fa.position, fa.dev_trait);
+          // CPU signs at 90–105% of market
+          const salary = Math.round(fair * (0.90 + Math.random() * 0.15) * 10) / 10;
+          const years = fa.age <= 27 ? 2 : 1;
+          const gtd = Math.round(salary * years * 0.30 * 10) / 10;
+
+          db.prepare("UPDATE players SET team_id = ?, is_free_agent = 0, roster_status = 'active' WHERE id = ?")
+            .run(team.id, fa.id);
+          db.prepare(`
+            INSERT INTO contracts (player_id, team_id, years_total, years_remaining, annual_salary, guaranteed_amount, guaranteed_pct)
+            VALUES (?, ?, ?, ?, ?, ?, 30)
+          `).run(fa.id, team.id, years, years, salary, gtd);
+
+          totalSigned++;
+          teamSigned++;
+          slotsLeft--;
+        }
+      }
+      if (teamSigned > 0) signingsByTeam[team.id] = teamSigned;
+    }
+  });
+  runSignings();
+
+  const teamsActive = Object.keys(signingsByTeam).length;
+  return { totalSigned, teamsActive };
+});
+
+// ─── Draft ────────────────────────────────────────────────────────────────────
 
 ipcMain.handle('generate-draft-class', () => {
   const season = getCurrentSeason();
@@ -1185,8 +1279,8 @@ ipcMain.handle('generate-draft-class', () => {
       last_name:  LAST[Math.floor(Math.random() * LAST.length)],
       position:   POS_POOL[Math.floor(Math.random() * POS_POOL.length)],
       overall_rating: ovr,
-      dev_trait:  getDevTrait(ovr),
-      age:        Math.random() < 0.6 ? 21 : Math.random() < 0.6 ? 22 : 23,
+      dev_trait: getDevTrait(ovr),
+      age: Math.random() < 0.6 ? 21 : Math.random() < 0.6 ? 22 : 23,
     });
   }
 
@@ -1328,217 +1422,96 @@ ipcMain.handle('import-otc-contracts', (_event: any, filePath?: string) => {
 
   const content: string = fs.readFileSync(otcPath, 'utf8');
   const parseMoney = (s: string): number => parseFloat(s.replace(/[$,]/g, '')) || 0;
-  const isHtml = content.trimStart().startsWith('<!') || content.includes('<table') || content.includes('<tr');
+  const isHtml = content.trimStart().startsWith('<');
 
-  const rows: any[] = [];
+  interface OtcRow { name: string; position: string; aav: number; years: number; guaranteed: number; }
+  const rows: OtcRow[] = [];
 
   if (isHtml) {
-    const stripTags = (s: string) =>
-      s.replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/\s+/g, ' ').trim();
-
-    const trRegex = /<tr[\s\S]*?>([\s\S]*?)<\/tr>/gi;
-    let trMatch: RegExpExecArray | null;
-    while ((trMatch = trRegex.exec(content)) !== null) {
+    const rowRe = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+    const cellRe = /<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi;
+    const stripTags = (s: string) => s.replace(/<[^>]+>/g, '').replace(/&amp;/g,'&').replace(/&nbsp;/g,' ').trim();
+    let rowMatch: RegExpExecArray | null;
+    while ((rowMatch = rowRe.exec(content)) !== null) {
       const cells: string[] = [];
-      const tdRegex = /<td[\s\S]*?>([\s\S]*?)<\/td>/gi;
-      let tdMatch: RegExpExecArray | null;
-      while ((tdMatch = tdRegex.exec(trMatch[1])) !== null) {
-        cells.push(stripTags(tdMatch[1]));
+      let cellMatch: RegExpExecArray | null;
+      const cellReCopy = new RegExp(cellRe.source, 'gi');
+      while ((cellMatch = cellReCopy.exec(rowMatch[1])) !== null) {
+        cells.push(stripTags(cellMatch[1]));
       }
-      if (cells.length < 7) continue;
-      const name = cells[0];
-      if (!name || name === 'Player' || !name.match(/[A-Za-z]{2}/)) continue;
-      const totalValue      = parseMoney(cells[3]);
-      const apy             = parseMoney(cells[4]);
-      const totalGuaranteed = parseMoney(cells[5]);
-      const pctGuaranteed   = parseFloat((cells[7] ?? '0').replace('%', '')) || 0;
-      if (apy <= 0) continue;
-      rows.push({
-        name,
-        yearsRemaining:     Math.max(1, Math.round(totalValue / apy)),
-        apyMillions:        Math.round(apy / 100_000) / 10,
-        guaranteedMillions: Math.round(totalGuaranteed / 100_000) / 10,
-        pctGuaranteed,
-      });
+      if (cells.length >= 5) {
+        const aav = parseMoney(cells[3]);
+        const years = parseInt(cells[2]) || 0;
+        const gtd = parseMoney(cells[4]);
+        if (aav > 0 && years > 0) {
+          rows.push({ name: cells[0], position: cells[1] ?? '', aav, years, guaranteed: gtd });
+        }
+      }
     }
   } else {
     for (const line of content.split('\n')) {
-      if (!line.startsWith('|') || line.includes('---') || line.includes('Player') || line.includes('Pos.')) continue;
-      const cols = line.split('|').map((c: string) => c.trim()).filter(Boolean);
-      if (cols.length < 7) continue;
-      const nameMatch = cols[0].match(/\[([^\]]+)\]/);
-      if (!nameMatch) continue;
-      const totalValue      = parseMoney(cols[3]);
-      const apy             = parseMoney(cols[4]);
-      const totalGuaranteed = parseMoney(cols[5]);
-      const pctGuaranteed   = parseFloat((cols[7] ?? '0').replace('%', '')) || 0;
-      if (apy <= 0) continue;
-      rows.push({
-        name:               nameMatch[1],
-        yearsRemaining:     Math.max(1, Math.round(totalValue / apy)),
-        apyMillions:        Math.round(apy / 100_000) / 10,
-        guaranteedMillions: Math.round(totalGuaranteed / 100_000) / 10,
-        pctGuaranteed,
-      });
-    }
-  }
-
-  if (rows.length === 0) {
-    return { success: false, reason: `Parsed 0 rows from ${otcPath} — check file format.` };
-  }
-
-  const updateContract = db.prepare(`
-    UPDATE contracts
-    SET years_remaining   = ?,
-        years_total       = MAX(years_total, ?),
-        annual_salary     = ?,
-        guaranteed_amount = ?,
-        guaranteed_pct    = ?
-    WHERE player_id = (
-      SELECT p.id FROM players p
-      WHERE p.first_name || ' ' || p.last_name = ?
-        AND p.roster_status = 'active'
-      LIMIT 1
-    )
-  `);
-
-  let matched = 0, skipped = 0;
-  const tx = db.transaction(() => {
-    for (const row of rows) {
-      const r = updateContract.run(
-        row.yearsRemaining, row.yearsRemaining,
-        row.apyMillions, row.guaranteedMillions, row.pctGuaranteed,
-        row.name
-      );
-      if (r.changes > 0) matched++; else skipped++;
-    }
-  });
-  tx();
-  return { success: true, matched, skipped, total: rows.length, file: otcPath, sampleNames: rows.slice(0, 8).map(r => r.name) };
-});
-
-ipcMain.handle('import-nflverse-stats', async () => {
-  const https = require('https');
-  const url = 'https://github.com/nflverse/nflverse-data/releases/download/player_stats/player_stats_season.csv';
-
-  const csvText: string = await new Promise((resolve, reject) => {
-    https.get(url, { headers: { 'User-Agent': 'NFLSimulator/1.0' } }, (res: any) => {
-      if (res.statusCode === 302 || res.statusCode === 301) {
-        https.get(res.headers.location, { headers: { 'User-Agent': 'NFLSimulator/1.0' } }, (res2: any) => {
-          const chunks: Buffer[] = [];
-          res2.on('data', (c: Buffer) => chunks.push(c));
-          res2.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
-          res2.on('error', reject);
-        });
-      } else {
-        const chunks: Buffer[] = [];
-        res.on('data', (c: Buffer) => chunks.push(c));
-        res.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
-        res.on('error', reject);
+      const parts = line.split(',');
+      if (parts.length >= 4) {
+        const aav = parseMoney(parts[3]);
+        const years = parseInt(parts[2]) || 0;
+        if (aav > 0 && years > 0) {
+          rows.push({ name: parts[0].trim(), position: parts[1]?.trim() ?? '', aav, years, guaranteed: parseMoney(parts[4] ?? '0') });
+        }
       }
-    }).on('error', reject);
-  });
+    }
+  }
 
-  const lines = csvText.split('\n');
-  const headers = lines[0].split(',');
+  let matched = 0;
+  const normalize = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '');
 
-  const col = (name: string) => headers.indexOf(name);
-  const iSeason      = col('season');
-  const iSeasonType  = col('season_type');
-  const iName        = col('player_display_name');
-  const iGames       = col('games');
-  const iComp        = col('completions');
-  const iAtt         = col('attempts');
-  const iPYds        = col('passing_yards');
-  const iPTDs        = col('passing_tds');
-  const iINT         = col('interceptions');
-  const iCarries     = col('carries');
-  const iRYds        = col('rushing_yards');
-  const iRTDs        = col('rushing_tds');
-  const iRec         = col('receptions');
-  const iTgt         = col('targets');
-  const iRecYds      = col('receiving_yards');
-  const iRecTDs      = col('receiving_tds');
+  const updateContract = db.transaction(() => {
+    for (const row of rows) {
+      const nameParts = row.name.trim().split(/\s+/);
+      if (nameParts.length < 2) continue;
+      const first = normalize(nameParts[0]);
+      const last  = normalize(nameParts[nameParts.length - 1]);
 
-  const MIN_SEASON = 2020;
-  const MAX_SEASON = 2024;
+      const players = db.prepare(`
+        SELECT p.id, p.first_name, p.last_name FROM players p
+        JOIN contracts c ON c.player_id = p.id
+        WHERE p.is_free_agent = 0 AND p.roster_status = 'active'
+      `).all() as any[];
 
-  const insert = db.prepare(`
-    INSERT OR IGNORE INTO career_stats_history
-      (player_id, season, games, completions, pass_attempts, pass_yards, pass_tds, interceptions,
-       rush_attempts, rush_yards, rush_tds, targets, receptions, rec_yards, rec_tds)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
+      const player = players.find((p: any) =>
+        normalize(p.first_name) === first && normalize(p.last_name) === last
+      );
+      if (!player) continue;
 
-  let matched = 0, skipped = 0;
+      const gtdPct = row.guaranteed > 0 && row.aav > 0
+        ? Math.min(100, Math.round((row.guaranteed / (row.aav * row.years)) * 100))
+        : 30;
 
-  const run = db.transaction(() => {
-    for (let i = 1; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line) continue;
-
-      const cols = line.split(',');
-      const season = parseInt(cols[iSeason]);
-      if (isNaN(season) || season < MIN_SEASON || season > MAX_SEASON) continue;
-      if (cols[iSeasonType] !== 'REG') continue;
-
-      const name = cols[iName]?.trim();
-      if (!name) continue;
-
-      const parts = name.split(' ');
-      if (parts.length < 2) continue;
-      const firstName = parts[0];
-      const lastName  = parts.slice(1).join(' ');
-
-      const player = db.prepare(
-        `SELECT id FROM players WHERE first_name = ? AND last_name = ? LIMIT 1`
-      ).get(firstName, lastName) as any;
-
-      if (!player) { skipped++; continue; }
-
-      const g   = parseInt(cols[iGames])   || 0;
-      const cmp = parseInt(cols[iComp])    || 0;
-      const att = parseInt(cols[iAtt])     || 0;
-      const pyd = parseInt(cols[iPYds])    || 0;
-      const ptd = parseInt(cols[iPTDs])    || 0;
-      const int = parseInt(cols[iINT])     || 0;
-      const car = parseInt(cols[iCarries]) || 0;
-      const ryd = parseInt(cols[iRYds])    || 0;
-      const rtd = parseInt(cols[iRTDs])    || 0;
-      const rec = parseInt(cols[iRec])     || 0;
-      const tgt = parseInt(cols[iTgt])     || 0;
-      const reyd = parseInt(cols[iRecYds]) || 0;
-      const retd = parseInt(cols[iRecTDs]) || 0;
-
-      insert.run(player.id, season, g, cmp, att, pyd, ptd, int, car, ryd, rtd, tgt, rec, reyd, retd);
+      db.prepare(`
+        UPDATE contracts SET annual_salary = ?, years_remaining = ?, years_total = ?,
+          guaranteed_amount = ?, guaranteed_pct = ?
+        WHERE player_id = ?
+      `).run(row.aav, row.years, row.years, row.guaranteed || Math.round(row.aav * row.years * 0.3 * 10) / 10, gtdPct, player.id);
       matched++;
     }
   });
-  run();
+  updateContract();
 
-  return { success: true, matched, skipped };
+  return { success: true, total: rows.length, matched };
 });
 
 // ─── Depth Chart ──────────────────────────────────────────────────────────────
 
 ipcMain.handle('get-depth-chart', (_event: any, teamId: number) => {
   initDepthChart(teamId);
-  const rows = db.prepare(`
-    SELECT dc.position_group, dc.slot, dc.player_id,
-      p.first_name, p.last_name, p.position, p.position_label,
-      p.overall_rating, p.age, p.dev_trait, p.speed, p.strength, p.awareness,
-      p.injury_status, p.weeks_out, p.injury_type
+  return db.prepare(`
+    SELECT dc.position_group, dc.slot, p.id, p.first_name, p.last_name,
+           p.position, p.position_label, p.overall_rating, p.age, p.dev_trait,
+           p.injury_status, p.weeks_out
     FROM depth_chart dc
     JOIN players p ON dc.player_id = p.id
-    WHERE dc.team_id = ? AND p.roster_status = 'active'
+    WHERE dc.team_id = ?
     ORDER BY dc.position_group, dc.slot
-  `).all(teamId) as any[];
-  const grouped: Record<string, any[]> = {};
-  for (const row of rows) {
-    if (!grouped[row.position_group]) grouped[row.position_group] = [];
-    grouped[row.position_group].push(row);
-  }
-  return grouped;
+  `).all(teamId);
 });
 
 ipcMain.handle('set-depth-chart-order', (_event: any, { teamId, positionGroup, playerIds }: {
@@ -1546,9 +1519,7 @@ ipcMain.handle('set-depth-chart-order', (_event: any, { teamId, positionGroup, p
 }) => {
   const update = db.prepare('UPDATE depth_chart SET slot = ? WHERE team_id = ? AND player_id = ? AND position_group = ?');
   const run = db.transaction(() => {
-    playerIds.forEach((playerId: number, idx: number) => {
-      update.run(idx + 1, teamId, playerId, positionGroup);
-    });
+    playerIds.forEach((pid, idx) => update.run(idx + 1, teamId, pid, positionGroup));
   });
   run();
   return { success: true };
@@ -1560,108 +1531,324 @@ ipcMain.handle('reset-depth-chart', (_event: any, teamId: number) => {
   return { success: true };
 });
 
-// ─── Dev Trait Seeding ────────────────────────────────────────────────────────
-
-ipcMain.handle('seed-dev-traits', () => {
-  const setTrait = (firstName: string, lastName: string, trait: string) => {
-    const player = db.prepare('SELECT id FROM players WHERE first_name = ? AND last_name = ?').get(firstName, lastName) as any;
-    if (player) db.prepare('UPDATE players SET dev_trait = ? WHERE id = ?').run(trait, player.id);
-  };
-  setTrait('Drake',   'Maye',      'X-Factor');
-  setTrait('Caleb',   'Williams',  'X-Factor');
-  setTrait('Jayden',  'Daniels',   'Superstar');
-  setTrait('Lamar',   'Jackson',   'X-Factor');
-  setTrait('Patrick', 'Mahomes',   'X-Factor');
-  setTrait('Josh',    'Allen',     'X-Factor');
-  setTrait('Joe',     'Burrow',    'Superstar');
-  setTrait('Jalen',   'Hurts',     'Superstar');
-  setTrait('Justin',  'Jefferson', 'X-Factor');
-  setTrait('CeeDee',  'Lamb',      'X-Factor');
-  setTrait('Tyreek',  'Hill',      'X-Factor');
-  setTrait('Brock',   'Bowers',    'Superstar');
-  setTrait('Micah',   'Parsons',   'X-Factor');
-  setTrait('Myles',   'Garrett',   'X-Factor');
-  setTrait('T.J.',    'Watt',      'X-Factor');
-  setTrait('Bo',      'Nix',       'Star');
-  setTrait('Dak',     'Prescott',  'Star');
-  return { success: true };
-});
-
 // ─── Historical Records ────────────────────────────────────────────────────────
 
 ipcMain.handle('get-alltime-leaders', () => {
-  const base = `
-    SELECT p.id as player_id, p.first_name || ' ' || p.last_name AS player_name,
-      p.position, p.age, p.overall_rating, p.dev_trait,
-      COALESCE(t.city || ' ' || t.name, 'Retired') AS team_name,
-      COUNT(DISTINCT g.season) as seasons_played,
-      COUNT(DISTINCT s.game_id) as games_played,
-      SUM(s.pass_yards) as pass_yards, SUM(s.pass_tds) as pass_tds,
-      SUM(s.interceptions) as interceptions,
-      SUM(s.completions) as completions, SUM(s.pass_attempts) as pass_attempts,
-      SUM(s.rush_yards) as rush_yards, SUM(s.rush_tds) as rush_tds,
-      SUM(s.rush_attempts) as rush_attempts,
-      SUM(s.rec_yards) as rec_yards, SUM(s.rec_tds) as rec_tds,
-      SUM(s.receptions) as receptions, SUM(s.targets) as targets,
-      SUM(s.tackles) as tackles, SUM(s.assisted_tackles) as assisted_tackles,
-      SUM(s.sacks) as sacks, SUM(s.tfl) as tfl,
-      SUM(s.def_interceptions) as def_interceptions,
-      SUM(s.pass_deflections) as pass_deflections,
-      SUM(s.forced_fumbles) as forced_fumbles
-    FROM stats s
-    JOIN players p ON s.player_id = p.id
-    LEFT JOIN teams t ON p.team_id = t.id
-    JOIN games g ON s.game_id = g.id
-    WHERE g.is_simulated = 1
-    GROUP BY p.id
+  const baseSelect = `
+    p.id as player_id,
+    p.first_name || ' ' || p.last_name AS player_name,
+    p.position, p.age, p.overall_rating, p.dev_trait,
+    COALESCE(t.city || ' ' || t.name, 'Retired') AS team_name
   `;
-  const passing   = db.prepare(`${base} HAVING pass_yards   > 0 ORDER BY pass_yards   DESC LIMIT 20`).all();
-  const rushing   = db.prepare(`${base} HAVING rush_yards   > 0 ORDER BY rush_yards   DESC LIMIT 20`).all();
-  const receiving = db.prepare(`${base} HAVING rec_yards    > 0 ORDER BY rec_yards    DESC LIMIT 20`).all();
-  const tds       = db.prepare(`${base} HAVING (pass_tds + rush_tds + rec_tds) > 0 ORDER BY (pass_tds + rush_tds + rec_tds) DESC LIMIT 20`).all();
-  const tackles   = db.prepare(`${base} HAVING tackles      > 0 ORDER BY tackles      DESC LIMIT 20`).all();
-  const sacks     = db.prepare(`${base} HAVING sacks        > 0 ORDER BY sacks        DESC LIMIT 20`).all();
-  const defInts   = db.prepare(`${base} HAVING def_interceptions > 0 ORDER BY def_interceptions DESC LIMIT 20`).all();
+
+  const passing = db.prepare(`
+    SELECT ${baseSelect},
+      SUM(COALESCE(csh.games,0) + COALESCE(live.games,0)) AS games_played,
+      SUM(COALESCE(csh.pass_yards,0) + COALESCE(live.pass_yards,0)) AS pass_yards,
+      SUM(COALESCE(csh.pass_tds,0) + COALESCE(live.pass_tds,0)) AS pass_tds,
+      SUM(COALESCE(csh.interceptions,0) + COALESCE(live.interceptions,0)) AS interceptions,
+      SUM(COALESCE(csh.completions,0) + COALESCE(live.completions,0)) AS completions,
+      SUM(COALESCE(csh.pass_attempts,0) + COALESCE(live.pass_attempts,0)) AS pass_attempts,
+      0 AS rush_yards, 0 AS rush_tds, 0 AS rush_attempts,
+      0 AS rec_yards, 0 AS rec_tds, 0 AS receptions, 0 AS targets,
+      0 AS tackles, 0 AS assisted_tackles, 0 AS sacks, 0 AS tfl,
+      0 AS def_interceptions, 0 AS pass_deflections, 0 AS forced_fumbles
+    FROM players p
+    LEFT JOIN teams t ON p.team_id = t.id
+    LEFT JOIN (
+      SELECT player_id,
+        SUM(games) as games, SUM(pass_yards) as pass_yards, SUM(pass_tds) as pass_tds,
+        SUM(interceptions) as interceptions, SUM(completions) as completions, SUM(pass_attempts) as pass_attempts
+      FROM career_stats_history GROUP BY player_id
+    ) csh ON csh.player_id = p.id
+    LEFT JOIN (
+      SELECT s.player_id,
+        COUNT(DISTINCT s.game_id) as games, SUM(s.pass_yards) as pass_yards, SUM(s.pass_tds) as pass_tds,
+        SUM(s.interceptions) as interceptions, SUM(s.completions) as completions, SUM(s.pass_attempts) as pass_attempts
+      FROM stats s JOIN games g ON s.game_id = g.id WHERE g.is_simulated = 1 GROUP BY s.player_id
+    ) live ON live.player_id = p.id
+    WHERE (COALESCE(csh.pass_yards,0) + COALESCE(live.pass_yards,0)) > 0
+    GROUP BY p.id
+    ORDER BY pass_yards DESC LIMIT 25
+  `).all();
+
+  const rushing = db.prepare(`
+    SELECT ${baseSelect},
+      SUM(COALESCE(csh.games,0) + COALESCE(live.games,0)) AS games_played,
+      SUM(COALESCE(csh.rush_yards,0) + COALESCE(live.rush_yards,0)) AS rush_yards,
+      SUM(COALESCE(csh.rush_tds,0) + COALESCE(live.rush_tds,0)) AS rush_tds,
+      SUM(COALESCE(csh.rush_attempts,0) + COALESCE(live.rush_attempts,0)) AS rush_attempts,
+      0 AS pass_yards, 0 AS pass_tds, 0 AS interceptions, 0 AS completions, 0 AS pass_attempts,
+      0 AS rec_yards, 0 AS rec_tds, 0 AS receptions, 0 AS targets,
+      0 AS tackles, 0 AS assisted_tackles, 0 AS sacks, 0 AS tfl,
+      0 AS def_interceptions, 0 AS pass_deflections, 0 AS forced_fumbles
+    FROM players p
+    LEFT JOIN teams t ON p.team_id = t.id
+    LEFT JOIN (
+      SELECT player_id, SUM(games) as games, SUM(rush_yards) as rush_yards, SUM(rush_tds) as rush_tds, SUM(rush_attempts) as rush_attempts
+      FROM career_stats_history GROUP BY player_id
+    ) csh ON csh.player_id = p.id
+    LEFT JOIN (
+      SELECT s.player_id, COUNT(DISTINCT s.game_id) as games, SUM(s.rush_yards) as rush_yards, SUM(s.rush_tds) as rush_tds, SUM(s.rush_attempts) as rush_attempts
+      FROM stats s JOIN games g ON s.game_id = g.id WHERE g.is_simulated = 1 GROUP BY s.player_id
+    ) live ON live.player_id = p.id
+    WHERE (COALESCE(csh.rush_yards,0) + COALESCE(live.rush_yards,0)) > 0
+    GROUP BY p.id
+    ORDER BY rush_yards DESC LIMIT 25
+  `).all();
+
+  const receiving = db.prepare(`
+    SELECT ${baseSelect},
+      SUM(COALESCE(csh.games,0) + COALESCE(live.games,0)) AS games_played,
+      SUM(COALESCE(csh.rec_yards,0) + COALESCE(live.rec_yards,0)) AS rec_yards,
+      SUM(COALESCE(csh.rec_tds,0) + COALESCE(live.rec_tds,0)) AS rec_tds,
+      SUM(COALESCE(csh.receptions,0) + COALESCE(live.receptions,0)) AS receptions,
+      SUM(COALESCE(csh.targets,0) + COALESCE(live.targets,0)) AS targets,
+      0 AS pass_yards, 0 AS pass_tds, 0 AS interceptions, 0 AS completions, 0 AS pass_attempts,
+      0 AS rush_yards, 0 AS rush_tds, 0 AS rush_attempts,
+      0 AS tackles, 0 AS assisted_tackles, 0 AS sacks, 0 AS tfl,
+      0 AS def_interceptions, 0 AS pass_deflections, 0 AS forced_fumbles
+    FROM players p
+    LEFT JOIN teams t ON p.team_id = t.id
+    LEFT JOIN (
+      SELECT player_id, SUM(games) as games, SUM(rec_yards) as rec_yards, SUM(rec_tds) as rec_tds, SUM(receptions) as receptions, SUM(targets) as targets
+      FROM career_stats_history GROUP BY player_id
+    ) csh ON csh.player_id = p.id
+    LEFT JOIN (
+      SELECT s.player_id, COUNT(DISTINCT s.game_id) as games, SUM(s.rec_yards) as rec_yards, SUM(s.rec_tds) as rec_tds, SUM(s.receptions) as receptions, SUM(s.targets) as targets
+      FROM stats s JOIN games g ON s.game_id = g.id WHERE g.is_simulated = 1 GROUP BY s.player_id
+    ) live ON live.player_id = p.id
+    WHERE (COALESCE(csh.rec_yards,0) + COALESCE(live.rec_yards,0)) > 0
+    GROUP BY p.id
+    ORDER BY rec_yards DESC LIMIT 25
+  `).all();
+
+  const tds = db.prepare(`
+    SELECT ${baseSelect},
+      SUM(COALESCE(csh.games,0) + COALESCE(live.games,0)) AS games_played,
+      SUM(COALESCE(csh.pass_tds,0) + COALESCE(live.pass_tds,0)) AS pass_tds,
+      SUM(COALESCE(csh.rush_tds,0) + COALESCE(live.rush_tds,0)) AS rush_tds,
+      SUM(COALESCE(csh.rec_tds,0) + COALESCE(live.rec_tds,0)) AS rec_tds,
+      0 AS pass_yards, 0 AS interceptions, 0 AS completions, 0 AS pass_attempts,
+      0 AS rush_yards, 0 AS rush_attempts,
+      0 AS rec_yards, 0 AS receptions, 0 AS targets,
+      0 AS tackles, 0 AS assisted_tackles, 0 AS sacks, 0 AS tfl,
+      0 AS def_interceptions, 0 AS pass_deflections, 0 AS forced_fumbles
+    FROM players p
+    LEFT JOIN teams t ON p.team_id = t.id
+    LEFT JOIN (
+      SELECT player_id, SUM(games) as games, SUM(pass_tds) as pass_tds, SUM(rush_tds) as rush_tds, SUM(rec_tds) as rec_tds
+      FROM career_stats_history GROUP BY player_id
+    ) csh ON csh.player_id = p.id
+    LEFT JOIN (
+      SELECT s.player_id, COUNT(DISTINCT s.game_id) as games, SUM(s.pass_tds) as pass_tds, SUM(s.rush_tds) as rush_tds, SUM(s.rec_tds) as rec_tds
+      FROM stats s JOIN games g ON s.game_id = g.id WHERE g.is_simulated = 1 GROUP BY s.player_id
+    ) live ON live.player_id = p.id
+    WHERE (COALESCE(csh.pass_tds,0)+COALESCE(live.pass_tds,0)+COALESCE(csh.rush_tds,0)+COALESCE(live.rush_tds,0)+COALESCE(csh.rec_tds,0)+COALESCE(live.rec_tds,0)) > 0
+    GROUP BY p.id
+    ORDER BY (pass_tds+rush_tds+rec_tds) DESC LIMIT 25
+  `).all();
+
+  const tackles = db.prepare(`
+    SELECT ${baseSelect},
+      SUM(COALESCE(csh.games,0) + COALESCE(live.games,0)) AS games_played,
+      SUM(COALESCE(csh.tackles,0) + COALESCE(live.tackles,0)) AS tackles,
+      SUM(COALESCE(csh.assisted_tackles,0) + COALESCE(live.assisted_tackles,0)) AS assisted_tackles,
+      SUM(COALESCE(csh.sacks,0) + COALESCE(live.sacks,0)) AS sacks,
+      SUM(COALESCE(csh.tfl,0) + COALESCE(live.tfl,0)) AS tfl,
+      0 AS pass_yards, 0 AS pass_tds, 0 AS interceptions, 0 AS completions, 0 AS pass_attempts,
+      0 AS rush_yards, 0 AS rush_tds, 0 AS rush_attempts,
+      0 AS rec_yards, 0 AS rec_tds, 0 AS receptions, 0 AS targets,
+      0 AS def_interceptions, 0 AS pass_deflections, 0 AS forced_fumbles
+    FROM players p
+    LEFT JOIN teams t ON p.team_id = t.id
+    LEFT JOIN (
+      SELECT player_id, SUM(games) as games, SUM(tackles) as tackles, SUM(assisted_tackles) as assisted_tackles, SUM(sacks) as sacks, SUM(tfl) as tfl
+      FROM career_stats_history GROUP BY player_id
+    ) csh ON csh.player_id = p.id
+    LEFT JOIN (
+      SELECT s.player_id, COUNT(DISTINCT s.game_id) as games, SUM(s.tackles) as tackles, SUM(s.assisted_tackles) as assisted_tackles, SUM(s.sacks) as sacks, SUM(s.tfl) as tfl
+      FROM stats s JOIN games g ON s.game_id = g.id WHERE g.is_simulated = 1 GROUP BY s.player_id
+    ) live ON live.player_id = p.id
+    WHERE (COALESCE(csh.tackles,0) + COALESCE(live.tackles,0)) > 0
+    GROUP BY p.id
+    ORDER BY tackles DESC LIMIT 25
+  `).all();
+
+  const sacks = db.prepare(`
+    SELECT ${baseSelect},
+      SUM(COALESCE(csh.games,0) + COALESCE(live.games,0)) AS games_played,
+      SUM(COALESCE(csh.sacks,0) + COALESCE(live.sacks,0)) AS sacks,
+      SUM(COALESCE(csh.tfl,0) + COALESCE(live.tfl,0)) AS tfl,
+      SUM(COALESCE(csh.forced_fumbles,0) + COALESCE(live.forced_fumbles,0)) AS forced_fumbles,
+      SUM(COALESCE(csh.tackles,0) + COALESCE(live.tackles,0)) AS tackles,
+      0 AS pass_yards, 0 AS pass_tds, 0 AS interceptions, 0 AS completions, 0 AS pass_attempts,
+      0 AS rush_yards, 0 AS rush_tds, 0 AS rush_attempts,
+      0 AS rec_yards, 0 AS rec_tds, 0 AS receptions, 0 AS targets,
+      0 AS assisted_tackles, 0 AS def_interceptions, 0 AS pass_deflections
+    FROM players p
+    LEFT JOIN teams t ON p.team_id = t.id
+    LEFT JOIN (
+      SELECT player_id, SUM(games) as games, SUM(sacks) as sacks, SUM(tfl) as tfl, SUM(forced_fumbles) as forced_fumbles, SUM(tackles) as tackles
+      FROM career_stats_history GROUP BY player_id
+    ) csh ON csh.player_id = p.id
+    LEFT JOIN (
+      SELECT s.player_id, COUNT(DISTINCT s.game_id) as games, SUM(s.sacks) as sacks, SUM(s.tfl) as tfl, SUM(s.forced_fumbles) as forced_fumbles, SUM(s.tackles) as tackles
+      FROM stats s JOIN games g ON s.game_id = g.id WHERE g.is_simulated = 1 GROUP BY s.player_id
+    ) live ON live.player_id = p.id
+    WHERE (COALESCE(csh.sacks,0) + COALESCE(live.sacks,0)) > 0
+    GROUP BY p.id
+    ORDER BY sacks DESC LIMIT 25
+  `).all();
+
+  const defInts = db.prepare(`
+    SELECT ${baseSelect},
+      SUM(COALESCE(csh.games,0) + COALESCE(live.games,0)) AS games_played,
+      SUM(COALESCE(csh.def_interceptions,0) + COALESCE(live.def_interceptions,0)) AS def_interceptions,
+      SUM(COALESCE(csh.pass_deflections,0) + COALESCE(live.pass_deflections,0)) AS pass_deflections,
+      SUM(COALESCE(csh.tackles,0) + COALESCE(live.tackles,0)) AS tackles,
+      0 AS pass_yards, 0 AS pass_tds, 0 AS interceptions, 0 AS completions, 0 AS pass_attempts,
+      0 AS rush_yards, 0 AS rush_tds, 0 AS rush_attempts,
+      0 AS rec_yards, 0 AS rec_tds, 0 AS receptions, 0 AS targets,
+      0 AS assisted_tackles, 0 AS sacks, 0 AS tfl, 0 AS forced_fumbles
+    FROM players p
+    LEFT JOIN teams t ON p.team_id = t.id
+    LEFT JOIN (
+      SELECT player_id, SUM(games) as games, SUM(def_interceptions) as def_interceptions, SUM(pass_deflections) as pass_deflections, SUM(tackles) as tackles
+      FROM career_stats_history GROUP BY player_id
+    ) csh ON csh.player_id = p.id
+    LEFT JOIN (
+      SELECT s.player_id, COUNT(DISTINCT s.game_id) as games, SUM(s.def_interceptions) as def_interceptions, SUM(s.pass_deflections) as pass_deflections, SUM(s.tackles) as tackles
+      FROM stats s JOIN games g ON s.game_id = g.id WHERE g.is_simulated = 1 GROUP BY s.player_id
+    ) live ON live.player_id = p.id
+    WHERE (COALESCE(csh.def_interceptions,0) + COALESCE(live.def_interceptions,0)) > 0
+    GROUP BY p.id
+    ORDER BY def_interceptions DESC LIMIT 25
+  `).all();
+
   return { passing, rushing, receiving, tds, tackles, sacks, defInts };
 });
 
 ipcMain.handle('get-season-records', () => {
-  const base = `
-    SELECT p.id as player_id, p.first_name || ' ' || p.last_name AS player_name,
-      p.position, p.age, p.overall_rating, p.dev_trait,
-      COALESCE(t.city || ' ' || t.name, 'Retired') AS team_name,
-      g.season,
-      COUNT(DISTINCT s.game_id) as games_played,
-      SUM(s.pass_yards) as pass_yards, SUM(s.pass_tds) as pass_tds,
-      SUM(s.interceptions) as interceptions,
-      SUM(s.completions) as completions, SUM(s.pass_attempts) as pass_attempts,
-      SUM(s.rush_yards) as rush_yards, SUM(s.rush_tds) as rush_tds,
-      SUM(s.rush_attempts) as rush_attempts,
-      SUM(s.rec_yards) as rec_yards, SUM(s.rec_tds) as rec_tds,
-      SUM(s.receptions) as receptions, SUM(s.targets) as targets,
-      SUM(s.tackles) as tackles, SUM(s.assisted_tackles) as assisted_tackles,
-      SUM(s.sacks) as sacks, SUM(s.tfl) as tfl,
-      SUM(s.def_interceptions) as def_interceptions,
-      SUM(s.pass_deflections) as pass_deflections,
-      SUM(s.forced_fumbles) as forced_fumbles
-    FROM stats s
-    JOIN players p ON s.player_id = p.id
-    LEFT JOIN teams t ON p.team_id = t.id
-    JOIN games g ON s.game_id = g.id
-    WHERE g.is_simulated = 1
-    GROUP BY p.id, g.season
+  const baseSelect = `
+    p.id as player_id,
+    p.first_name || ' ' || p.last_name AS player_name,
+    p.position, p.age, p.overall_rating, p.dev_trait,
+    COALESCE(t.city || ' ' || t.name, 'Retired') AS team_name
   `;
-  const passing   = db.prepare(`${base} HAVING pass_yards   > 0 ORDER BY pass_yards   DESC LIMIT 20`).all();
-  const rushing   = db.prepare(`${base} HAVING rush_yards   > 0 ORDER BY rush_yards   DESC LIMIT 20`).all();
-  const receiving = db.prepare(`${base} HAVING rec_yards    > 0 ORDER BY rec_yards    DESC LIMIT 20`).all();
-  const tds       = db.prepare(`${base} HAVING (pass_tds + rush_tds + rec_tds) > 0 ORDER BY (pass_tds + rush_tds + rec_tds) DESC LIMIT 20`).all();
-  const tackles   = db.prepare(`${base} HAVING tackles      > 0 ORDER BY tackles      DESC LIMIT 20`).all();
-  const sacks     = db.prepare(`${base} HAVING sacks        > 0 ORDER BY sacks        DESC LIMIT 20`).all();
-  const defInts   = db.prepare(`${base} HAVING def_interceptions > 0 ORDER BY def_interceptions DESC LIMIT 20`).all();
+
+  const passing = db.prepare(`
+    SELECT ${baseSelect}, csh.season,
+      csh.games AS games_played,
+      csh.pass_yards, csh.pass_tds, csh.interceptions, csh.completions, csh.pass_attempts,
+      0 AS rush_yards, 0 AS rush_tds, 0 AS rush_attempts,
+      0 AS rec_yards, 0 AS rec_tds, 0 AS receptions, 0 AS targets,
+      0 AS tackles, 0 AS assisted_tackles, 0 AS sacks, 0 AS tfl,
+      0 AS def_interceptions, 0 AS pass_deflections, 0 AS forced_fumbles
+    FROM career_stats_history csh
+    JOIN players p ON csh.player_id = p.id
+    LEFT JOIN teams t ON p.team_id = t.id
+    WHERE csh.pass_yards > 0
+    ORDER BY csh.pass_yards DESC LIMIT 25
+  `).all();
+
+  const rushing = db.prepare(`
+    SELECT ${baseSelect}, csh.season,
+      csh.games AS games_played,
+      csh.rush_yards, csh.rush_tds, csh.rush_attempts,
+      0 AS pass_yards, 0 AS pass_tds, 0 AS interceptions, 0 AS completions, 0 AS pass_attempts,
+      0 AS rec_yards, 0 AS rec_tds, 0 AS receptions, 0 AS targets,
+      0 AS tackles, 0 AS assisted_tackles, 0 AS sacks, 0 AS tfl,
+      0 AS def_interceptions, 0 AS pass_deflections, 0 AS forced_fumbles
+    FROM career_stats_history csh
+    JOIN players p ON csh.player_id = p.id
+    LEFT JOIN teams t ON p.team_id = t.id
+    WHERE csh.rush_yards > 0
+    ORDER BY csh.rush_yards DESC LIMIT 25
+  `).all();
+
+  const receiving = db.prepare(`
+    SELECT ${baseSelect}, csh.season,
+      csh.games AS games_played,
+      csh.rec_yards, csh.rec_tds, csh.receptions, csh.targets,
+      0 AS pass_yards, 0 AS pass_tds, 0 AS interceptions, 0 AS completions, 0 AS pass_attempts,
+      0 AS rush_yards, 0 AS rush_tds, 0 AS rush_attempts,
+      0 AS tackles, 0 AS assisted_tackles, 0 AS sacks, 0 AS tfl,
+      0 AS def_interceptions, 0 AS pass_deflections, 0 AS forced_fumbles
+    FROM career_stats_history csh
+    JOIN players p ON csh.player_id = p.id
+    LEFT JOIN teams t ON p.team_id = t.id
+    WHERE csh.rec_yards > 0
+    ORDER BY csh.rec_yards DESC LIMIT 25
+  `).all();
+
+  const tds = db.prepare(`
+    SELECT ${baseSelect}, csh.season,
+      csh.games AS games_played,
+      csh.pass_tds, csh.rush_tds, csh.rec_tds,
+      (csh.pass_tds + csh.rush_tds + csh.rec_tds) AS total_tds,
+      0 AS pass_yards, 0 AS interceptions, 0 AS completions, 0 AS pass_attempts,
+      0 AS rush_yards, 0 AS rush_attempts,
+      0 AS rec_yards, 0 AS receptions, 0 AS targets,
+      0 AS tackles, 0 AS assisted_tackles, 0 AS sacks, 0 AS tfl,
+      0 AS def_interceptions, 0 AS pass_deflections, 0 AS forced_fumbles
+    FROM career_stats_history csh
+    JOIN players p ON csh.player_id = p.id
+    LEFT JOIN teams t ON p.team_id = t.id
+    WHERE (csh.pass_tds + csh.rush_tds + csh.rec_tds) > 0
+    ORDER BY total_tds DESC LIMIT 25
+  `).all();
+
+  const tackles = db.prepare(`
+    SELECT ${baseSelect}, csh.season,
+      csh.games AS games_played,
+      csh.tackles, csh.assisted_tackles, csh.sacks, csh.tfl,
+      0 AS pass_yards, 0 AS pass_tds, 0 AS interceptions, 0 AS completions, 0 AS pass_attempts,
+      0 AS rush_yards, 0 AS rush_tds, 0 AS rush_attempts,
+      0 AS rec_yards, 0 AS rec_tds, 0 AS receptions, 0 AS targets,
+      0 AS def_interceptions, 0 AS pass_deflections, 0 AS forced_fumbles
+    FROM career_stats_history csh
+    JOIN players p ON csh.player_id = p.id
+    LEFT JOIN teams t ON p.team_id = t.id
+    WHERE csh.tackles > 0
+    ORDER BY csh.tackles DESC LIMIT 25
+  `).all();
+
+  const sacks = db.prepare(`
+    SELECT ${baseSelect}, csh.season,
+      csh.games AS games_played,
+      csh.sacks, csh.tfl, csh.forced_fumbles, csh.tackles,
+      0 AS pass_yards, 0 AS pass_tds, 0 AS interceptions, 0 AS completions, 0 AS pass_attempts,
+      0 AS rush_yards, 0 AS rush_tds, 0 AS rush_attempts,
+      0 AS rec_yards, 0 AS rec_tds, 0 AS receptions, 0 AS targets,
+      0 AS assisted_tackles, 0 AS def_interceptions, 0 AS pass_deflections
+    FROM career_stats_history csh
+    JOIN players p ON csh.player_id = p.id
+    LEFT JOIN teams t ON p.team_id = t.id
+    WHERE csh.sacks > 0
+    ORDER BY csh.sacks DESC LIMIT 25
+  `).all();
+
+  const defInts = db.prepare(`
+    SELECT ${baseSelect}, csh.season,
+      csh.games AS games_played,
+      csh.def_interceptions, csh.pass_deflections, csh.tackles,
+      0 AS pass_yards, 0 AS pass_tds, 0 AS interceptions, 0 AS completions, 0 AS pass_attempts,
+      0 AS rush_yards, 0 AS rush_tds, 0 AS rush_attempts,
+      0 AS rec_yards, 0 AS rec_tds, 0 AS receptions, 0 AS targets,
+      0 AS assisted_tackles, 0 AS sacks, 0 AS tfl, 0 AS forced_fumbles
+    FROM career_stats_history csh
+    JOIN players p ON csh.player_id = p.id
+    LEFT JOIN teams t ON p.team_id = t.id
+    WHERE csh.def_interceptions > 0
+    ORDER BY csh.def_interceptions DESC LIMIT 25
+  `).all();
+
   return { passing, rushing, receiving, tds, tackles, sacks, defInts };
 });
 
-// ─── App Lifecycle ─────────────────────────────────────────────────────────────
+// ─── App Lifecycle ────────────────────────────────────────────────────────────
 
 app.on('ready', createWindow);
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });

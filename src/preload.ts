@@ -120,6 +120,10 @@ contextBridge.exposeInMainWorld('api', {
   getOffseasonStatus: () =>
     ipcRenderer.invoke('get-offseason-status'),
 
+  // CPU Offseason AI
+  cpuFaSigning: () =>
+    ipcRenderer.invoke('cpu-fa-signing'),
+
   generateDraftClass: () =>
     ipcRenderer.invoke('generate-draft-class'),
 
