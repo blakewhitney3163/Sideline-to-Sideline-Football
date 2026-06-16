@@ -261,7 +261,6 @@ export default function Trades({ userTeam }: Props) {
           ))}
         </div>
       )}
-      )}
 
       {!selectedTeamId ? (
         <div style={{ color: '#444', padding: '40px 0', fontSize: 13 }}>Select a team above to build a trade.</div>
