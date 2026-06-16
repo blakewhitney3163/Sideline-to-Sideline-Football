@@ -155,6 +155,9 @@ contextBridge.exposeInMainWorld('api', {
   importNflverseStats: () =>
     ipcRenderer.invoke('import-nflverse-stats'),
 
+   checkSetupDone: () =>
+    ipcRenderer.invoke('check-setup-done'),
+
   // Injuries
   getInjuryReport: (teamId: number) =>
     ipcRenderer.invoke('get-injury-report', teamId),

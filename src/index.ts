@@ -1942,6 +1942,11 @@ ipcMain.handle('import-nflverse-stats', () => {
   return { success: true, matched: seeded, skipped: 0 };
 });
 
+ipcMain.handle('check-setup-done', () => {
+  const cnt = (db.prepare('SELECT COUNT(*) as cnt FROM career_stats_history').get() as any).cnt;
+  return cnt > 0;
+});
+
 // ─── App Lifecycle ────────────────────────────────────────────────────────────
 
 app.on('ready', createWindow);
