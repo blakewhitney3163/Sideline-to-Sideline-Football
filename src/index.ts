@@ -1461,7 +1461,6 @@ ipcMain.handle('import-otc-contracts', (_event: any, filePath?: string) => {
       }
     }
   } else {
-  else {
     for (const line of content.split('\n')) {
       const parts = line.split(',');
       if (parts.length >= 4) {
