@@ -1906,62 +1906,78 @@ ipcMain.handle('get-team-needs', (_: any, teamId: number) => {
 
 // ─── NFLverse Stats Import ────────────────────────────────────────────────────
 ipcMain.handle('import-nflverse-stats', () => {
-  const players = db.prepare('SELECT id, position, age, overall_rating FROM players').all() as any[];
-  const currentSeason = parseInt(
-    (db.prepare("SELECT value FROM settings WHERE key='current_season'").get() as any)?.value ?? '2025'
-  );
+  const pathModule = require('path');
+  const fsModule  = require('fs');
+  const csvPath   = pathModule.join(process.cwd(), 'src', 'data', 'player-career-stats.csv');
+
+  if (!fsModule.existsSync(csvPath)) {
+    return { success: false, matched: 0, error: 'player-career-stats.csv not found — run scripts/fetch-career-stats.js first' };
+  }
+
+  // Parse CSV
+  const lines   = fsModule.readFileSync(csvPath, 'utf8').split('\n').filter((l: string) => l.trim());
+  const headers = lines[0].split(',').map((h: string) => h.trim());
+  const rows    = lines.slice(1).map((line: string) => {
+    const vals: string[] = [];
+    let cur = '', inQ = false;
+    for (const ch of line) {
+      if (ch === '"') { inQ = !inQ; }
+      else if (ch === ',' && !inQ) { vals.push(cur); cur = ''; }
+      else { cur += ch; }
+    }
+    vals.push(cur);
+    const r: any = {};
+    headers.forEach((h: string, i: number) => { r[h] = (vals[i] ?? '').trim(); });
+    return r;
+  });
+
+  // Build name → player lookup (normalized: lowercase, no apostrophes/periods)
+  const norm = (s: string) => s.toLowerCase().replace(/['\u2019.]/g, '').replace(/\s+/g, ' ').trim();
+  const players = db.prepare('SELECT id, first_name, last_name FROM players').all() as any[];
+  const byName: Record<string, any> = {};
+  for (const p of players) byName[norm(`${p.first_name} ${p.last_name}`)] = p;
+
   const upsert = db.prepare(`
     INSERT OR IGNORE INTO career_stats_history
-      (player_id, season, games, completions, pass_attempts, pass_yards, pass_tds, interceptions,
-       rush_attempts, rush_yards, rush_tds, targets, receptions, rec_yards, rec_tds)
+      (player_id, season, games,
+       completions, pass_attempts, pass_yards, pass_tds, interceptions,
+       rush_attempts, rush_yards, rush_tds,
+       targets, receptions, rec_yards, rec_tds)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `);
-  const rand = (min: number, max: number) => Math.round(min + Math.random() * (max - min));
-  let seeded = 0;
+
+  let matched = 0, skipped = 0;
+
   const run = db.transaction(() => {
-    for (const p of players) {
-      const rookieAge = p.position === 'QB' ? 23 : 22;
-      const yearsPlayed = Math.max(0, p.age - rookieAge);
-      if (yearsPlayed === 0) continue;
-      const ovrf = Math.max(0, Math.min(1, (p.overall_rating - 65) / 30));
-      for (let y = 1; y <= Math.min(yearsPlayed, 12); y++) {
-        const season = currentSeason - y;
-        if (season < 2010) break;
-        const peak = Math.min(1.0, 1.0 - Math.abs(y - Math.min(yearsPlayed, 5)) * 0.07);
-        const games = rand(13, 17);
-        const pos = p.position;
-        let comps=0,atts=0,pyds=0,ptds=0,ints=0,carries=0,ryds=0,rtds=0,tgts=0,recs=0,recyds=0,rectds=0;
-        if (pos === 'QB') {
-          atts  = rand(200, Math.round(460 * ovrf * peak + 180));
-          comps = Math.round(atts * (0.56 + ovrf * 0.1));
-          pyds  = Math.round(atts * (6.0 + ovrf * 2.0));
-          ptds  = Math.max(0, Math.round(pyds / rand(190, 270)));
-          ints  = Math.max(0, Math.round(atts / rand(35, 65)) - Math.round(ovrf * 3));
-          carries = rand(15, 55);
-          ryds  = rand(carries * 3, carries * 7);
-          rtds  = Math.round(ryds / rand(60, 130));
-        } else if (['RB','HB','FB'].includes(pos)) {
-          carries = rand(50, Math.round(210 * ovrf * peak + 55));
-          ryds  = Math.round(carries * (3.4 + ovrf * 1.6));
-          rtds  = Math.max(0, Math.round(ryds / rand(65, 120)));
-          tgts  = rand(15, Math.round(55 * ovrf + 14));
-          recs  = Math.round(tgts * (0.60 + ovrf * 0.15));
-          recyds = recs * rand(6, 10);
-          rectds = Math.round(recyds / rand(20, 40));
-        } else if (['WR','TE'].includes(pos)) {
-          tgts  = rand(25, Math.round(140 * ovrf * peak + 28));
-          recs  = Math.round(tgts * (0.55 + ovrf * 0.2));
-          recyds = Math.round(recs * (10 + ovrf * 6));
-          rectds = Math.max(0, Math.round(recyds / rand(120, 210)));
-        }
-        upsert.run(p.id, season, games, comps, atts, pyds, ptds, ints,
-          carries, ryds, rtds, tgts, recs, recyds, rectds);
-        seeded++;
-      }
+    for (const r of rows) {
+      const player = byName[norm(r.player_display_name ?? '')];
+      if (!player) { skipped++; continue; }
+      const season = parseInt(r.season);
+      if (!season) { skipped++; continue; }
+
+      upsert.run(
+        player.id, season,
+        parseInt(r.games)          || 0,
+        parseInt(r.completions)    || 0,
+        parseInt(r.attempts)       || 0,
+        parseInt(r.passing_yards)  || 0,
+        parseInt(r.passing_tds)    || 0,
+        parseInt(r.interceptions)  || 0,
+        parseInt(r.carries)        || 0,
+        parseInt(r.rushing_yards)  || 0,
+        parseInt(r.rushing_tds)    || 0,
+        parseInt(r.targets)        || 0,
+        parseInt(r.receptions)     || 0,
+        parseInt(r.receiving_yards)|| 0,
+        parseInt(r.receiving_tds)  || 0,
+      );
+      matched++;
     }
   });
+
   run();
-  return { success: true, matched: seeded, skipped: 0 };
+  console.log(`Career stats: ${matched} matched, ${skipped} skipped`);
+  return { success: true, matched, skipped };
 });
 
 ipcMain.handle('check-setup-done', () => {
