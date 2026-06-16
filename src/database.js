@@ -170,6 +170,16 @@ if (!playerCols.find(c => c.name === 'injury_type')) {
   console.log('Players: added injury_type column');
 }
 
+// ─── Attribute Column Migrations ──────────────────────────────────────────────
+const attrCols = ['throw_accuracy', 'throw_power', 'catching', 'route_running',
+                  'tackle_rating', 'coverage', 'pass_rush'];
+for (const col of attrCols) {
+  if (!playerCols.find(c => c.name === col)) {
+    db.prepare(`ALTER TABLE players ADD COLUMN ${col} INTEGER DEFAULT 70`).run();
+    console.log(`Players: added ${col} column`);
+  }
+}
+
 // ─── Stat Column Migrations ───────────────────────────────────────────────────
 
 const statCols = db.prepare("PRAGMA table_info(stats)").all();

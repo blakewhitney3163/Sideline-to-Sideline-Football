@@ -53,9 +53,15 @@ function importFromMadden(csvPath) {
   console.log('Cleared existing players');
 
   const insert = db.prepare(`
-    INSERT INTO players (team_id, first_name, last_name, position, position_label, age, overall_rating, speed, strength, awareness)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO players (
+      team_id, first_name, last_name, position, position_label, age,
+      overall_rating, speed, strength, awareness,
+      throw_accuracy, throw_power, catching, route_running,
+      tackle_rating, coverage, pass_rush
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
+  const i   = v => parseInt(v) || 70;
+  const avg = (...vals) => Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
 
   let imported = 0;
   let skipped = 0;
@@ -71,15 +77,20 @@ function importFromMadden(csvPath) {
       const { first, last } = splitName(p.fullname);
       if (!first || !last) { skipped++; continue; }
 
-      insert.run(
-        teamId, first, last,
-        position,
-        p.position,
+       insert.run(
+        teamId, first, last, position, p.position,
         parseInt(p.age) || 25,
-        parseInt(p.overallrating) || 70,
-        parseInt(p.speed) || 70,
-        parseInt(p.strength) || 70,
-        parseInt(p.awareness) || 70
+        i(p.overallrating),
+        i(p.speed),
+        i(p.strength),
+        i(p.awareness),
+        avg(i(p.throwaccuracyshort), i(p.throwaccuracymid), i(p.throwaccuracydeep)),
+        i(p.throwpower),
+        avg(i(p.catching), i(p.catchintraffic)),
+        avg(i(p.shortrouterunning), i(p.midrouterunning), i(p.deeprouterunning)),
+        i(p.tackle),
+        avg(i(p.mancoverage), i(p.zonecoverage)),
+        avg(i(p.strength), i(p.pursuit))
       );
       imported++;
     }
