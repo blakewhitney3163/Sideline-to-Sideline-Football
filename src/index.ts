@@ -1462,7 +1462,10 @@ ipcMain.handle('import-otc-contracts', (_event: any, filePath?: string) => {
   }
 
   let matched = 0;
-  const normalize = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '');
+  // Strip name suffixes before comparing so "Patrick Mahomes II" matches "Patrick Mahomes"
+  const normalize = (s: string) => s.toLowerCase()
+    .replace(/\b(jr|sr|ii|iii|iv|v)\b\.?/g, '')
+    .replace(/[^a-z]/g, '');
 
   const updateContract = db.transaction(() => {
     for (const row of rows) {
@@ -1477,9 +1480,17 @@ ipcMain.handle('import-otc-contracts', (_event: any, filePath?: string) => {
         WHERE p.is_free_agent = 0 AND p.roster_status = 'active'
       `).all() as any[];
 
-      const player = players.find((p: any) =>
+      // Try exact first+last match first, then fall back to last name + first initial
+      let player = players.find((p: any) =>
         normalize(p.first_name) === first && normalize(p.last_name) === last
       );
+      if (!player) {
+        const firstInitial = first.charAt(0);
+        player = players.find((p: any) =>
+          normalize(p.last_name) === last &&
+          normalize(p.first_name).charAt(0) === firstInitial
+        );
+      }
       if (!player) continue;
 
       const gtdPct = row.guaranteed > 0 && row.aav > 0
@@ -1646,7 +1657,11 @@ ipcMain.handle('get-alltime-leaders', () => {
     ) live ON live.player_id = p.id
     WHERE (COALESCE(csh.pass_tds,0)+COALESCE(live.pass_tds,0)+COALESCE(csh.rush_tds,0)+COALESCE(live.rush_tds,0)+COALESCE(csh.rec_tds,0)+COALESCE(live.rec_tds,0)) > 0
     GROUP BY p.id
-    ORDER BY (pass_tds+rush_tds+rec_tds) DESC LIMIT 25
+    ORDER BY (
+      SUM(COALESCE(csh.pass_tds,0)+COALESCE(live.pass_tds,0)) +
+      SUM(COALESCE(csh.rush_tds,0)+COALESCE(live.rush_tds,0)) +
+      SUM(COALESCE(csh.rec_tds,0)+COALESCE(live.rec_tds,0))
+    ) DESC LIMIT 25
   `).all();
 
   const tackles = db.prepare(`
@@ -1845,6 +1860,12 @@ ipcMain.handle('get-season-records', () => {
   `).all();
 
   return { passing, rushing, receiving, tds, tackles, sacks, defInts };
+});
+
+// ─── NFLverse Stats Import (stub) ─────────────────────────────────────────────
+// Keeps the preload bridge working — full implementation can be added later.
+ipcMain.handle('import-nflverse-stats', () => {
+  return { success: false, reason: 'NFLverse import not configured. Use OTC import instead.' };
 });
 
 // ─── App Lifecycle ────────────────────────────────────────────────────────────
