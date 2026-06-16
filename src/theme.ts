@@ -1,11 +1,11 @@
 // Central color palette — import as: import { T } from './theme';
 export const T = {
   // Backgrounds — charcoal base like OOTP
-  bgPage:   '#2b2b2b',   // main charcoal background
-  bgPanel:  '#343434',   // panels, lists
-  bgCard:   '#3d3d3d',   // cards, rows, elevated
-  bgInput:  '#2f2f2f',   // inputs, selects
-  bgDeep:   '#1f1f1f',   // deepest/darkest elements
+  bgPage:   '#444',   // main charcoal background
+  bgPanel:  '#4e4e4e',   // panels, lists
+  bgCard:   '#585858',   // cards, rows, elevated
+  bgInput:  '#474747',   // inputs, selects
+  bgDeep:   '#333',   // deepest/darkest elements
 
   // Borders
   borderFaint:  '#444',
