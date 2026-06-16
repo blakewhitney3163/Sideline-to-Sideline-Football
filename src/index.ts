@@ -1947,6 +1947,16 @@ ipcMain.handle('check-setup-done', () => {
   return cnt > 0;
 });
 
+ipcMain.handle('reset-save', () => {
+  db.prepare("DELETE FROM settings WHERE key = 'user_team_id'").run();
+  db.prepare('DELETE FROM career_stats_history').run();
+  db.prepare('DELETE FROM games').run();
+  db.prepare('DELETE FROM champions').run();
+  db.prepare("UPDATE settings SET value = '2025' WHERE key = 'current_season'").run();
+  generateContracts();
+  return { success: true };
+});
+
 // ─── App Lifecycle ────────────────────────────────────────────────────────────
 
 app.on('ready', createWindow);
