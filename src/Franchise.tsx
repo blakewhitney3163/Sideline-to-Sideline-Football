@@ -448,11 +448,10 @@ export default function Franchise({ userTeam, currentSeason }: Props) {
             }
           }}
           style={{
-            padding: '5px 14px', fontSize: 11, letterSpacing: 1, cursor: 'pointer', borderRadius: 4,
-            background: T.bgGreen, border: '1px solid #4caf50', color: '#4caf50', fontWeight: 'bold',
+            fontSize: 10, color: T.textMuted, background: 'none', border: 'none',
+            cursor: 'pointer', textDecoration: 'underline', padding: 0,
           }}
-        >IMPORT OTC CONTRACTS</button>
-        <span style={{ color: T.borderStrong, fontSize: 10, marginLeft: 10 }}>otc-contracts.htm detected in repo root</span>
+        >↻ sync OTC contracts</button>
       </div>
 
       {/* Tabs */}

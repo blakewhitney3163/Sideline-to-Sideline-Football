@@ -288,11 +288,11 @@ background: selectedPlayer?.player_id === p.player_id ? T.bgGreen : i % 2 === 0 
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <button onClick={handleImport} disabled={importing} style={{
-            padding: '5px 14px', background: T.bgPage, border: '1px solid #1a2a1a', borderRadius: 4,
-            color: importing ? T.borderStrong : '#4caf50', cursor: importing ? 'not-allowed' : 'pointer',
-            fontSize: 11, fontFamily: 'monospace',
+            fontSize: 10, color: importing ? T.borderStrong : T.textMuted, background: 'none',
+            border: 'none', cursor: importing ? 'not-allowed' : 'pointer',
+            textDecoration: 'underline', padding: 0, fontFamily: 'monospace',
           }}>
-            {importing ? 'Importing...' : '↓ Import NFL History'}
+            {importing ? 'importing...' : '↻ sync NFL history'}
           </button>
           {importResult && <span style={{ fontSize: 10, color: '#4caf50' }}>✓ {importResult.matched} players matched</span>}
           {availableSeasons.length > 1 && (
