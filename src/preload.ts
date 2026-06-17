@@ -138,6 +138,12 @@ acceptCpuTradeOffer: (payload: { myPlayerId: number; theirPlayerId: number; thei
   getExpiringContracts: () =>
     ipcRenderer.invoke('get-expiring-contracts'),
 
+  getHallOfFame: () =>
+  ipcRenderer.invoke('get-hall-of-fame'),
+
+getTeamSeasonStats: (season?: number) =>
+  ipcRenderer.invoke('get-team-season-stats', season),
+
   resignPlayer: (payload: { playerId: number; years: number; salary: number }) =>
     ipcRenderer.invoke('resign-player', payload),
 
