@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 declare const window: any;
 
 type RecordMode = 'alltime' | 'season' | 'awards';
-type StatCategory = 'passing' | 'rushing' | 'receiving' | 'tds' | 'tackles' | 'sacks' | 'defInts';
+type StatCategory = 'passing' | 'rushing' | 'receiving' | 'tds' | 'passTds' | 'tackles' | 'sacks' | 'defInts';
 
 interface RecordRow {
   player_id: number;
@@ -27,7 +27,8 @@ interface RecordRow {
 
 interface RecordsData {
   passing: RecordRow[]; rushing: RecordRow[]; receiving: RecordRow[];
-  tds: RecordRow[]; tackles: RecordRow[]; sacks: RecordRow[]; defInts: RecordRow[];
+  tds: RecordRow[]; passTds: RecordRow[];
+  tackles: RecordRow[]; sacks: RecordRow[]; defInts: RecordRow[];
 }
 
 interface AwardWinner {
@@ -64,7 +65,8 @@ const CATEGORIES: { id: StatCategory; label: string }[] = [
   { id: 'passing',   label: 'Passing' },
   { id: 'rushing',   label: 'Rushing' },
   { id: 'receiving', label: 'Receiving' },
-  { id: 'tds',       label: 'Touchdowns' },
+  { id: 'passTds',   label: 'Pass TDs' },
+  { id: 'tds',       label: 'Skill TDs' },
   { id: 'tackles',   label: 'Tackles' },
   { id: 'sacks',     label: 'Sacks' },
   { id: 'defInts',   label: 'INTs / PDs' },
@@ -84,9 +86,12 @@ function columns(cat: StatCategory): ColDef[] {
     case 'receiving':
       return [gCol, { label: 'YDS', key: 'rec_yards' }, { label: 'TD', key: 'rec_tds' },
               { label: 'REC', key: 'receptions' }, { label: 'TGT', key: 'targets' }];
+    case 'passTds':
+      return [gCol, { label: 'PASS TD', key: 'pass_tds' }, { label: 'YDS', key: 'pass_yards' },
+              { label: 'CMP', key: 'completions' }, { label: 'ATT', key: 'pass_attempts' }];
     case 'tds':
-      return [gCol, { label: 'TOT TDs', key: '_total_tds' }, { label: 'PASS TD', key: 'pass_tds' },
-              { label: 'RUSH TD', key: 'rush_tds' }, { label: 'REC TD', key: 'rec_tds' }];
+      return [gCol, { label: 'TOT TDs', key: '_skill_tds' }, { label: 'RUSH TD', key: 'rush_tds' },
+              { label: 'REC TD', key: 'rec_tds' }];
     case 'tackles':
       return [gCol, { label: 'SOLO', key: 'tackles' }, { label: 'ASST', key: 'assisted_tackles' },
               { label: 'TOTAL', key: '_total_tkl' }, { label: 'TFL', key: 'tfl' }, { label: 'SACKS', key: 'sacks' }];
@@ -101,7 +106,7 @@ function columns(cat: StatCategory): ColDef[] {
 
 function getValue(row: RecordRow, key: string): number {
   if (key === '_ypc')       return (row as any).rush_attempts > 0 ? (row as any).rush_yards / (row as any).rush_attempts : 0;
-  if (key === '_total_tds') return ((row as any).pass_tds || 0) + ((row as any).rush_tds || 0) + ((row as any).rec_tds || 0);
+  if (key === '_skill_tds') return ((row as any).rush_tds || 0) + ((row as any).rec_tds || 0);
   if (key === '_total_tkl') return ((row as any).tackles || 0) + ((row as any).assisted_tackles || 0);
   if (key === '_def_tds')   return 0;
   return (row as any)[key] ?? 0;
@@ -265,7 +270,6 @@ export default function Records() {
   return (
     <div style={{ padding: '24px 32px', maxWidth: 1100, margin: '0 auto' }}>
 
-      {/* Header */}
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ color: '#fff', fontSize: 22, fontWeight: 700, margin: 0 }}>Historical Records</h1>
         <p style={{ color: '#444', fontSize: 12, margin: '4px 0 0' }}>
@@ -273,14 +277,12 @@ export default function Records() {
         </p>
       </div>
 
-      {/* Mode toggle */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         <ModeBtn active={mode === 'alltime'} onClick={() => setMode('alltime')}>ALL-TIME LEADERS</ModeBtn>
         <ModeBtn active={mode === 'season'}  onClick={() => setMode('season')}>SEASON RECORDS</ModeBtn>
         <ModeBtn active={mode === 'awards'}  onClick={() => setMode('awards')}>SEASON AWARDS</ModeBtn>
       </div>
 
-      {/* Category tabs — hidden in awards mode */}
       {mode !== 'awards' && (
         <div style={{ display: 'flex', gap: 4, marginBottom: 20, flexWrap: 'wrap' }}>
           {CATEGORIES.map(c => (
@@ -291,7 +293,6 @@ export default function Records() {
         </div>
       )}
 
-      {/* Awards mode */}
       {mode === 'awards' && (
         <div style={{ marginTop: 8 }}>
           <div style={{ color: '#e8b800', fontSize: 13, fontWeight: 700, letterSpacing: 1, marginBottom: 20 }}>
@@ -314,13 +315,11 @@ export default function Records() {
         </div>
       )}
 
-      {/* Leaderboard — hidden in awards mode */}
       {mode !== 'awards' && (
         loading ? (
           <div style={{ color: '#444', padding: 40, textAlign: 'center' }}>Loading records…</div>
         ) : (
           <>
-            {/* Column header row */}
             <div style={{
               display: 'grid',
               gridTemplateColumns: gridTemplate(cols, mode),
@@ -344,7 +343,6 @@ export default function Records() {
               {mode === 'season' && <div>SEASON</div>}
             </div>
 
-            {/* Player rows — historical records styled with gold accent */}
             {rows.length === 0 ? (
               <div style={{ color: '#444', padding: '24px 12px', fontSize: 13 }}>
                 No records yet — simulate some games first.
@@ -363,19 +361,14 @@ export default function Records() {
                     background: isHist ? '#130f00' : (idx === 0 ? '#0f0e00' : 'transparent'),
                     marginBottom: isHist ? 2 : 0,
                   }}>
-                    {/* Rank / trophy */}
                     <div style={{ display: 'flex', alignItems: 'center', color: isHist ? '#e8b800' : '#444', fontSize: isHist ? 14 : 12 }}>
                       {isHist ? '🏆' : idx + 1}
                     </div>
-
-                    {/* Player name */}
                     <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
                         <span style={{
-                          color: isHist ? '#e8b800' : '#ddd',
-                          fontWeight: isHist ? 700 : 600,
-                          fontSize: 13, whiteSpace: 'nowrap',
-                          overflow: 'hidden', textOverflow: 'ellipsis',
+                          color: isHist ? '#e8b800' : '#ddd', fontWeight: isHist ? 700 : 600,
+                          fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                         }}>
                           {row.player_name}
                         </span>
@@ -400,19 +393,13 @@ export default function Records() {
                         {row.team_name}
                       </div>
                     </div>
-
-                    {/* Position */}
                     <div style={{ display: 'flex', alignItems: 'center', color: isHist ? '#997700' : '#888', fontSize: 11 }}>
                       {row.position}
                     </div>
-
-                    {/* OVR — blank for historical */}
                     <div style={{ display: 'flex', alignItems: 'center', fontWeight: 700, fontSize: 13,
                                   color: isHist ? '#444' : ratingColor(row.overall_rating) }}>
                       {isHist ? '—' : row.overall_rating}
                     </div>
-
-                    {/* Stat columns */}
                     {cols.map(col => {
                       const val = getValue(row, col.key);
                       const formatted = col.fmt ? col.fmt(val) : (isHist && val === 0 ? '—' : val.toLocaleString());
@@ -428,8 +415,6 @@ export default function Records() {
                         </div>
                       );
                     })}
-
-                    {/* Season year */}
                     {mode === 'season' && (
                       <div style={{ display: 'flex', alignItems: 'center', color: isHist ? '#665500' : '#555', fontSize: 12 }}>
                         {row.season}
