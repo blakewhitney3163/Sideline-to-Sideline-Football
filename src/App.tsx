@@ -98,12 +98,14 @@ useEffect(() => {
   };
 
   const handleTeamSelect = async (team: UserTeam) => {
-    setUserTeam(team);
-    setScreen('setup');
-    setSetupSteps([]);
-    setSetupComplete(false);
-    runSetup();
-  };
+  setUserTeam(team);
+  setScreen('setup');
+  setSetupSteps([]);
+  setSetupComplete(false);
+  await window.api.resetSave();
+  await window.api.setUserTeam(team.id);
+  runSetup();
+};
 
   const tabs = playoffsComplete
     ? [...BASE_TABS, { id: 'draft' as Tab, label: '⚡ Draft' }]
