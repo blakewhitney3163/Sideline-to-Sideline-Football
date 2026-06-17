@@ -15,7 +15,7 @@ interface DraftPick {
 }
 interface TeamStatus {
   status: string; description: string; acceptanceThreshold: number;
-  wins: number; losses: number; avgOverall: number;
+  wins: number; losses: number; avgOverall: number; isOverridden: boolean;
 }
 interface CpuOffer {
   fromTeamId: number; fromTeamName: string;
@@ -86,6 +86,7 @@ export default function Trades({ userTeam }: Props) {
   const [cpuOffer, setCpuOffer] = useState<CpuOffer | null>(null);
   const [offerHandled, setOfferHandled] = useState(false);
   const [offerWorking, setOfferWorking] = useState(false);
+  const [savingOverride, setSavingOverride] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -122,9 +123,18 @@ export default function Trades({ userTeam }: Props) {
     setTheirPicks(picks);
   };
 
-  const toggleMine = (id: number) => { setResult(null); setMySelected(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]); };
-  const toggleTheirs = (id: number) => { setResult(null); setTheirSelected(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]); };
-  const toggleMyPick = (id: number) => { setResult(null); setMyPicksSelected(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]); };
+  const handleSetOverride = async (value: string) => {
+    if (!selectedTeamId) return;
+    setSavingOverride(true);
+    await window.api.setTeamTradeStatus({ teamId: selectedTeamId, status: value === 'auto' ? null : value });
+    const updated = await window.api.getTeamStatus(selectedTeamId);
+    setTeamStatus(updated);
+    setSavingOverride(false);
+  };
+
+  const toggleMine    = (id: number) => { setResult(null); setMySelected(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]); };
+  const toggleTheirs  = (id: number) => { setResult(null); setTheirSelected(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]); };
+  const toggleMyPick  = (id: number) => { setResult(null); setMyPicksSelected(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]); };
   const toggleTheirPick = (id: number) => { setResult(null); setTheirPicksSelected(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]); };
 
   const handlePropose = async () => {
@@ -169,7 +179,7 @@ export default function Trades({ userTeam }: Props) {
     setOfferWorking(false);
   };
 
-  const myFiltered = myRoster.filter(p => myPos === 'ALL' || p.position === myPos);
+  const myFiltered    = myRoster.filter(p => myPos === 'ALL' || p.position === myPos);
   const theirFiltered = theirRoster.filter(p => theirPos === 'ALL' || p.position === theirPos);
 
   const myPlayerValue = mySelected.reduce((s, id) => {
@@ -188,112 +198,91 @@ export default function Trades({ userTeam }: Props) {
     const pk = theirPicks.find(x => x.id === id);
     return s + (pk ? calcPickValue(pk.round, pk.season, currentSeason) : 0);
   }, 0);
-  const myValue = myPlayerValue + myPickValueTotal;
+  const myValue    = myPlayerValue + myPickValueTotal;
   const theirValue = theirPlayerValue + theirPickValueTotal;
 
   const canPropose = (mySelected.length > 0 || myPicksSelected.length > 0) &&
                      (theirSelected.length > 0 || theirPicksSelected.length > 0) &&
                      selectedTeamId !== null;
-  const selectedTeam = teams.find(t => t.id === selectedTeamId);
-  const statusMeta = STATUS_META[teamStatus?.status ?? ''] ?? STATUS_META['Neutral'];
-  const DEADLINE = 8;
+  const selectedTeam  = teams.find(t => t.id === selectedTeamId);
+  const statusMeta    = STATUS_META[teamStatus?.status ?? ''] ?? STATUS_META['Neutral'];
+  const DEADLINE      = 8;
   const isPastDeadline = !!(weekInfo?.hasSchedule && (!weekInfo.currentWeek || weekInfo.currentWeek > DEADLINE));
   const weeksToDeadline = weekInfo?.currentWeek ? Math.max(0, DEADLINE - weekInfo.currentWeek + 1) : null;
-  const threshold = teamStatus?.acceptanceThreshold ?? -8;
-  const margin = (myValue - theirValue) - threshold;
-  const likelihood = !canPropose ? 'idle' : margin >= 5 ? 'yes' : margin >= -5 ? 'maybe' : 'no';
+  const threshold     = teamStatus?.acceptanceThreshold ?? -8;
+  const margin        = (myValue - theirValue) - threshold;
+  const likelihood    = !canPropose ? 'idle' : margin >= 5 ? 'yes' : margin >= -5 ? 'maybe' : 'no';
   const likelihoodText: Record<string, string> = {
-    idle: 'Select players or picks from both sides to propose',
-    yes: `✓ ${teamStatus?.status ?? 'CPU'} will likely accept`,
-    maybe: '~ Borderline — may accept or decline',
-    no: `✗ Need ~${Math.ceil(Math.max(0, threshold - (myValue - theirValue)) / 5) * 5} more trade value`,
+    idle:  'Select players or picks from both sides to propose',
+    yes:   `✓ ${teamStatus?.status ?? 'CPU'} will likely accept`,
+    maybe: `~ Borderline — ${teamStatus?.status ?? 'CPU'} might accept`,
+    no:    `✗ ${teamStatus?.status ?? 'CPU'} will likely reject — add more value`,
   };
-  const likelihoodColor: Record<string, string> = { idle: T.borderStrong, yes: '#4caf50', maybe: '#FF8740', no: '#e57373' };
+  const likelihoodColor: Record<string, string> = {
+    idle: T.textDim, yes: '#4caf50', maybe: '#FF8740', no: '#e57373',
+  };
 
   return (
-    <div style={{ padding: '20px 24px', maxWidth: 1100, margin: '0 auto' }}>
+    <div style={{ padding: 20, maxWidth: 1300, margin: '0 auto' }}>
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: T.textPrimary, marginBottom: 4 }}>Trade Center</div>
+        {weekInfo?.hasSchedule && (
+          <div style={{ fontSize: 12, color: isPastDeadline ? '#e57373' : T.textMuted }}>
+            {isPastDeadline
+              ? 'Trade deadline has passed.'
+              : `Trade deadline: Week ${DEADLINE}${weeksToDeadline !== null ? ` · ${weeksToDeadline} week${weeksToDeadline !== 1 ? 's' : ''} remaining` : ''}`}
+          </div>
+        )}
+      </div>
 
-      {/* CPU Trade Offer Card */}
+      {/* Incoming CPU Offer */}
       {cpuOffer && !offerHandled && (
-        <div style={{ background: '#0d1f2d', border: '1px solid #4FC3F7', borderRadius: 8, padding: '14px 18px', marginBottom: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <span style={{ fontSize: 10, background: '#4FC3F7', color: '#000', padding: '2px 8px', borderRadius: 3, fontWeight: 800, letterSpacing: 1 }}>INCOMING OFFER</span>
-            <span style={{ fontSize: 13, color: '#4FC3F7', fontWeight: 600 }}>{cpuOffer.fromTeamName}</span>
+        <div style={{ background: '#1a2a1a', border: '1px solid #4caf5055', borderRadius: 8, padding: '14px 16px', marginBottom: 16 }}>
+          <div style={{ fontSize: 12, color: '#4caf50', fontWeight: 700, marginBottom: 8 }}>
+            📨 INCOMING TRADE OFFER — {cpuOffer.fromTeamName}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-            <div style={{ fontSize: 12, color: T.textMuted }}>
-              They want: <span style={{ color: '#e57373', fontWeight: 700 }}>{cpuOffer.requestedPlayer.first_name} {cpuOffer.requestedPlayer.last_name}</span>
-              <span style={{ color: T.textDim }}> · {cpuOffer.requestedPlayer.position} · {cpuOffer.requestedPlayer.overall_rating} OVR · val {cpuOffer.requestedValue}</span>
+          <div style={{ display: 'flex', gap: 24, fontSize: 12, marginBottom: 10 }}>
+            <div>
+              <div style={{ color: T.textDim, fontSize: 10, marginBottom: 4 }}>THEY WANT</div>
+              <div style={{ color: T.textPrimary }}>{cpuOffer.requestedPlayer.first_name} {cpuOffer.requestedPlayer.last_name}</div>
+              <div style={{ color: T.textDim, fontSize: 11 }}>{cpuOffer.requestedPlayer.position} · {cpuOffer.requestedPlayer.overall_rating} OVR · Value: {cpuOffer.requestedValue}</div>
             </div>
-            <span style={{ color: T.textDim }}>⇄</span>
-            <div style={{ fontSize: 12, color: T.textMuted }}>
-              They offer: <span style={{ color: '#4caf50', fontWeight: 700 }}>{cpuOffer.offeredPlayer.first_name} {cpuOffer.offeredPlayer.last_name}</span>
-              <span style={{ color: T.textDim }}> · {cpuOffer.offeredPlayer.position} · {cpuOffer.offeredPlayer.overall_rating} OVR</span>
+            <div style={{ color: T.textDim, fontSize: 18, alignSelf: 'center' }}>⇄</div>
+            <div>
+              <div style={{ color: T.textDim, fontSize: 10, marginBottom: 4 }}>YOU RECEIVE</div>
+              <div style={{ color: T.textPrimary }}>{cpuOffer.offeredPlayer.first_name} {cpuOffer.offeredPlayer.last_name}</div>
+              <div style={{ color: T.textDim, fontSize: 11 }}>{cpuOffer.offeredPlayer.position} · {cpuOffer.offeredPlayer.overall_rating} OVR</div>
               {cpuOffer.offeredPick && (
-                <span style={{ color: '#4FC3F7' }}> + {pickLabel(cpuOffer.offeredPick, currentSeason)}</span>
+                <div style={{ color: '#4FC3F7', fontSize: 11 }}>+ 📋 {pickLabel(cpuOffer.offeredPick, currentSeason)}</div>
               )}
-              <span style={{ color: T.textDim }}> · val {cpuOffer.offerValue}</span>
+              <div style={{ color: '#4caf50', fontSize: 11, fontWeight: 700 }}>Total Value: {cpuOffer.offerValue}</div>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-            <button onClick={handleAcceptOffer} disabled={offerWorking || isPastDeadline}
-              style={{ padding: '6px 18px', background: '#4FC3F7', color: '#000', border: 'none', borderRadius: 4, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
-              {offerWorking ? '...' : 'Accept'}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={handleAcceptOffer} disabled={offerWorking}
+              style={{ padding: '6px 16px', background: '#4caf50', color: '#000', border: 'none', borderRadius: 4, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+              {offerWorking ? 'Processing...' : 'Accept'}
             </button>
-            <button onClick={() => { setCpuOffer(null); setOfferHandled(true); }}
-              style={{ padding: '6px 14px', background: T.bgPanel, border: `1px solid ${T.borderMid}`, borderRadius: 4, color: T.textMuted, fontSize: 12, cursor: 'pointer' }}>
+            <button onClick={() => setOfferHandled(true)}
+              style={{ padding: '6px 16px', background: T.bgCard, color: T.textMuted, border: `1px solid ${T.borderFaint}`, borderRadius: 4, fontSize: 12, cursor: 'pointer' }}>
               Decline
             </button>
           </div>
         </div>
       )}
-      {offerHandled && !cpuOffer && (
-        <div style={{ fontSize: 12, color: '#4caf50', marginBottom: 12 }}>✓ Trade completed — rosters updated.</div>
-      )}
 
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 14, flexWrap: 'wrap' }}>
-        <h2 style={{ margin: 0, fontSize: 20, color: T.textPrimary }}>Trade Center</h2>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 12, color: T.textMuted }}>Trade with:</span>
-          <select onChange={e => e.target.value && handleSelectTeam(Number(e.target.value))}
-            value={selectedTeamId ?? ''}
-            style={{ background: T.bgInput, border: `1px solid ${T.borderMid}`, borderRadius: 5, color: T.textPrimary, padding: '6px 12px', fontSize: 13, cursor: 'pointer' }}>
-            <option value="">— Select a team —</option>
-            {(['AFC', 'NFC'] as const).map(conf => (
-              <optgroup key={conf} label={conf}>
-                {teams.filter(t => t.conference === conf).map(t => (
-                  <option key={t.id} value={t.id}>{t.city} {t.name}</option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {/* Deadline Banner */}
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '8px 14px', background: isPastDeadline ? '#1a0d0d' : '#0d1a0d', border: `1px solid ${isPastDeadline ? '#e57373' : '#4caf50'}`, borderRadius: 6, marginBottom: 12, fontSize: 12 }}>
-        <span style={{ fontWeight: 700, color: isPastDeadline ? '#e57373' : '#4caf50' }}>
-          {isPastDeadline ? '🔒 TRADE DEADLINE PASSED' : '🟢 TRADES OPEN'}
-        </span>
-        <span style={{ color: T.textMuted }}>
-          {isPastDeadline ? 'Trades are locked after Week 8 · Reopen in the offseason'
-            : weeksToDeadline !== null ? `Deadline is Week 8 · ${weeksToDeadline} week${weeksToDeadline !== 1 ? 's' : ''} remaining`
-            : 'Deadline is Week 8 of the regular season'}
-        </span>
-      </div>
-
-      {/* Team Needs */}
-      {needs.length > 0 && (
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
-          <span style={{ fontSize: 10, color: T.textMuted, letterSpacing: 1 }}>YOUR NEEDS</span>
-          {needs.map(n => (
-            <span key={n.position} style={{ fontSize: 10, padding: '2px 7px', borderRadius: 10, background: n.severity === 'critical' ? '#3a1a1a' : '#2a2a1a', color: n.severity === 'critical' ? '#e57373' : '#e8b800', fontWeight: 700 }}>
-              {n.position}
-            </span>
+      {/* Team Selector */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 11, color: T.textDim, marginBottom: 8, letterSpacing: 1 }}>SELECT TEAM TO TRADE WITH</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {teams.map(t => (
+            <button key={t.id} onClick={() => handleSelectTeam(t.id)}
+              style={{ padding: '5px 12px', background: selectedTeamId === t.id ? '#FF8740' : T.bgCard, color: selectedTeamId === t.id ? '#000' : T.textMuted, border: `1px solid ${selectedTeamId === t.id ? '#FF8740' : T.borderFaint}`, borderRadius: 4, fontSize: 11, cursor: 'pointer', fontWeight: selectedTeamId === t.id ? 700 : 400 }}>
+              {t.city} {t.name}
+            </button>
           ))}
         </div>
-      )}
+      </div>
 
       {!selectedTeamId ? (
         <div style={{ color: T.textDim, fontSize: 13, padding: 20, textAlign: 'center' }}>Select a team above to build a trade.</div>
@@ -302,16 +291,45 @@ export default function Trades({ userTeam }: Props) {
           {/* Team Status Banner */}
           {teamStatus && (
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 14px', background: statusMeta.bg, border: `1px solid ${statusMeta.color}22`, borderRadius: 6, marginBottom: 12 }}>
-              <div>
+              <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 14, color: T.textPrimary, fontWeight: 600 }}>{selectedTeam?.city} {selectedTeam?.name}</span>
-                  <span style={{ fontSize: 10, padding: '2px 8px', background: statusMeta.color + '33', color: statusMeta.color, borderRadius: 3, fontWeight: 800, letterSpacing: 1 }}>{teamStatus.status.toUpperCase()}</span>
+                  <span style={{ fontSize: 10, padding: '2px 8px', background: statusMeta.color + '33', color: statusMeta.color, borderRadius: 3, fontWeight: 800, letterSpacing: 1 }}>
+                    {teamStatus.status.toUpperCase()}
+                  </span>
+                  {teamStatus.isOverridden && (
+                    <span style={{ fontSize: 9, color: T.textDim, background: T.bgInput, padding: '1px 6px', borderRadius: 3, letterSpacing: 0.5 }}>MANUAL</span>
+                  )}
                 </div>
                 <div style={{ fontSize: 11, color: T.textMuted, marginTop: 3 }}>{teamStatus.description}</div>
               </div>
-              <div style={{ marginLeft: 'auto', display: 'flex', gap: 16, fontSize: 12 }}>
+
+              <div style={{ display: 'flex', gap: 16, fontSize: 12, alignItems: 'center' }}>
                 <span style={{ color: T.textMuted }}>{teamStatus.wins}–{teamStatus.losses}</span>
                 <span style={{ color: T.textMuted }}>Avg OVR: {teamStatus.avgOverall}</span>
+              </div>
+
+              {/* Status Override */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+                <span style={{ fontSize: 9, color: T.textDim, letterSpacing: 0.5 }}>OVERRIDE</span>
+                <select
+                  disabled={savingOverride}
+                  value={teamStatus.isOverridden ? teamStatus.status : 'auto'}
+                  onChange={e => handleSetOverride(e.target.value)}
+                  style={{
+                    fontSize: 11, background: T.bgInput, color: T.textPrimary,
+                    border: `1px solid ${T.borderFaint}`, borderRadius: 4,
+                    padding: '3px 6px', cursor: savingOverride ? 'wait' : 'pointer',
+                    opacity: savingOverride ? 0.5 : 1,
+                  }}
+                >
+                  <option value="auto">⚙ Auto-detect</option>
+                  <option value="Contender">🏆 Contender</option>
+                  <option value="Buyer">📈 Buyer</option>
+                  <option value="Neutral">➖ Neutral</option>
+                  <option value="Seller">📉 Seller</option>
+                  <option value="Rebuilding">🔄 Rebuilding</option>
+                </select>
               </div>
             </div>
           )}
@@ -357,8 +375,6 @@ export default function Trades({ userTeam }: Props) {
                   </>
                 }
               </div>
-
-              <div style={{ textAlign: 'center', fontSize: 18, color: T.textDim }}>⇄</div>
 
               <div style={{ background: T.bgPanel, border: `1px solid ${T.borderFaint}`, borderRadius: 8, padding: '12px 14px', flex: 1 }}>
                 <div style={{ fontSize: 10, color: T.textMuted, letterSpacing: 1, marginBottom: 8 }}>YOU RECEIVE</div>
