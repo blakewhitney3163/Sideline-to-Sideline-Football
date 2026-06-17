@@ -436,8 +436,8 @@ export default function Franchise({ userTeam, currentSeason, playoffsComplete }:
         </div>
       )}
 
-      {/* OTC Import */}
-      <div style={{ marginBottom: 16 }}>
+            {/* OTC Import */}
+      <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
         <button
           onClick={async () => {
             const result = await window.api.importOtcContracts();
@@ -449,11 +449,11 @@ export default function Franchise({ userTeam, currentSeason, playoffsComplete }:
             }
           }}
           style={{
-            padding: '5px 14px', fontSize: 11, letterSpacing: 1, cursor: 'pointer', borderRadius: 4,
+            padding: '4px 10px', fontSize: 10, letterSpacing: 1, cursor: 'pointer', borderRadius: 4,
             background: '#0a1a0a', border: '1px solid #4caf50', color: '#4caf50', fontWeight: 'bold',
           }}
         >IMPORT OTC CONTRACTS</button>
-        <span style={{ color: '#333', fontSize: 10, marginLeft: 10 }}>otc-contracts.htm detected in repo root</span>
+        <span style={{ color: '#333', fontSize: 10 }}>otc-contracts.htm detected in repo root</span>
       </div>
 
       {/* Tabs */}
