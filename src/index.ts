@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow } from 'electron';
 const { db, generateContracts } = require('./database');
 const { importFromMadden } = require('./importfromMadden');
 import { getCurrentSeason } from './helpers/getCurrentSeason';
@@ -244,16 +244,6 @@ function initPickAssets(): void {
   run();
 }
 initPickAssets();
-
-ipcMain.handle('balance-rosters', () => {
-  balanceRosters();
-  const faCount = (db.prepare('SELECT COUNT(*) as count FROM players WHERE is_free_agent = 1').get() as any).count;
-  return { success: true, freeAgents: faCount };
-});
-
-if (require('electron-squirrel-startup')) {
-  app.quit();
-}
 
 const createWindow = (): void => {
   const mainWindow = new BrowserWindow({
