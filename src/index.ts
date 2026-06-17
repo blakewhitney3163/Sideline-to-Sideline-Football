@@ -1129,6 +1129,31 @@ ipcMain.handle('release-player', (_event: any, playerId: number) => {
   return { success: true };
 });
 
+ipcMain.handle('get-team-stats', (_event: any, teamId: number, season?: number) => {
+  const s = season ?? getCurrentSeason();
+  return db.prepare(`
+    SELECT p.id as player_id, p.first_name || ' ' || p.last_name AS player_name,
+      p.overall_rating, p.age, p.position, p.dev_trait,
+      t.city || ' ' || t.name AS team_name,
+      SUM(st.pass_yards) AS pass_yards, SUM(st.pass_tds) AS pass_tds,
+      SUM(st.interceptions) AS interceptions, SUM(st.completions) AS completions,
+      SUM(st.pass_attempts) AS pass_attempts,
+      SUM(st.rush_yards) AS rush_yards, SUM(st.rush_tds) AS rush_tds, SUM(st.rush_attempts) AS rush_attempts,
+      SUM(st.rec_yards) AS rec_yards, SUM(st.rec_tds) AS rec_tds,
+      SUM(st.receptions) AS receptions, SUM(st.targets) AS targets,
+      SUM(st.tackles) AS tackles, SUM(st.assisted_tackles) AS assisted_tackles,
+      SUM(st.sacks) AS sacks, SUM(st.tfl) AS tfl, SUM(st.forced_fumbles) AS forced_fumbles,
+      SUM(st.def_interceptions) AS def_interceptions,
+      SUM(st.pass_deflections) AS pass_deflections, SUM(st.def_tds) AS def_tds
+    FROM stats st
+    JOIN players p ON st.player_id = p.id
+    JOIN teams t ON st.team_id = t.id
+    JOIN games g ON st.game_id = g.id
+    WHERE g.season = ? AND g.is_simulated = 1 AND st.team_id = ?
+    GROUP BY p.id
+  `).all(s, teamId);
+});
+
 ipcMain.handle('promote-from-ps', (_event: any, playerId: number) => {
   const teamRow = db.prepare("SELECT value FROM settings WHERE key = 'user_team_id'").get() as any;
   if (!teamRow) return { success: false, reason: 'No franchise selected.' };

@@ -142,6 +142,9 @@ contextBridge.exposeInMainWorld('api', {
   completeDraft: () =>
     ipcRenderer.invoke('complete-draft'),
 
+  getTeamStats: (teamId: number, season?: number) =>
+  ipcRenderer.invoke('get-team-stats', teamId, season),
+
   // Depth Chart
   getDepthChart: (teamId: number) =>
     ipcRenderer.invoke('get-depth-chart', teamId),

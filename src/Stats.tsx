@@ -64,8 +64,6 @@ function isQB(pos: string) { return pos === 'QB'; }
 function isRB(pos: string) { return ['RB', 'HB', 'FB'].includes(pos); }
 function isWRTE(pos: string) { return ['WR', 'TE'].includes(pos); }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
 function StatGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 10 }}>
@@ -83,8 +81,6 @@ function StatLine({ label, value, color }: { label: string; value: string | numb
     </div>
   );
 }
-
-// ─── Player Card ──────────────────────────────────────────────────────────────
 
 function PlayerCard({ player, currentSeason, onClose }: { player: SelectedPlayer; currentSeason: number; onClose: () => void }) {
   const [seasonStats, setSeasonStats] = useState<SeasonStats | null>(null);
@@ -119,7 +115,6 @@ function PlayerCard({ player, currentSeason, onClose }: { player: SelectedPlayer
         background: T.bgPanel, border: `1px solid ${T.borderMid}`, borderRadius: 8,
         padding: 24, width: 480, maxHeight: '80vh', overflowY: 'auto',
       }}>
-        {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
           <div>
             <div style={{ fontSize: 18, fontWeight: 'bold', color: T.textPrimary }}>{player.player_name}</div>
@@ -176,7 +171,6 @@ function PlayerCard({ player, currentSeason, onClose }: { player: SelectedPlayer
                 )}
               </div>
             )}
-
             {careerStats.length > 0 && (
               <>
                 <div style={{ fontSize: 10, color: T.textDim, letterSpacing: 2, marginBottom: 8 }}>
@@ -227,7 +221,8 @@ export default function Stats({ currentSeason }: Props) {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ matched: number; skipped: number } | null>(null);
   const [teams, setTeams] = useState<TeamEntry[]>([]);
-  const [teamFilter, setTeamFilter] = useState('');
+  const [selectedTeam, setSelectedTeam] = useState<TeamEntry | null>(null);
+  const [teamStats, setTeamStats] = useState<any[] | null>(null);
 
   useEffect(() => {
     window.api.getSeasons().then((seasons: number[]) => setAvailableSeasons(seasons));
@@ -240,6 +235,14 @@ export default function Stats({ currentSeason }: Props) {
     window.api.getStats(viewSeason).then((data: StatsData) => setStats(data));
   }, [viewSeason]);
 
+  useEffect(() => {
+    if (selectedTeam) {
+      window.api.getTeamStats(selectedTeam.id, viewSeason).then((rows: any[]) => setTeamStats(rows));
+    } else {
+      setTeamStats(null);
+    }
+  }, [selectedTeam, viewSeason]);
+
   const handleImport = async () => {
     setImporting(true);
     setImportResult(null);
@@ -250,8 +253,20 @@ export default function Stats({ currentSeason }: Props) {
 
   if (!stats) return <div style={{ padding: 40, color: T.textDim }}>Loading...</div>;
 
-  const byTeam = <T extends BasePlayer>(arr: T[]) =>
-    teamFilter ? arr.filter(p => p.team_name === teamFilter) : arr;
+  // When a team is selected, build category arrays from the full team roster stats
+  const teamPassing = teamStats ? [...teamStats].filter(p => (p.pass_attempts ?? 0) > 0).sort((a, b) => (b.pass_yards ?? 0) - (a.pass_yards ?? 0)) : null;
+  const teamRushing = teamStats ? [...teamStats].filter(p => (p.rush_attempts ?? 0) > 0).sort((a, b) => (b.rush_yards ?? 0) - (a.rush_yards ?? 0)) : null;
+  const teamReceiving = teamStats ? [...teamStats].filter(p => (p.targets ?? 0) > 0).sort((a, b) => (b.rec_yards ?? 0) - (a.rec_yards ?? 0)) : null;
+  const teamTackles = teamStats ? [...teamStats].filter(p => (p.tackles ?? 0) + (p.assisted_tackles ?? 0) > 0).sort((a, b) => ((b.tackles ?? 0) + (b.assisted_tackles ?? 0)) - ((a.tackles ?? 0) + (a.assisted_tackles ?? 0))) : null;
+  const teamSacks = teamStats ? [...teamStats].filter(p => (p.sacks ?? 0) > 0).sort((a, b) => (b.sacks ?? 0) - (a.sacks ?? 0)) : null;
+  const teamDefInts = teamStats ? [...teamStats].filter(p => (p.def_interceptions ?? 0) > 0 || (p.pass_deflections ?? 0) > 0).sort((a, b) => (b.def_interceptions ?? 0) - (a.def_interceptions ?? 0)) : null;
+
+  const passing = teamPassing ?? stats.passing;
+  const rushing = teamRushing ?? stats.rushing;
+  const receiving = teamReceiving ?? stats.receiving;
+  const tackles = teamTackles ?? (stats.tackles ?? []);
+  const sacks = teamSacks ?? (stats.sacks ?? []);
+  const defInterceptions = teamDefInts ?? (stats.defInterceptions ?? []);
 
   const categories: { id: StatCategory; label: string }[] = [
     { id: 'passing', label: 'Passing' },
@@ -279,7 +294,9 @@ export default function Stats({ currentSeason }: Props) {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
         <div>
-          <div style={{ fontSize: 22, fontWeight: 'bold', color: T.textPrimary }}>{viewSeason} Season Leaders</div>
+          <div style={{ fontSize: 22, fontWeight: 'bold', color: T.textPrimary }}>
+            {selectedTeam ? `${selectedTeam.city} ${selectedTeam.name} — ` : ''}{viewSeason} Season {selectedTeam ? 'Stats' : 'Leaders'}
+          </div>
           <div style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>Click any player to view their full stats</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -290,15 +307,17 @@ export default function Stats({ currentSeason }: Props) {
             {importing ? 'importing...' : '↻ sync NFL history'}
           </button>
           {importResult && <span style={{ fontSize: 11, color: '#81C784' }}>✓ {importResult.matched} players matched</span>}
-          {/* Team filter */}
           <select
-            value={teamFilter}
-            onChange={e => setTeamFilter(e.target.value)}
+            value={selectedTeam?.id ?? ''}
+            onChange={e => {
+              const id = Number(e.target.value);
+              setSelectedTeam(id ? teams.find(t => t.id === id) ?? null : null);
+            }}
             style={{ background: T.bgPage, color: T.textPrimary, border: `1px solid ${T.borderFaint}`, borderRadius: 4, padding: '5px 12px', fontSize: 11, cursor: 'pointer', fontFamily: 'monospace' }}
           >
             <option value=''>All Teams</option>
             {teams.map(t => (
-              <option key={t.id} value={`${t.city} ${t.name}`}>{t.city} {t.name}</option>
+              <option key={t.id} value={t.id}>{t.city} {t.name}</option>
             ))}
           </select>
           {availableSeasons.length > 1 && (
@@ -346,7 +365,8 @@ export default function Stats({ currentSeason }: Props) {
               </tr>
             </thead>
             <tbody>
-              {byTeam(stats.passing).map((p, i) => (
+              {passing.length === 0 && <tr><td colSpan={10} style={{ ...tdBase, color: T.textDim, textAlign: 'center' }}>No passing stats yet</td></tr>}
+              {passing.map((p, i) => (
                 <tr key={p.player_id} style={rowStyle(i, p)} onClick={() => setSelectedPlayer(p)}>
                   <td style={{ ...tdBase, textAlign: 'center', color: T.textDim }}>{i + 1}</td>
                   <td style={{ ...tdBase, color: T.textPrimary, fontWeight: 'bold' }}>{p.player_name}</td>
@@ -382,7 +402,8 @@ export default function Stats({ currentSeason }: Props) {
               </tr>
             </thead>
             <tbody>
-              {byTeam(stats.rushing).map((p, i) => (
+              {rushing.length === 0 && <tr><td colSpan={8} style={{ ...tdBase, color: T.textDim, textAlign: 'center' }}>No rushing stats yet</td></tr>}
+              {rushing.map((p, i) => (
                 <tr key={p.player_id} style={rowStyle(i, p)} onClick={() => setSelectedPlayer(p)}>
                   <td style={{ ...tdBase, textAlign: 'center', color: T.textDim }}>{i + 1}</td>
                   <td style={{ ...tdBase, color: T.textPrimary, fontWeight: 'bold' }}>{p.player_name}</td>
@@ -417,7 +438,8 @@ export default function Stats({ currentSeason }: Props) {
               </tr>
             </thead>
             <tbody>
-              {byTeam(stats.receiving).map((p, i) => (
+              {receiving.length === 0 && <tr><td colSpan={9} style={{ ...tdBase, color: T.textDim, textAlign: 'center' }}>No receiving stats yet</td></tr>}
+              {receiving.map((p, i) => (
                 <tr key={p.player_id} style={rowStyle(i, p)} onClick={() => setSelectedPlayer(p)}>
                   <td style={{ ...tdBase, textAlign: 'center', color: T.textDim }}>{i + 1}</td>
                   <td style={{ ...tdBase, color: T.textPrimary, fontWeight: 'bold' }}>{p.player_name}</td>
@@ -472,7 +494,8 @@ export default function Stats({ currentSeason }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {byTeam(stats.tackles ?? []).map((p, i) => (
+                  {tackles.length === 0 && <tr><td colSpan={10} style={{ ...tdBase, color: T.textDim, textAlign: 'center' }}>No defensive stats yet — simulate some games first</td></tr>}
+                  {tackles.map((p, i) => (
                     <tr key={p.player_id} style={rowStyle(i, p)} onClick={() => setSelectedPlayer(p)}>
                       <td style={{ ...tdBase, textAlign: 'center', color: T.textDim }}>{i + 1}</td>
                       <td style={{ ...tdBase, color: T.textPrimary, fontWeight: 'bold' }}>{p.player_name}</td>
@@ -486,9 +509,6 @@ export default function Stats({ currentSeason }: Props) {
                       <td style={{ ...tdBase, textAlign: 'right' }}>{p.forced_fumbles}</td>
                     </tr>
                   ))}
-                  {byTeam(stats.tackles ?? []).length === 0 && (
-                    <tr><td colSpan={10} style={{ ...tdBase, color: T.textDim, textAlign: 'center' }}>No defensive stats yet — simulate some games first</td></tr>
-                  )}
                 </tbody>
               </table>
             </div>
@@ -510,7 +530,8 @@ export default function Stats({ currentSeason }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {byTeam(stats.sacks ?? []).map((p, i) => (
+                  {sacks.length === 0 && <tr><td colSpan={8} style={{ ...tdBase, color: T.textDim, textAlign: 'center' }}>No sack data yet</td></tr>}
+                  {sacks.map((p, i) => (
                     <tr key={p.player_id} style={rowStyle(i, p)} onClick={() => setSelectedPlayer(p)}>
                       <td style={{ ...tdBase, textAlign: 'center', color: T.textDim }}>{i + 1}</td>
                       <td style={{ ...tdBase, color: T.textPrimary, fontWeight: 'bold' }}>{p.player_name}</td>
@@ -522,9 +543,6 @@ export default function Stats({ currentSeason }: Props) {
                       <td style={{ ...tdBase, textAlign: 'right' }}>{p.tackles}</td>
                     </tr>
                   ))}
-                  {byTeam(stats.sacks ?? []).length === 0 && (
-                    <tr><td colSpan={8} style={{ ...tdBase, color: T.textDim, textAlign: 'center' }}>No sack data yet</td></tr>
-                  )}
                 </tbody>
               </table>
             </div>
@@ -546,7 +564,8 @@ export default function Stats({ currentSeason }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {byTeam(stats.defInterceptions ?? []).map((p, i) => (
+                  {defInterceptions.length === 0 && <tr><td colSpan={8} style={{ ...tdBase, color: T.textDim, textAlign: 'center' }}>No INT/PD data yet</td></tr>}
+                  {defInterceptions.map((p, i) => (
                     <tr key={p.player_id} style={rowStyle(i, p)} onClick={() => setSelectedPlayer(p)}>
                       <td style={{ ...tdBase, textAlign: 'center', color: T.textDim }}>{i + 1}</td>
                       <td style={{ ...tdBase, color: T.textPrimary, fontWeight: 'bold' }}>{p.player_name}</td>
@@ -558,9 +577,6 @@ export default function Stats({ currentSeason }: Props) {
                       <td style={{ ...tdBase, textAlign: 'right' }}>{p.tackles}</td>
                     </tr>
                   ))}
-                  {byTeam(stats.defInterceptions ?? []).length === 0 && (
-                    <tr><td colSpan={8} style={{ ...tdBase, color: T.textDim, textAlign: 'center' }}>No INT/PD data yet</td></tr>
-                  )}
                 </tbody>
               </table>
             </div>
