@@ -396,6 +396,52 @@ function getPosGroup(pos: string): string[] {
   return [pos];
 }
 
+function processWaivers(userTeamId: number): void {
+  const season = getCurrentSeason();
+  const waiverPlayers = db.prepare(
+    "SELECT id FROM players WHERE roster_status = 'waivers' ORDER BY overall_rating DESC"
+  ).all() as any[];
+  if (waiverPlayers.length === 0) return;
+
+  // CPU teams by waiver priority (worst record first)
+  const cpuTeams = db.prepare(`
+    SELECT t.id,
+      COUNT(CASE WHEN (g.home_team_id = t.id AND g.home_score > g.away_score)
+                   OR (g.away_team_id = t.id AND g.away_score > g.home_score) THEN 1 END) as wins
+    FROM teams t
+    LEFT JOIN games g ON (g.home_team_id = t.id OR g.away_team_id = t.id)
+      AND g.season = ? AND g.is_simulated = 1 AND g.is_playoff = 0
+    WHERE t.id != ?
+    GROUP BY t.id ORDER BY wins ASC
+  `).all(season, userTeamId) as any[];
+
+  const remaining = [...waiverPlayers];
+  for (const team of cpuTeams) {
+    if (remaining.length === 0) break;
+    const active = (db.prepare(
+      "SELECT COUNT(*) as count FROM players WHERE team_id = ? AND roster_status = 'active'"
+    ).get(team.id) as any).count;
+    if (active >= 53) continue;
+
+    const claimed = remaining.shift()!;
+    db.prepare("UPDATE players SET team_id = ?, roster_status = 'active', is_free_agent = 0 WHERE id = ?")
+      .run(team.id, claimed.id);
+    const existing = db.prepare('SELECT id FROM contracts WHERE player_id = ?').get(claimed.id);
+    if (existing) {
+      db.prepare('UPDATE contracts SET team_id = ?, years_total = 1, years_remaining = 1, annual_salary = 1.0 WHERE player_id = ?')
+        .run(team.id, claimed.id);
+    } else {
+      db.prepare('INSERT INTO contracts (player_id, team_id, years_total, years_remaining, annual_salary, guaranteed_amount, guaranteed_pct) VALUES (?, ?, 1, 1, 1.0, 0, 0)')
+        .run(claimed.id, team.id);
+    }
+  }
+
+  // Unclaimed → free agency
+  for (const p of remaining) {
+    db.prepare("UPDATE players SET roster_status = 'free_agent' WHERE id = ?").run(p.id);
+  }
+}
+
 function processRosterAdjustments(
   newlyInjured: { player_id: number; team_id: number; position: string; injury_status: string }[],
   userTeamId: number
@@ -467,6 +513,55 @@ function processRosterAdjustments(
 
   return { callups, userPSOpenSpots: Math.max(0, 16 - userPSCount) };
 }
+
+ipcMain.handle('get-waiver-wire', () => {
+  return db.prepare(`
+    SELECT id, first_name, last_name, position, position_label,
+           overall_rating, age, dev_trait,
+           speed, strength, awareness
+    FROM players WHERE roster_status = 'waivers'
+    ORDER BY overall_rating DESC
+  `).all();
+});
+
+ipcMain.handle('claim-waiver', (_event: any, playerId: number) => {
+  const teamRow = db.prepare("SELECT value FROM settings WHERE key = 'user_team_id'").get() as any;
+  if (!teamRow) return { success: false, reason: 'No franchise selected.' };
+  const teamId = parseInt(teamRow.value);
+
+  const active = (db.prepare(
+    "SELECT COUNT(*) as count FROM players WHERE team_id = ? AND roster_status = 'active'"
+  ).get(teamId) as any).count;
+  if (active >= 53) return { success: false, reason: 'Active roster is full (53/53). Release a player first.' };
+
+  const player = db.prepare(
+    'SELECT * FROM players WHERE id = ? AND roster_status = ?'
+  ).get(playerId, 'waivers') as any;
+  if (!player) return { success: false, reason: 'Player no longer on waivers.' };
+
+  db.prepare("UPDATE players SET team_id = ?, roster_status = 'active', is_free_agent = 0 WHERE id = ?")
+    .run(teamId, playerId);
+
+  const SAL_RANGES: Record<string, [number, number]> = {
+    QB: [1.0, 42], WR: [1.0, 28], DL: [1.0, 32], LB: [1.0, 18],
+    CB: [1.0, 22], TE: [1.0, 16], OL: [1.0, 22], S: [1.0, 18],
+    RB: [1.0, 16], K: [1.0, 4],
+  };
+  const [minSal, maxSal] = SAL_RANGES[player.position] ?? [1.0, 10];
+  const ovrFactor = Math.pow(Math.max(0, (player.overall_rating - 70)) / 29, 2.5);
+  const salary = Math.round((minSal + ovrFactor * (maxSal - minSal)) * 10) / 10;
+
+  const existing = db.prepare('SELECT id FROM contracts WHERE player_id = ?').get(playerId);
+  if (existing) {
+    db.prepare('UPDATE contracts SET team_id = ?, years_total = 1, years_remaining = 1, annual_salary = ?, guaranteed_amount = 0, guaranteed_pct = 0 WHERE player_id = ?')
+      .run(teamId, salary, playerId);
+  } else {
+    db.prepare('INSERT INTO contracts (player_id, team_id, years_total, years_remaining, annual_salary, guaranteed_amount, guaranteed_pct) VALUES (?, ?, 1, 1, ?, 0, 0)')
+      .run(playerId, teamId, salary);
+  }
+
+  return { success: true, name: `${player.first_name} ${player.last_name}` };
+});
 
 // ─── IPC Handlers ─────────────────────────────────────────────────────────────
 
@@ -940,6 +1035,7 @@ if (breakoutIds.size > 0) {
 
   // Clear injuries for new season
   db.prepare("UPDATE players SET injury_status = 'healthy', weeks_out = 0, injury_type = NULL").run();
+  db.prepare("UPDATE players SET roster_status = 'free_agent' WHERE roster_status = 'waivers'").run();
 
   // Archive current season stats to career_stats_history before bumping the season
   db.prepare(`
@@ -1075,6 +1171,7 @@ const newlyInjured = rollInjuries(allStats);
   const userTeamRow = db.prepare("SELECT value FROM settings WHERE key = 'user_team_id'").get() as any;
   const userTeamId = userTeamRow ? parseInt(userTeamRow.value) : -1;
   const rosterResult = processRosterAdjustments(newlyInjured, userTeamId);
+  const rosterResult = processWaivers(userTeamId)
   return { week, season, gamesSimulated: games.length, callups: rosterResult.callups, userPSOpenSpots: rosterResult.userPSOpenSpots };
 
   return { week, season, gamesSimulated: games.length };
