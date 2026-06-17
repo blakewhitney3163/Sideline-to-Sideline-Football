@@ -181,14 +181,13 @@ db.exec(`
     round INTEGER NOT NULL,
     is_used INTEGER DEFAULT 0,
       UNIQUE(original_team_id, season, round)
-  )
+    )
 `);
 
 try { db.exec(`CREATE TABLE IF NOT EXISTS team_trade_overrides (
   team_id INTEGER PRIMARY KEY,
   status  TEXT    NOT NULL
 )`); } catch (_) {}
-`);
 
 try { db.exec(`CREATE TABLE IF NOT EXISTS hall_of_fame (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
