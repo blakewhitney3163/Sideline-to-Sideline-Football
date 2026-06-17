@@ -162,6 +162,7 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
    const [injuryReport,       setInjuryReport]       = useState<InjuredPlayer[]>([]);
   const [retiredPlayers,     setRetiredPlayers]     = useState<{ name: string; position: string; age: number; ovr: number }[]>([]);
   const [statLeaders, setStatLeaders] = useState<any | null>(null);
+  const [psAlert, setPSAlert] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -250,25 +251,29 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
   };
 
   const handleSimulateWeek = async () => {
-    if (currentWeek === null) return;
-    setSimulating(true);
-    await window.api.simulateWeek(currentWeek);
-    const [status, dashboard, standings, injuries] = await Promise.all([
-      window.api.getCurrentWeek(),
-      window.api.getDashboard(currentSeason),
-      window.api.getStandings(currentSeason),
-      window.api.getInjuryReport(userTeam.id),
-    ]);
-    setCurrentWeek(status.currentWeek);
-    setTopAFC(dashboard.topAFC);
-    setTopNFC(dashboard.topNFC);
-    const mine = standings.find((t: any) => t.id === userTeam.id);
-    if (mine) setUserRecord({ wins: mine.wins, losses: mine.losses });
-    setInjuryReport(injuries ?? []);
-    const data = await window.api.getWeekMatchups(viewWeek);
-    setMatchups(data);
-    setSimulating(false);
-  };
+  if (currentWeek === null) return;
+  setSimulating(true);
+  const weekResult = await window.api.simulateWeek(currentWeek);
+  const [status, dashboard, standings, injuries] = await Promise.all([
+    window.api.getCurrentWeek(),
+    window.api.getDashboard(currentSeason),
+    window.api.getStandings(currentSeason),
+    window.api.getInjuryReport(userTeam.id),
+  ]);
+  setCurrentWeek(status.currentWeek);
+  setTopAFC(dashboard.topAFC);
+  setTopNFC(dashboard.topNFC);
+  const mine = standings.find((t: any) => t.id === userTeam.id);
+  if (mine) setUserRecord({ wins: mine.wins, losses: mine.losses });
+  setInjuryReport(injuries ?? []);
+  const data = await window.api.getWeekMatchups(viewWeek);
+  setMatchups(data);
+
+  if (weekResult?.userPSOpenSpots > 0) {
+    setPSAlert(`Practice squad has ${weekResult.userPSOpenSpots} open spot${weekResult.userPSOpenSpots !== 1 ? 's' : ''}. Sign free agents in Franchise → Practice Squad tab.`);
+  }
+  setSimulating(false);
+};
 
   const handleSimulatePlayoffs = async () => {
     setSimulatingPlayoffs(true);
@@ -497,6 +502,17 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
                   </span>
                 )}
               </div>
+              
+              {psAlert && (
+  <div style={{
+    background: '#0d2a0d', border: '1px solid #4caf50', borderRadius: 6,
+    padding: '10px 16px', marginBottom: 14,
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+  }}>
+    <span style={{ color: '#4caf50', fontSize: 13 }}>⚠ {psAlert}</span>
+    <button onClick={() => setPSAlert(null)} style={{ background: 'none', border: 'none', color: T.textDim, cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>✕</button>
+  </div>
+)}
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {matchups.map(game => {
