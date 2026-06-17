@@ -161,6 +161,7 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
   const [draftGenerated,     setDraftGenerated]     = useState(false);
    const [injuryReport,       setInjuryReport]       = useState<InjuredPlayer[]>([]);
   const [retiredPlayers,     setRetiredPlayers]     = useState<{ name: string; position: string; age: number; ovr: number }[]>([]);
+  const [statLeaders, setStatLeaders] = useState<any | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -173,14 +174,15 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
       setUserRecord(null);
       setInjuryReport([]);
 
-      const [status, dashboard, champs, standings, offseason, injuries] = await Promise.all([
-        window.api.getCurrentWeek(),
-        window.api.getDashboard(currentSeason),
-        window.api.getChampions(),
-        window.api.getStandings(currentSeason),
-        window.api.getOffseasonStatus(),
-        window.api.getInjuryReport(userTeam.id),
-      ]);
+      const [status, dashboard, champs, standings, offseason, injuries, leaders] = await Promise.all([
+  window.api.getCurrentWeek(),
+  window.api.getDashboard(currentSeason),
+  window.api.getChampions(),
+  window.api.getStandings(currentSeason),
+  window.api.getOffseasonStatus(),
+  window.api.getInjuryReport(userTeam.id),
+  window.api.getStats(currentSeason),
+]);
 
       if (cancelled) return;
 
@@ -196,6 +198,7 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
       setDraftComplete(offseason.draftComplete ?? false);
       setDraftGenerated(offseason.draftGenerated ?? false);
       setInjuryReport(injuries ?? []);
+      setStatLeaders(leaders);
 
       if (offseason.playoffsComplete) onPlayoffsComplete();
 
@@ -593,6 +596,23 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
               {champions.slice(0, 6).map((c, i) => <SidebarRow key={i} left={String(c.season)} right={c.team_name} dimLeft />)}
             </SidebarBlock>
           )}
+          {statLeaders && (statLeaders.passing?.length > 0 || statLeaders.rushing?.length > 0) && (
+  <SidebarBlock title="SEASON LEADERS">
+    {[
+      { label: 'PASS YDS', p: statLeaders.passing?.[0], val: (p: any) => p.pass_yards?.toLocaleString() },
+      { label: 'RUSH YDS', p: statLeaders.rushing?.[0], val: (p: any) => p.rush_yards?.toLocaleString() },
+      { label: 'REC YDS', p: statLeaders.receiving?.[0], val: (p: any) => p.rec_yards?.toLocaleString() },
+      { label: 'SACKS', p: statLeaders.sacks?.[0], val: (p: any) => Number(p.sacks ?? 0).toFixed(1) },
+      { label: 'TACKLES', p: statLeaders.tackles?.[0], val: (p: any) => ((p.tackles ?? 0) + (p.assisted_tackles ?? 0)).toString() },
+    ].filter(r => r.p).map(({ label, p, val }) => (
+      <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', borderBottom: `1px solid ${T.borderFaint}` }}>
+        <span style={{ fontSize: 9, color: T.textDim, width: 52, flexShrink: 0 }}>{label}</span>
+        <span style={{ fontSize: 11, color: T.textPrimary, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.player_name}</span>
+        <span style={{ fontSize: 11, color: '#4FC3F7', fontWeight: 'bold', fontFamily: 'monospace' }}>{val(p)}</span>
+      </div>
+    ))}
+  </SidebarBlock>
+)}
           {topAFC.length === 0 && topNFC.length === 0 && (
             <div style={{ color: T.borderStrong, fontSize: 12 }}>Simulate games to see standings</div>
           )}
