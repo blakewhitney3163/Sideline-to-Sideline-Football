@@ -282,6 +282,9 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
     setViewWeek(18);
   }
 
+  const updatedLeaders = await window.api.getStats(currentSeason);
+  setStatLeaders(updatedLeaders);
+
   setSimulating(false);
 };
 

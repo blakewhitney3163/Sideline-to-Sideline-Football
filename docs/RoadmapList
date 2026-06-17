@@ -2,7 +2,6 @@ Simulate game instead of simulate full week
 Difficulty level (simulation)
 Notification center / news feed (e.g. "Player X retired", "CPU team signed Y", "Player Z called up")
 Game simulation improvements — more realistic play-by-play or box score detail
-Season leaders on home page updated every week (and showing up once simulate happens)
 Player editor
 Team editor
 break out index file into more manageable files for scaleability
