@@ -161,6 +161,9 @@ contextBridge.exposeInMainWorld('api', {
   resetSave: () =>
     ipcRenderer.invoke('reset-save'),
 
+  balanceRosters: () =>
+    ipcRenderer.invoke('balance-rosters'),
+
   // Injuries
   getInjuryReport: (teamId: number) =>
     ipcRenderer.invoke('get-injury-report', teamId),
