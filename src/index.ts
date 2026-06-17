@@ -1534,69 +1534,110 @@ ipcMain.handle('get-cpu-trade-offer', () => {
   const currentWeek = weekRow?.week;
   if (!currentWeek || currentWeek > 8) return null;
 
-  const cpuTeams = db.prepare(`
-    SELECT t.id, t.city, t.name,
-      SUM(CASE WHEN (g.home_team_id = t.id AND g.home_score > g.away_score) OR (g.away_team_id = t.id AND g.away_score > g.home_score) THEN 1 ELSE 0 END) as wins,
-      COUNT(g.id) as games
-    FROM teams t
-    LEFT JOIN games g ON (g.home_team_id = t.id OR g.away_team_id = t.id) AND g.season = ? AND g.is_simulated = 1 AND g.is_playoff = 0
-    WHERE t.id != ?
-    GROUP BY t.id ORDER BY RANDOM()
-  `).all(season, userTeamId) as any[];
+  const cpuTeams = db.prepare(
+    `SELECT id, city, name FROM teams WHERE id != ? ORDER BY RANDOM()`
+  ).all(userTeamId) as any[];
 
-  for (const cpuTeam of cpuTeams.slice(0, 12)) {
-    const winPct = cpuTeam.games > 0 ? cpuTeam.wins / cpuTeam.games : 0.5;
-    if (winPct < 0.45) continue;
+  for (const cpuTeam of cpuTeams.slice(0, 15)) {
+    const profile = getTeamTradeProfile(cpuTeam.id);
+    const { status } = profile;
 
-    const cpuNeeds = getTeamNeedsInternal(cpuTeam.id);
-    if (cpuNeeds.length === 0) continue;
+    // ── BUYER / CONTENDER: CPU wants a player the user has ────────────────
+    if (status === 'Buyer' || status === 'Contender') {
+      const cpuNeeds = getTeamNeedsInternal(cpuTeam.id);
+      if (cpuNeeds.length === 0) continue;
 
-    const userPlayers = db.prepare(`
-      SELECT id, first_name, last_name, position, overall_rating, age, dev_trait
-      FROM players WHERE team_id = ? AND roster_status = 'active' ORDER BY overall_rating DESC
-    `).all(userTeamId) as any[];
+      const userPlayers = db.prepare(`
+        SELECT id, first_name, last_name, position, overall_rating, age, dev_trait
+        FROM players WHERE team_id = ? AND roster_status = 'active'
+        ORDER BY overall_rating DESC
+      `).all(userTeamId) as any[];
 
-    const wanted = userPlayers.find((p: any) => cpuNeeds.includes(p.position) && p.overall_rating >= 75 && p.dev_trait !== 'X-Factor');
-    if (!wanted) continue;
+      const wanted = userPlayers.find((p: any) =>
+        cpuNeeds.includes(p.position) && p.overall_rating >= 75 && p.dev_trait !== 'X-Factor'
+      );
+      if (!wanted) continue;
 
-    const requestedValue = calcPlayerTradeValue(wanted.overall_rating, wanted.age, wanted.position, wanted.dev_trait);
+      const requestedValue = calcPlayerTradeValue(wanted.overall_rating, wanted.age, wanted.position, wanted.dev_trait);
 
-    const cpuPlayers = db.prepare(`
-      SELECT id, first_name, last_name, position, overall_rating, age, dev_trait
-      FROM players WHERE team_id = ? AND roster_status = 'active' ORDER BY RANDOM()
-    `).all(cpuTeam.id) as any[];
+      const cpuPlayers = db.prepare(`
+        SELECT id, first_name, last_name, position, overall_rating, age, dev_trait
+        FROM players WHERE team_id = ? AND roster_status = 'active' ORDER BY RANDOM()
+      `).all(cpuTeam.id) as any[];
 
-    const offerPlayer = cpuPlayers.find((p: any) => {
-      const v = calcPlayerTradeValue(p.overall_rating, p.age, p.position, p.dev_trait);
-      return v >= requestedValue * 0.65 && v <= requestedValue * 1.05;
-    });
-    if (!offerPlayer) continue;
+      const offerPlayer = cpuPlayers.find((p: any) => {
+        const v = calcPlayerTradeValue(p.overall_rating, p.age, p.position, p.dev_trait);
+        return v >= requestedValue * 0.65 && v <= requestedValue * 1.05;
+      });
+      if (!offerPlayer) continue;
 
-    const offerValue = calcPlayerTradeValue(offerPlayer.overall_rating, offerPlayer.age, offerPlayer.position, offerPlayer.dev_trait);
-    const gap = requestedValue - offerValue;
+      const offerValue = calcPlayerTradeValue(offerPlayer.overall_rating, offerPlayer.age, offerPlayer.position, offerPlayer.dev_trait);
+      const gap = requestedValue - offerValue;
+      let offeredPick: any = null;
+      if (gap > 10) {
+        const picks = db.prepare(`
+          SELECT id, round, season FROM pick_assets
+          WHERE owner_team_id = ? AND is_used = 0 AND season >= ?
+          ORDER BY season, round
+        `).all(cpuTeam.id, season) as any[];
+        offeredPick = picks.find((pk: any) => {
+          const pv = calcPickTradeValue(pk.round, pk.season);
+          return pv >= gap * 0.6 && pv <= gap * 1.6;
+        }) ?? null;
+      }
 
-    let offeredPick: any = null;
-    if (gap > 10) {
+      return {
+        fromTeamId: cpuTeam.id, fromTeamName: `${cpuTeam.city} ${cpuTeam.name}`,
+        requestedPlayer: wanted, requestedValue,
+        offeredPlayer: offerPlayer, offeredPick,
+        offerValue: offerValue + (offeredPick ? calcPickTradeValue(offeredPick.round, offeredPick.season) : 0),
+      };
+    }
+
+    // ── SELLER / REBUILDING: CPU wants to dump a veteran for youth/picks ──
+    if (status === 'Seller' || status === 'Rebuilding') {
+      const veterans = db.prepare(`
+        SELECT id, first_name, last_name, position, overall_rating, age, dev_trait
+        FROM players WHERE team_id = ? AND roster_status = 'active'
+        AND overall_rating >= 76 AND (age >= 28 OR dev_trait IN ('Star','Superstar'))
+        ORDER BY overall_rating DESC
+      `).all(cpuTeam.id) as any[];
+      if (veterans.length === 0) continue;
+
+      const offering = veterans[Math.floor(Math.random() * Math.min(4, veterans.length))];
+      const offerValue = calcPlayerTradeValue(offering.overall_rating, offering.age, offering.position, offering.dev_trait);
+
+      // Target: a young user player they can develop
+      const userPlayers = db.prepare(`
+        SELECT id, first_name, last_name, position, overall_rating, age, dev_trait
+        FROM players WHERE team_id = ? AND roster_status = 'active'
+        AND age <= 26 AND overall_rating >= 68
+        ORDER BY overall_rating DESC
+      `).all(userTeamId) as any[];
+
+      const target = userPlayers.find((p: any) => {
+        const v = calcPlayerTradeValue(p.overall_rating, p.age, p.position, p.dev_trait);
+        return v >= offerValue * 0.5 && v <= offerValue * 0.85;
+      });
+      if (!target) continue;
+
+      const requestedValue = calcPlayerTradeValue(target.overall_rating, target.age, target.position, target.dev_trait);
+
+      // CPU sweetens with a pick since they're dumping a premium player
       const picks = db.prepare(`
         SELECT id, round, season FROM pick_assets
         WHERE owner_team_id = ? AND is_used = 0 AND season >= ?
         ORDER BY season, round
       `).all(cpuTeam.id, season) as any[];
-      offeredPick = picks.find((pk: any) => {
-        const pv = calcPickTradeValue(pk.round, pk.season);
-        return pv >= gap * 0.6 && pv <= gap * 1.6;
-      }) ?? null;
-    }
+      const bonusPick = picks.find((pk: any) => pk.round <= 4) ?? null;
 
-    return {
-      fromTeamId: cpuTeam.id,
-      fromTeamName: `${cpuTeam.city} ${cpuTeam.name}`,
-      requestedPlayer: wanted,
-      requestedValue,
-      offeredPlayer: offerPlayer,
-      offeredPick,
-      offerValue: offerValue + (offeredPick ? calcPickTradeValue(offeredPick.round, offeredPick.season) : 0),
-    };
+      return {
+        fromTeamId: cpuTeam.id, fromTeamName: `${cpuTeam.city} ${cpuTeam.name}`,
+        requestedPlayer: target, requestedValue,
+        offeredPlayer: offering, offeredPick: bonusPick,
+        offerValue: offerValue + (bonusPick ? calcPickTradeValue(bonusPick.round, bonusPick.season) : 0),
+      };
+    }
   }
   return null;
 });
