@@ -77,7 +77,11 @@ db.exec(`
   )
 `);
 const histCount = (db.prepare('SELECT COUNT(*) as cnt FROM historical_records').get() as any).cnt;
-if (histCount === 0) {
+const hasPassTds = histCount > 0
+  ? (db.prepare("SELECT COUNT(*) as cnt FROM historical_records WHERE category = 'passTds'").get() as any).cnt > 0
+  : false;
+if (histCount === 0 || !hasPassTds) {
+  db.prepare('DELETE FROM historical_records').run();
   const pathModule = require('path');
   const fs = require('fs');
   const parseHistoricalCSV = (filePath: string, recordType: string) => {
