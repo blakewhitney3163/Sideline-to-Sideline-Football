@@ -1475,6 +1475,23 @@ ipcMain.handle('extend-player', (_event: any, { playerId, years, salary }: {
   return { success: true };
 });
 
+ipcMain.handle('restructure-player', (_event: any, { playerId, pct }: { playerId: number; pct: number }) => {
+  const contract = db.prepare('SELECT * FROM contracts WHERE player_id = ?').get(playerId) as any;
+  if (!contract) return { success: false, reason: 'No contract found.' };
+  if (contract.years_remaining < 2) return { success: false, reason: 'Need 2+ years remaining to restructure.' };
+
+  const convertedAmount = contract.annual_salary * pct;
+  const savings = Math.round(convertedAmount * (1 - 1 / contract.years_remaining) * 10) / 10;
+  const newSalary = Math.round((contract.annual_salary - savings) * 10) / 10;
+  const newGuaranteed = Math.round(((contract.guaranteed_amount ?? 0) + convertedAmount) * 10) / 10;
+  const newGuaranteedPct = Math.min(100, Math.round((newGuaranteed / (newSalary * contract.years_remaining)) * 100));
+
+  db.prepare('UPDATE contracts SET annual_salary = ?, guaranteed_amount = ?, guaranteed_pct = ? WHERE player_id = ?')
+    .run(newSalary, newGuaranteed, newGuaranteedPct, playerId);
+
+  return { success: true, savings, newSalary };
+});
+
 ipcMain.handle('release-player', (_event: any, playerId: number) => {
   const season = getCurrentSeason();
   const scheduleExists = (db.prepare(
