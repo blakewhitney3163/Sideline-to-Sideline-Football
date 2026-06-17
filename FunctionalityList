@@ -1,0 +1,286 @@
+NFL SIMULATOR — FULL FEATURE INVENTORY
+Last Updated: June 17, 2026
+Repository: https://github.com/blakewhitney3163/NFLSimulator
+================================================================================
+
+CORE INFRASTRUCTURE
+────────────────────────────────────────────────────────────────────────────────
+- Electron + React + TypeScript desktop app
+- SQLite database (database.js) with base tables:
+    teams, players, games, stats, contracts, settings, champions,
+    draft_prospects, depth_chart
+- Migration tables added via index.ts:
+    career_stats_history (with sacks, tfl columns)
+    team_trade_overrides
+    hall_of_fame
+    games: home_q1–q4, away_q1–q4, weather columns
+    players: waived_by_team_id, waiver_placed_week columns
+    draft_prospects: scouted column
+- All 32 NFL teams auto-seeded on first launch
+- Madden ratings CSV import to populate real player rosters on fresh start
+- OTC contract HTML import to load real-world salaries
+- Reset save / new dynasty supported
+
+
+HOME TAB
+────────────────────────────────────────────────────────────────────────────────
+- Current week display with season + user team record
+- Generate schedule for the season (inserts all 18 weeks of matchups)
+- Simulate one week at a time
+- Game cards showing matchups (pre-sim preview or post-sim results)
+- Clickable games open a box score modal with:
+    - Q1–Q4 scoring breakdown
+    - Final score
+    - Weather condition label
+    - Passing / rushing / receiving / defense stat leaders
+- Live standings snapshot (top AFC / NFC teams)
+- Weekly stat leaders widget
+- Practice squad injury alert banner
+- Advance season button with confirmation dialog
+- Playoff seeding display + simulate playoffs trigger
+- Past champions list
+- Draft status indicator (shows if draft is complete / generated)
+- Pending re-sign count notification
+
+
+STANDINGS TAB
+────────────────────────────────────────────────────────────────────────────────
+- Division view and Conference view toggle
+- Win / loss / PCT per team
+- Playoff seed panel showing current seedings
+- Historical season selector (browse any past season)
+- User team highlighted in standings
+
+
+SCHEDULE TAB
+────────────────────────────────────────────────────────────────────────────────
+- Full 18-week season game grid
+- Week selector navigation
+- Clickable games → box score modal showing:
+    - Quarter-by-quarter scoring (Q1–Q4 + Final)
+    - Weather condition label
+    - Passing / rushing / receiving / defense stat leaders per team
+
+
+TEAMS TAB
+────────────────────────────────────────────────────────────────────────────────
+- Browse all 32 teams
+- Click a team to view full roster
+- Filter roster by position
+- Click a player to open detail panel showing:
+    - Full attribute ratings
+    - Development trait badge (Normal / Star / Superstar / X-Factor)
+    - Season stats (current season)
+    - Career stats (all seasons, expandable by season)
+
+
+DEPTH CHART TAB
+────────────────────────────────────────────────────────────────────────────────
+- Position group tabs: QB, RB, WR, TE, OL, DL, LB, CB, S, K
+- Drag-to-reorder slots within each position group
+- Save order per position group
+- Reset to default (auto-sorted by overall rating)
+- Dev trait badges displayed per player
+- Depth chart used during game simulation for target distribution
+
+
+FRANCHISE TAB (5 sub-tabs)
+────────────────────────────────────────────────────────────────────────────────
+Roster Tab:
+  - View full active roster with salary, years remaining, OVR, age, dev trait
+  - Sort by salary / years / OVR / age
+  - Filter by position
+  - Release players (generates dead cap)
+  - Extend contracts (custom years + salary input)
+  - Restructure contracts (convert % of salary to signing bonus, frees cap)
+
+Practice Squad Tab:
+  - View all practice squad players
+  - Promote players from PS to active roster (53-man limit enforced)
+  - Auto-callup triggers when injured starters leave active roster
+
+Waivers Tab:
+  - View players currently on waivers
+  - Claim waiver players (user or CPU)
+  - CPU teams claim by worst record first
+  - Unclaimed players revert to free agency after waiver period
+
+Free Agents Tab:
+  - Browse all available free agents
+  - Filter by position, sort by OVR / age / value
+  - Cap impact preview before signing
+  - Sign free agents to active roster or practice squad
+
+Offseason Tab:
+  - Re-sign expiring players with market value guidance
+  - CPU teams run their own FA signings via cpu-fa-signing handler
+  - Offseason status tracking (know what phase you're in)
+
+Cap Summary:
+  - Total cap, used cap, remaining cap, dead cap displayed
+  - Team needs bar showing positional depth needs
+
+
+TRADES TAB
+────────────────────────────────────────────────────────────────────────────────
+- Select any of 32 teams to trade with
+- Browse their roster + your roster with position filters
+- Include draft picks on both sides of any trade
+- Trade value calculator factors in: OVR, age, dev trait, round value
+- CPU acceptance logic based on: value balance, team needs, trade status
+- Team trade status displayed: Buyer / Seller / Rebuilding / Neutral
+- Manual trade status override (user sets CPU team's posture)
+- CPU can propose trades to you (incoming offer modal with accept/decline)
+- Trade deadline enforcement (trades locked after configured week)
+- get-team-needs API used to weight CPU interest in positions
+
+
+DRAFT TAB
+────────────────────────────────────────────────────────────────────────────────
+- Generate draft class of 100 prospects with hidden ratings
+- Scouting system: spend up to 25 scouting points to reveal player ratings
+  (MAX_SCOUTS = 25, tracked per draft cycle)
+- Draft order respects traded pick assets (pick_assets / get-tradeable-picks)
+- User makes picks when it is their turn in the order
+- CPU auto-picks for all other teams (position need-aware logic)
+- Draft grades shown per pick: A / B / C / D / F (OVR vs draft slot expected value)
+- Post-draft summary screen listing all user picks with grades
+- Drafted players automatically added to user roster
+- Draft round/pick navigation with round labels (1st–7th)
+
+
+STATS TAB
+────────────────────────────────────────────────────────────────────────────────
+Player Stats Mode:
+  - Categories: Passing, Rushing, Receiving, Tackles, Sacks, Interceptions
+  - Defensive sub-categories
+  - Season selector (view any historical season)
+  - Filter by team
+  - Player name search (real-time text filter)
+  - Click any player → detailed stat card modal
+
+Team Stats Mode (toggle):
+  - Sortable table of team-level season aggregates
+  - Columns: PPG, YPG, passing YPG, rushing YPG, points allowed, etc.
+  - Sort by any column ascending or descending
+
+Import:
+  - Import real NFL stats from nflverse CSV files
+
+
+RECORDS TAB
+────────────────────────────────────────────────────────────────────────────────
+- All-time leaders by stat category (sortable table)
+- Single-season records by category
+- Season awards per year:
+    MVP, Defensive Player of the Year, Offensive ROY, Defensive ROY,
+    Coach of the Year
+- Hall of Fame tab:
+    Retired players who hit career stat milestones get inducted
+    Displayed grouped by induction season
+    Shows position, career stats, dev trait, overall at retirement
+
+
+PLAYOFFS TAB
+────────────────────────────────────────────────────────────────────────────────
+- AFC and NFC seeding display (7 teams per conference)
+- Simulate round-by-round: Wild Card, Divisional, Championship, Super Bowl
+- Game-by-game results with scores per round
+- Super Bowl champion recorded to champions history
+- Champions viewable on Home tab
+
+
+GAME SIMULATION ENGINE (simulateGame.js)
+────────────────────────────────────────────────────────────────────────────────
+Per-game outputs:
+  - Home score, away score
+  - Quarter-by-quarter score breakdown (distributeToQuarters)
+  - Weather condition for the game
+  - Full player stat lines for both teams
+
+Player stat generation covers:
+  - QB: completions, attempts, passing yards, TDs, interceptions
+  - RB: carries, rushing yards, rushing TDs
+  - WR/TE: targets, receptions, receiving yards, receiving TDs
+  - DL/LB: tackles, sacks, TFL
+  - DB: tackles, interceptions, pass deflections
+
+Weather system (getWeather / weatherMultipliers):
+  - Conditions: clear, rain, snow, wind
+  - Week-aware (heavier weather more likely in late season weeks)
+  - Each condition applies pass multiplier, rush multiplier, score multiplier
+
+Home field advantage:
+  - Home team scoring boost applied to final score
+  - Away QB accuracy penalty (crowd noise simulation)
+
+Depth chart integration:
+  - getHealthyByGroup pulls active, non-injured players by position group
+  - Cascades to WR2/RB2 automatically when WR1/RB1 are injured
+  - Targets distributed proportionally down the depth chart
+
+Stat distributions:
+  - randomNormal function for realistic bell-curve stat generation
+  - Team offense/defense ratings (getTeamRatings) influence output
+  - Player individual attributes (attr) pulled from DB per player
+
+
+PLAYER LIFECYCLE
+────────────────────────────────────────────────────────────────────────────────
+Contracts:
+  - Each player has salary (AAV), years remaining, signing bonus / dead cap
+  - Salary cap enforced on signings, extensions, and restructures
+  - Dead cap tracked on release
+
+Injuries:
+  - Random in-game injuries during simulation
+  - Injured players marked inactive on roster
+  - Practice squad auto-callup covers injured starters
+
+Waiver Wire:
+  - Released players placed on waivers with team + week stamp
+  - CPU teams claim based on roster need + worst record priority
+  - Unclaimed players revert to free agency
+
+Player Progression / Regression (runs at season advance):
+  - Dev trait determines improvement ceiling
+  - Age brackets determine regression risk (decline after ~30)
+  - Breakout bonuses for standout season performances
+  - Applies across all key positional attributes
+
+Retirement:
+  - Aging veterans retire at end of season based on age + OVR thresholds
+  - Retired players stored with final career stats
+
+Hall of Fame Induction:
+  - Retired players checked against career milestone thresholds
+  - Qualifying players automatically inducted into hall_of_fame table
+  - Viewable in Records → Hall of Fame tab
+
+
+BACKEND IPC HANDLERS (index.ts — full list)
+────────────────────────────────────────────────────────────────────────────────
+balance-rosters          get-waiver-wire          claim-waiver
+get-standings            get-teams                get-roster
+get-player-stats         get-player-career-stats  get-schedule
+get-dashboard            get-stats                get-hall-of-fame
+get-team-season-stats    simulate-playoffs        get-playoffs
+get-champions            get-seasons              get-current-season
+advance-season           generate-schedule        get-current-week
+get-week-matchups        simulate-week            get-injury-report
+get-game-box-score       reset-dynasty            get-playoff-seeds
+get-user-team            set-user-team            get-team-status
+set-team-trade-status    propose-trade            get-tradeable-picks
+get-cpu-trade-offer      accept-cpu-trade-offer   get-team-contracts
+get-practice-squad       get-cap-summary          get-roster-spots
+sign-free-agent-to-ps    get-free-agents          extend-player
+restructure-player       release-player           get-team-stats
+promote-from-ps          sign-free-agent          get-expiring-contracts
+resign-player            get-offseason-status     cpu-fa-signing
+generate-draft-class     get-draft-class          get-draft-order
+get-round-pick-order     make-draft-pick          scout-prospect
+get-scout-count          run-cpu-round            complete-draft
+import-otc-contracts     get-depth-chart          set-depth-chart-order
+reset-depth-chart        get-alltime-leaders      get-season-records
+get-season-awards        get-team-needs           import-nflverse-stats
+check-setup-done         reset-save
