@@ -1744,11 +1744,6 @@ ipcMain.handle('get-alltime-leaders', () => {
   `).all() as any[];
 
   const sortBy: Record<string, string> = {
-    passing: 'pass_yards', rushing: 'rush_yards', receiving: 'rec_yards',
-    tds: '_total_tds', tackles: 'tackles', sacks: 'sacks', defInts: 'def_interceptions',
-  };
-
-  const sortBy: Record<string, string> = {
   passing: 'pass_yards', rushing: 'rush_yards', receiving: 'rec_yards',
   tds: '_skill_tds', passTds: 'pass_tds',
   tackles: 'tackles', sacks: 'sacks', defInts: 'def_interceptions',
