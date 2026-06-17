@@ -517,7 +517,7 @@ export default function Franchise({ userTeam, currentSeason, playoffsComplete }:
                     <span style={{ color: traj.color, fontSize: 12 }}>{contract.age} {traj.label}</span>
                     <span style={{ color: ratingColor(contract.overall_rating), fontWeight: 700, fontSize: 14 }}>{contract.overall_rating}</span>
                   </div>
-                  <div style={{ width: 70, color: '#555', fontSize: 11, textAlign: 'center' }}>
+                  <div style={{ width: 70, color: trait.color, fontSize: 11, textAlign: 'center', fontWeight: contract.dev_trait !== 'Normal' ? 700 : 'normal' }}>
                     {contract.dev_trait === 'Normal' ? '—' : contract.dev_trait}
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', width: 110 }}>
@@ -629,7 +629,7 @@ export default function Franchise({ userTeam, currentSeason, playoffsComplete }:
                   <span style={{ color: traj.color, fontSize: 12 }}>{p.age} {traj.label}</span>
                   <span style={{ color: ratingColor(p.overall_rating), fontWeight: 700, fontSize: 14 }}>{p.overall_rating}</span>
                 </div>
-                <div style={{ width: 70, color: '#555', fontSize: 11, textAlign: 'center' }}>{p.dev_trait === 'Normal' ? '—' : p.dev_trait}</div>
+                <div style={{ width: 70, color: trait.color, fontSize: 11, textAlign: 'center', fontWeight: p.dev_trait !== 'Normal' ? 700 : 'normal' }}>{p.dev_trait === 'Normal' ? '—' : p.dev_trait}</div>
                 <div style={{ width: 80, color: '#888', fontSize: 12 }}>{fmtSalary(p.annual_salary ?? 1.165)}</div>
                 <button
                   onClick={async () => {
@@ -726,7 +726,7 @@ export default function Franchise({ userTeam, currentSeason, playoffsComplete }:
                     <span style={{ color: traj.color, fontSize: 12 }}>{fa.age} {traj.label}</span>
                     <span style={{ color: ratingColor(fa.overall_rating), fontWeight: 700, fontSize: 14 }}>{fa.overall_rating}</span>
                   </div>
-                  <div style={{ width: 70, color: '#555', fontSize: 11, textAlign: 'center' }}>{fa.dev_trait === 'Normal' ? '—' : fa.dev_trait}</div>
+                  <div style={{ width: 70, color: trait.color, fontSize: 11, textAlign: 'center', fontWeight: fa.dev_trait !== 'Normal' ? 700 : 'normal' }}>{fa.dev_trait === 'Normal' ? '—' : fa.dev_trait}</div>
                   <div style={{ width: 100, color: '#888', fontSize: 12 }}>{fmtSalary(mv)}/yr</div>
                   <button
                     onClick={() => isSigning ? setSigningId(null) : openSign(fa)}
@@ -836,7 +836,7 @@ export default function Franchise({ userTeam, currentSeason, playoffsComplete }:
                     <span style={{ color: traj.color, fontSize: 12 }}>{player.age} {traj.label}</span>
                     <span style={{ color: ratingColor(player.overall_rating), fontWeight: 700, fontSize: 14 }}>{player.overall_rating}</span>
                   </div>
-                  <div style={{ width: 70, color: '#555', fontSize: 11, textAlign: 'center' }}>{player.dev_trait === 'Normal' ? '—' : player.dev_trait}</div>
+                  <div style={{ width: 70, color: trait.color, fontSize: 11, textAlign: 'center', fontWeight: player.dev_trait !== 'Normal' ? 700 : 'normal' }}>{player.dev_trait === 'Normal' ? '—' : player.dev_trait}</div>
                   <div style={{ display: 'flex', flexDirection: 'column', width: 100 }}>
                     <span style={{ color: '#444', fontSize: 10 }}>Current</span>
                     <span style={{ color: '#888', fontSize: 12 }}>{fmtSalary(player.annual_salary)}/yr</span>
