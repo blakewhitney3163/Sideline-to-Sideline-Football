@@ -404,7 +404,9 @@ ipcMain.handle('get-teams', () => {
 ipcMain.handle('get-roster', (_event: any, teamId: number) => {
   return db.prepare(`
     SELECT id, first_name, last_name, position, position_label, overall_rating, age,
-           speed, strength, awareness, dev_trait
+    speed, strength, awareness, dev_trait,
+    throw_accuracy, throw_power, catching, route_running,
+    tackle_rating, coverage, pass_rush
     FROM players WHERE team_id = ?
     ORDER BY CASE position
       WHEN 'QB' THEN 1 WHEN 'RB' THEN 2 WHEN 'WR' THEN 3 WHEN 'TE' THEN 4
