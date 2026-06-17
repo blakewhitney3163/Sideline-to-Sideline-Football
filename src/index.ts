@@ -591,7 +591,7 @@ function processWaivers(userTeamId: number, week: number): void {
   // Unclaimed → free agency; contract voided, eligible for new deal
   for (const p of remaining) {
     db.prepare('DELETE FROM contracts WHERE player_id = ?').run(p.id);
-    db.prepare("UPDATE players SET roster_status = 'free_agent', waived_by_team_id = NULL, waiver_placed_week = NULL WHERE id = ?").run(p.id);
+    db.prepare("UPDATE players SET roster_status = 'free_agent', is_free_agent = 1, waived_by_team_id = NULL, waiver_placed_week = NULL WHERE id = ?").run(p.id);
   }
 }
 }
@@ -1187,7 +1187,7 @@ if (breakoutIds.size > 0) {
 
   // Clear injuries for new season
   db.prepare("UPDATE players SET injury_status = 'healthy', weeks_out = 0, injury_type = NULL").run();
-  db.prepare("UPDATE players SET roster_status = 'free_agent' WHERE roster_status = 'waivers'").run();
+  db.prepare("UPDATE players SET roster_status = 'free_agent', is_free_agent = 1 WHERE roster_status = 'waivers'").run();
 
   // Archive current season stats to career_stats_history before bumping the season
   db.prepare(`
@@ -1733,7 +1733,7 @@ ipcMain.handle('sign-free-agent-to-ps', (_event: any, playerId: number) => {
   ).get(playerId) as any;
   if (!player) return { success: false, reason: 'Player not available.' };
 
-  db.prepare("UPDATE players SET team_id = ?, roster_status = 'practice_squad' WHERE id = ?")
+  db.prepare("UPDATE players SET team_id = ?, roster_status = 'practice_squad', is_free_agent = 0 WHERE id = ?")
     .run(teamId, playerId);
 
   const existing = db.prepare('SELECT id FROM contracts WHERE player_id = ?').get(playerId);
@@ -1805,7 +1805,7 @@ ipcMain.handle('release-player', (_event: any, playerId: number) => {
 
   if (isInSeason) {
     // Leave contract intact — salary travels with the player through waivers
-    db.prepare(`UPDATE players SET team_id = NULL, is_free_agent = 1, roster_status = 'waivers', waived_by_team_id = ?, waiver_placed_week = ? WHERE id = ?`)
+    db.prepare(`UPDATE players SET team_id = NULL, is_free_agent = 0, roster_status = 'waivers', waived_by_team_id = ?, waiver_placed_week = ? WHERE id = ?`)
       .run(releasingTeamId, currentWeek, playerId);
   } else {
     // Off-season: void the contract, player enters FA eligible for a new deal
