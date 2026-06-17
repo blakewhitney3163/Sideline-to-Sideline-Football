@@ -1748,21 +1748,27 @@ ipcMain.handle('get-alltime-leaders', () => {
     tds: '_total_tds', tackles: 'tackles', sacks: 'sacks', defInts: 'def_interceptions',
   };
 
-  const result: any = {};
-  for (const [cat, sortKey] of Object.entries(sortBy)) {
-    const combined = [...historical.filter((r: any) => r.category === cat), ...ingame];
-    const sorted = combined.sort((a: any, b: any) => {
-      const av = sortKey === '_total_tds'
-        ? (a.pass_tds + a.rush_tds + a.rec_tds)
-        : (parseFloat(a[sortKey]) || 0);
-      const bv = sortKey === '_total_tds'
-        ? (b.pass_tds + b.rush_tds + b.rec_tds)
-        : (parseFloat(b[sortKey]) || 0);
-      return bv - av;
-    }).slice(0, 15);
-    result[cat] = sorted;
-  }
-  return result;
+  const sortBy: Record<string, string> = {
+  passing: 'pass_yards', rushing: 'rush_yards', receiving: 'rec_yards',
+  tds: '_skill_tds', passTds: 'pass_tds',
+  tackles: 'tackles', sacks: 'sacks', defInts: 'def_interceptions',
+};
+
+const result: any = {};
+for (const [cat, sortKey] of Object.entries(sortBy)) {
+  const combined = [...historical.filter((r: any) => r.category === cat), ...ingame];
+  const sorted = combined.sort((a: any, b: any) => {
+    const av = sortKey === '_skill_tds'
+      ? ((a.rush_tds || 0) + (a.rec_tds || 0))
+      : (parseFloat(a[sortKey]) || 0);
+    const bv = sortKey === '_skill_tds'
+      ? ((b.rush_tds || 0) + (b.rec_tds || 0))
+      : (parseFloat(b[sortKey]) || 0);
+    return bv - av;
+  }).slice(0, 15);
+  result[cat] = sorted;
+}
+return result;
 });
 
 ipcMain.handle('get-season-records', () => {
@@ -1796,25 +1802,26 @@ ipcMain.handle('get-season-records', () => {
   `).all() as any[];
 
   const sortBy: Record<string, string> = {
-    passing: 'pass_yards', rushing: 'rush_yards', receiving: 'rec_yards',
-    tds: '_total_tds', tackles: 'tackles', sacks: 'sacks', defInts: 'def_interceptions',
-  };
+  passing: 'pass_yards', rushing: 'rush_yards', receiving: 'rec_yards',
+  tds: '_skill_tds', passTds: 'pass_tds',
+  tackles: 'tackles', sacks: 'sacks', defInts: 'def_interceptions',
+};
 
-  const result: any = {};
-  for (const [cat, sortKey] of Object.entries(sortBy)) {
-    const combined = [...historical.filter((r: any) => r.category === cat), ...ingame];
-    const sorted = combined.sort((a: any, b: any) => {
-      const av = sortKey === '_total_tds'
-        ? (a.pass_tds + a.rush_tds + a.rec_tds)
-        : (parseFloat(a[sortKey]) || 0);
-      const bv = sortKey === '_total_tds'
-        ? (b.pass_tds + b.rush_tds + b.rec_tds)
-        : (parseFloat(b[sortKey]) || 0);
-      return bv - av;
-    }).slice(0, 15);
-    result[cat] = sorted;
-  }
-  return result;
+const result: any = {};
+for (const [cat, sortKey] of Object.entries(sortBy)) {
+  const combined = [...historical.filter((r: any) => r.category === cat), ...ingame];
+  const sorted = combined.sort((a: any, b: any) => {
+    const av = sortKey === '_skill_tds'
+      ? ((a.rush_tds || 0) + (a.rec_tds || 0))
+      : (parseFloat(a[sortKey]) || 0);
+    const bv = sortKey === '_skill_tds'
+      ? ((b.rush_tds || 0) + (b.rec_tds || 0))
+      : (parseFloat(b[sortKey]) || 0);
+    return bv - av;
+  }).slice(0, 15);
+  result[cat] = sorted;
+}
+return result;
 });
 
 ipcMain.handle('get-season-awards', (_event: any, season: number) => {
