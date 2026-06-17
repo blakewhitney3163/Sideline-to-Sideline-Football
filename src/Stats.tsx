@@ -37,6 +37,8 @@ interface SeasonStats {
   games: number; pass_yards: number; pass_tds: number; interceptions: number;
   completions: number; pass_attempts: number; rush_yards: number; rush_tds: number;
   rush_attempts: number; rec_yards: number; rec_tds: number; receptions: number; targets: number;
+  tackles: number; assisted_tackles: number; sacks: number; tfl: number;
+  def_interceptions: number; pass_deflections: number;
 }
 interface CareerSeasonStats extends SeasonStats { season: number; }
 interface SelectedPlayer {
@@ -104,6 +106,7 @@ function PlayerCard({ player, currentSeason, onClose }: { player: SelectedPlayer
   const showPassing = isQB(pos);
   const showRushing = isQB(pos) || isRB(pos);
   const showReceiving = isRB(pos) || isWRTE(pos);
+  const showDefense = ['DL', 'LB', 'CB', 'S', 'DE', 'DT', 'MLB', 'OLB', 'ILB', 'FS', 'SS'].includes(pos);
 
   return (
     <div style={{
@@ -166,7 +169,18 @@ function PlayerCard({ player, currentSeason, onClose }: { player: SelectedPlayer
                     <StatLine label="YPR" value={(seasonStats.receptions ?? 0) > 0 ? ((seasonStats.rec_yards ?? 0) / seasonStats.receptions).toFixed(1) : '-'} />
                   </StatGroup>
                 )}
-                {(seasonStats.pass_attempts ?? 0) === 0 && (seasonStats.rush_attempts ?? 0) === 0 && (seasonStats.targets ?? 0) === 0 && (
+                                {showDefense && ((seasonStats.tackles ?? 0) + (seasonStats.assisted_tackles ?? 0) > 0 || (seasonStats.sacks ?? 0) > 0) && (
+                  <StatGroup label="DEFENSE">
+                    <StatLine label="Tackles" value={(seasonStats.tackles ?? 0) + (seasonStats.assisted_tackles ?? 0)} color="#4FC3F7" />
+                    <StatLine label="Solo" value={seasonStats.tackles ?? 0} />
+                    <StatLine label="Assisted" value={seasonStats.assisted_tackles ?? 0} />
+                    <StatLine label="Sacks" value={Number(seasonStats.sacks ?? 0).toFixed(1)} color="#FF8740" />
+                    <StatLine label="TFL" value={seasonStats.tfl ?? 0} />
+                    <StatLine label="INTs" value={seasonStats.def_interceptions ?? 0} color="#81C784" />
+                    <StatLine label="PDs" value={seasonStats.pass_deflections ?? 0} />
+                  </StatGroup>
+                )}
+                {(seasonStats.pass_attempts ?? 0) === 0 && (seasonStats.rush_attempts ?? 0) === 0 && (seasonStats.targets ?? 0) === 0 && !showDefense && (
                   <div style={{ color: T.textDim, fontSize: 12 }}>No stats recorded this season.</div>
                 )}
               </div>
@@ -185,6 +199,7 @@ function PlayerCard({ player, currentSeason, onClose }: { player: SelectedPlayer
                         {showPassing && <><th style={{ padding: '4px 6px', textAlign: 'right' }}>PYDS</th><th style={{ padding: '4px 6px', textAlign: 'right' }}>PTD</th><th style={{ padding: '4px 6px', textAlign: 'right' }}>INT</th></>}
                         {showRushing && <><th style={{ padding: '4px 6px', textAlign: 'right' }}>RYDS</th><th style={{ padding: '4px 6px', textAlign: 'right' }}>RTD</th></>}
                         {showReceiving && <><th style={{ padding: '4px 6px', textAlign: 'right' }}>RECYDS</th><th style={{ padding: '4px 6px', textAlign: 'right' }}>RECTD</th><th style={{ padding: '4px 6px', textAlign: 'right' }}>REC</th></>}
+                        {showDefense && <><th style={{ padding: '4px 6px', textAlign: 'right' }}>TOT</th><th style={{ padding: '4px 6px', textAlign: 'right' }}>SACKS</th><th style={{ padding: '4px 6px', textAlign: 'right' }}>TFL</th><th style={{ padding: '4px 6px', textAlign: 'right' }}>INT</th><th style={{ padding: '4px 6px', textAlign: 'right' }}>PD</th></>}
                       </tr>
                     </thead>
                     <tbody>
@@ -195,6 +210,7 @@ function PlayerCard({ player, currentSeason, onClose }: { player: SelectedPlayer
                           {showPassing && <><td style={{ padding: '4px 6px', textAlign: 'right', color: '#4FC3F7' }}>{s.pass_yards ?? 0}</td><td style={{ padding: '4px 6px', textAlign: 'right' }}>{s.pass_tds ?? 0}</td><td style={{ padding: '4px 6px', textAlign: 'right', color: '#e57373' }}>{s.interceptions ?? 0}</td></>}
                           {showRushing && <><td style={{ padding: '4px 6px', textAlign: 'right', color: '#4FC3F7' }}>{s.rush_yards ?? 0}</td><td style={{ padding: '4px 6px', textAlign: 'right' }}>{s.rush_tds ?? 0}</td></>}
                           {showReceiving && <><td style={{ padding: '4px 6px', textAlign: 'right', color: '#4FC3F7' }}>{s.rec_yards ?? 0}</td><td style={{ padding: '4px 6px', textAlign: 'right' }}>{s.rec_tds ?? 0}</td><td style={{ padding: '4px 6px', textAlign: 'right' }}>{s.receptions ?? 0}</td></>}
+                          {showDefense && <><td style={{ padding: '4px 6px', textAlign: 'right', color: '#4FC3F7' }}>{(s.tackles ?? 0) + (s.assisted_tackles ?? 0)}</td><td style={{ padding: '4px 6px', textAlign: 'right', color: '#FF8740' }}>{Number(s.sacks ?? 0).toFixed(1)}</td><td style={{ padding: '4px 6px', textAlign: 'right' }}>{s.tfl ?? 0}</td><td style={{ padding: '4px 6px', textAlign: 'right', color: '#81C784' }}>{s.def_interceptions ?? 0}</td><td style={{ padding: '4px 6px', textAlign: 'right' }}>{s.pass_deflections ?? 0}</td></>}
                         </tr>
                       ))}
                     </tbody>
