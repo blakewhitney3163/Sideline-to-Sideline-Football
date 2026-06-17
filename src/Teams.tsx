@@ -29,6 +29,8 @@ interface PlayerStats {
   pass_attempts: number; completions: number; pass_yards: number; pass_tds: number; interceptions: number;
   rush_attempts: number; rush_yards: number; rush_tds: number;
   targets: number; receptions: number; rec_yards: number; rec_tds: number;
+  tackles: number; assisted_tackles: number; sacks: number; tfl: number;
+  def_interceptions: number; pass_deflections: number; forced_fumbles: number;
 }
 
 interface CareerSeasonStats extends PlayerStats {
@@ -45,6 +47,9 @@ const POSITION_ORDER = [
   'K',
 ];
 
+const OFF_POSITIONS = ['QB', 'RB', 'HB', 'FB', 'WR', 'TE'];
+const DEF_POSITIONS = ['DE', 'DT', 'DL', 'LE', 'RE', 'IDL', 'MLB', 'OLB', 'ILB', 'LOLB', 'ROLB', 'LB', 'WILL', 'MIKE', 'CB', 'FS', 'SS', 'S'];
+
 function getOvrColor(ovr: number): string {
   if (ovr >= 90) return '#FFD700';
   if (ovr >= 80) return '#4FC3F7';
@@ -54,23 +59,36 @@ function getOvrColor(ovr: number): string {
 
 function StatBox({ label, value }: { label: string; value: any }) {
   return (
-    <div style={{ background: T.bgCard, borderRadius: '6px', padding: '10px', textAlign: 'center' }}>
-      <div style={{ color: '#fff', fontWeight: 'bold', fontSize: '18px' }}>{value ?? '—'}</div>
-      <div style={{ color: T.textSecondary, fontSize: '11px', marginTop: '2px' }}>{label}</div>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 56 }}>
+      <span style={{ color: '#fff', fontWeight: 700, fontSize: 18 }}>{value ?? '—'}</span>
+      <span style={{ color: T.textDim, fontSize: 9, letterSpacing: 0.5, marginTop: 2 }}>{label}</span>
     </div>
   );
 }
 
 function SeasonStatsRow({ s, position }: { s: CareerSeasonStats; position: string }) {
+  if (DEF_POSITIONS.includes(position)) {
+    return (
+      <tr key={s.season}>
+        <td style={{ padding: '4px 8px', color: T.textSecondary, fontSize: 11 }}>{s.season}</td>
+        <td style={{ padding: '4px 8px', color: T.textSecondary, fontSize: 11 }}>{s.games}</td>
+        <td style={{ padding: '4px 8px', color: T.textPrimary, fontSize: 11 }}>{(s.tackles ?? 0) + (s.assisted_tackles ?? 0)}</td>
+        <td style={{ padding: '4px 8px', color: T.textPrimary, fontSize: 11 }}>{Number(s.sacks ?? 0).toFixed(1)}</td>
+        <td style={{ padding: '4px 8px', color: T.textPrimary, fontSize: 11 }}>{s.tfl ?? 0}</td>
+        <td style={{ padding: '4px 8px', color: T.textPrimary, fontSize: 11 }}>{s.def_interceptions ?? 0}</td>
+        <td style={{ padding: '4px 8px', color: T.textPrimary, fontSize: 11 }}>{s.pass_deflections ?? 0}</td>
+      </tr>
+    );
+  }
   if (position === 'QB') {
     return (
-      <tr style={{ borderBottom: `1px solid ${T.borderFaint}`, fontSize: '12px' }}>
-        <td style={{ padding: '6px 8px', color: '#FFD700', fontWeight: 'bold' }}>{s.season}</td>
-        <td style={{ padding: '6px 8px', color: T.textSecondary }}>{s.games}</td>
-        <td style={{ padding: '6px 8px', color: '#4FC3F7', fontWeight: 'bold' }}>{s.pass_yards}</td>
-        <td style={{ padding: '6px 8px', color: '#81C784' }}>{s.pass_tds}</td>
-        <td style={{ padding: '6px 8px', color: '#e57373' }}>{s.interceptions}</td>
-        <td style={{ padding: '6px 8px', color: T.textSecondary }}>
+      <tr key={s.season}>
+        <td style={{ padding: '4px 8px', color: T.textSecondary, fontSize: 11 }}>{s.season}</td>
+        <td style={{ padding: '4px 8px', color: T.textSecondary, fontSize: 11 }}>{s.games}</td>
+        <td style={{ padding: '4px 8px', color: T.textPrimary, fontSize: 11 }}>{s.pass_yards}</td>
+        <td style={{ padding: '4px 8px', color: T.textPrimary, fontSize: 11 }}>{s.pass_tds}</td>
+        <td style={{ padding: '4px 8px', color: T.textPrimary, fontSize: 11 }}>{s.interceptions}</td>
+        <td style={{ padding: '4px 8px', color: T.textPrimary, fontSize: 11 }}>
           {s.pass_attempts > 0 ? `${Math.round((s.completions / s.pass_attempts) * 100)}%` : '—'}
         </td>
       </tr>
@@ -78,26 +96,26 @@ function SeasonStatsRow({ s, position }: { s: CareerSeasonStats; position: strin
   }
   if (position === 'RB') {
     return (
-      <tr style={{ borderBottom: `1px solid ${T.borderFaint}`, fontSize: '12px' }}>
-        <td style={{ padding: '6px 8px', color: '#FFD700', fontWeight: 'bold' }}>{s.season}</td>
-        <td style={{ padding: '6px 8px', color: T.textSecondary }}>{s.games}</td>
-        <td style={{ padding: '6px 8px', color: '#4FC3F7', fontWeight: 'bold' }}>{s.rush_yards}</td>
-        <td style={{ padding: '6px 8px', color: '#81C784' }}>{s.rush_tds}</td>
-        <td style={{ padding: '6px 8px', color: T.textSecondary }}>
+      <tr key={s.season}>
+        <td style={{ padding: '4px 8px', color: T.textSecondary, fontSize: 11 }}>{s.season}</td>
+        <td style={{ padding: '4px 8px', color: T.textSecondary, fontSize: 11 }}>{s.games}</td>
+        <td style={{ padding: '4px 8px', color: T.textPrimary, fontSize: 11 }}>{s.rush_yards}</td>
+        <td style={{ padding: '4px 8px', color: T.textPrimary, fontSize: 11 }}>{s.rush_tds}</td>
+        <td style={{ padding: '4px 8px', color: T.textPrimary, fontSize: 11 }}>
           {s.rush_attempts > 0 ? (s.rush_yards / s.rush_attempts).toFixed(1) : '—'}
         </td>
-        <td style={{ padding: '6px 8px', color: T.textSecondary }}>{s.receptions} / {s.rec_yards}</td>
+        <td style={{ padding: '4px 8px', color: T.textPrimary, fontSize: 11 }}>{s.receptions} / {s.rec_yards}</td>
       </tr>
     );
   }
   return (
-    <tr style={{ borderBottom: `1px solid ${T.borderFaint}`, fontSize: '12px' }}>
-      <td style={{ padding: '6px 8px', color: '#FFD700', fontWeight: 'bold' }}>{s.season}</td>
-      <td style={{ padding: '6px 8px', color: T.textSecondary }}>{s.games}</td>
-      <td style={{ padding: '6px 8px', color: '#4FC3F7', fontWeight: 'bold' }}>{s.rec_yards}</td>
-      <td style={{ padding: '6px 8px', color: '#81C784' }}>{s.rec_tds}</td>
-      <td style={{ padding: '6px 8px', color: T.textSecondary }}>{s.receptions}/{s.targets}</td>
-      <td style={{ padding: '6px 8px', color: T.textSecondary }}>
+    <tr key={s.season}>
+      <td style={{ padding: '4px 8px', color: T.textSecondary, fontSize: 11 }}>{s.season}</td>
+      <td style={{ padding: '4px 8px', color: T.textSecondary, fontSize: 11 }}>{s.games}</td>
+      <td style={{ padding: '4px 8px', color: T.textPrimary, fontSize: 11 }}>{s.rec_yards}</td>
+      <td style={{ padding: '4px 8px', color: T.textPrimary, fontSize: 11 }}>{s.rec_tds}</td>
+      <td style={{ padding: '4px 8px', color: T.textPrimary, fontSize: 11 }}>{s.receptions}/{s.targets}</td>
+      <td style={{ padding: '4px 8px', color: T.textPrimary, fontSize: 11 }}>
         {s.targets > 0 ? `${Math.round((s.receptions / s.targets) * 100)}%` : '—'}
       </td>
     </tr>
@@ -149,21 +167,30 @@ export default function Teams() {
     .sort((a, b) => b.overall_rating - a.overall_rating);
 
   const conferences = ['AFC', 'NFC'];
-  const careerHeaders = {
-    QB: ['Season', 'G', 'YDS', 'TD', 'INT', 'CMP%'],
-    RB: ['Season', 'G', 'YDS', 'TD', 'YPC', 'REC/REYDS'],
-    WR: ['Season', 'G', 'YDS', 'TD', 'REC/TGT', 'CTH%'],
-    TE: ['Season', 'G', 'YDS', 'TD', 'REC/TGT', 'CTH%'],
-  } as Record<string, string[]>;
+
+  const careerHeaders: Record<string, string[]> = {
+    QB:  ['Season', 'G', 'YDS', 'TD', 'INT', 'CMP%'],
+    RB:  ['Season', 'G', 'YDS', 'TD', 'YPC', 'REC/REYDS'],
+    WR:  ['Season', 'G', 'YDS', 'TD', 'REC/TGT', 'CTH%'],
+    TE:  ['Season', 'G', 'YDS', 'TD', 'REC/TGT', 'CTH%'],
+    DEF: ['Season', 'G', 'TOT TKL', 'SACKS', 'TFL', 'INT', 'PD'],
+  };
+
+  const getCareerHeaders = (pos: string) => {
+    if (DEF_POSITIONS.includes(pos)) return careerHeaders.DEF;
+    return careerHeaders[pos] ?? ['Season', 'G', 'YDS', 'TD', 'REC', 'TGT'];
+  };
+
+  const showStats = (pos: string) => OFF_POSITIONS.includes(pos) || DEF_POSITIONS.includes(pos);
 
   return (
-    <div style={{ display: 'flex', height: 'calc(100vh - 90px)' }}>
+    <div style={{ display: 'flex', height: '100%', fontFamily: 'monospace' }}>
 
       {/* Team list */}
-      <div style={{ width: '200px', background: T.bgPanel, borderRight: `1px solid ${T.borderStrong}`, overflowY: 'auto', flexShrink: 0 }}>
+      <div style={{ width: 200, borderRight: `1px solid ${T.borderFaint}`, overflowY: 'auto', flexShrink: 0 }}>
         {conferences.map(conf => (
           <div key={conf}>
-            <div style={{ padding: '10px 14px', color: '#FF8740', fontWeight: 'bold', fontSize: '12px', borderBottom: `1px solid ${T.borderFaint}` }}>
+            <div style={{ padding: '8px 14px', color: T.textDim, fontSize: 10, letterSpacing: 1, borderBottom: `1px solid ${T.borderFaint}` }}>
               {conf}
             </div>
             {teams.filter(t => t.conference === conf).map(team => (
@@ -186,20 +213,20 @@ export default function Teams() {
 
       {/* Main content */}
       {!selectedTeam ? (
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.textSecondary }}>
-          <p style={{ fontSize: '18px' }}>Select a team to view their roster</p>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.textDim }}>
+          Select a team to view their roster
         </div>
       ) : (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
 
           {/* Team header */}
-          <div style={{ padding: '14px 20px', borderBottom: `1px solid ${T.borderStrong}`, flexShrink: 0 }}>
-            <h2 style={{ color: '#4FC3F7', margin: 0 }}>{selectedTeam.city} {selectedTeam.name}</h2>
-            <p style={{ color: T.textSecondary, margin: '2px 0 0', fontSize: '13px' }}>{selectedTeam.conference} — {selectedTeam.division}</p>
+          <div style={{ marginBottom: 16 }}>
+            <h2 style={{ color: T.textPrimary, margin: 0, fontSize: 20 }}>{selectedTeam.city} {selectedTeam.name}</h2>
+            <div style={{ color: T.textDim, fontSize: 11, marginTop: 4 }}>{selectedTeam.conference} — {selectedTeam.division}</div>
           </div>
 
           {/* Position filter */}
-          <div style={{ padding: '10px 20px', borderBottom: `1px solid ${T.borderFaint}`, display: 'flex', flexWrap: 'wrap', gap: '6px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
             {availablePositions.map(pos => (
               <button
                 key={pos}
@@ -218,10 +245,10 @@ export default function Teams() {
           </div>
 
           {/* Player list + profile */}
-          <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', gap: 20 }}>
 
             {/* Player list */}
-            <div style={{ width: selectedPlayer ? '300px' : '100%', flexShrink: 0, overflowY: 'auto', borderRight: selectedPlayer ? `1px solid ${T.borderStrong}` : 'none' }}>
+            <div style={{ flex: '0 0 260px', borderRight: `1px solid ${T.borderFaint}` }}>
               {filteredPlayers.map((player, i) => (
                 <div
                   key={player.id}
@@ -232,12 +259,12 @@ export default function Teams() {
                     background: selectedPlayer?.id === player.id ? T.bgBlue : 'transparent',
                   }}
                 >
-                  <span style={{ color: T.textDim, width: '22px', fontSize: '12px', flexShrink: 0 }}>{i + 1}</span>
-                  <span style={{ flex: 1, color: i === 0 ? '#fff' : T.textPrimary, fontSize: '14px' }}>
-                    {player.first_name} {player.last_name}
-                  </span>
-                  <span style={{ color: T.textMuted, fontSize: '12px', marginRight: '12px' }}>Age {player.age}</span>
-                  <span style={{ fontWeight: 'bold', color: getOvrColor(player.overall_rating), fontSize: '15px', width: '30px', textAlign: 'right' }}>
+                  <span style={{ color: T.textDim, fontSize: 11, width: 20 }}>{i + 1}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ color: T.textPrimary, fontSize: 13 }}>{player.first_name} {player.last_name}</div>
+                    <div style={{ color: T.textDim, fontSize: 10 }}>Age {player.age}</div>
+                  </div>
+                  <span style={{ color: getOvrColor(player.overall_rating), fontWeight: 700, fontSize: 14 }}>
                     {player.overall_rating}
                   </span>
                 </div>
@@ -246,7 +273,7 @@ export default function Teams() {
 
             {/* Player profile */}
             {selectedPlayer && (
-              <div style={{ flex: 1, overflowY: 'auto', padding: '20px', background: T.bgCard }}>
+              <div style={{ flex: 1 }}>
                 <button
                   onClick={() => setSelectedPlayer(null)}
                   style={{ float: 'right', background: 'none', border: 'none', color: T.textSecondary, cursor: 'pointer', fontSize: '20px', lineHeight: 1 }}
@@ -255,42 +282,42 @@ export default function Teams() {
                 </button>
 
                 {/* Name + position */}
-                <div style={{ marginBottom: '20px' }}>
-                  <h2 style={{ color: '#fff', margin: '0 0 6px' }}>
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ color: T.textPrimary, fontWeight: 700, fontSize: 18, marginBottom: 4 }}>
                     {selectedPlayer.first_name} {selectedPlayer.last_name}
-                  </h2>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                    <span style={{ background: '#FF8740', color: '#000', padding: '2px 8px', borderRadius: '4px', fontWeight: 'bold', fontSize: '12px' }}>
+                  </div>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                    <span style={{ background: T.bgCard, color: '#4FC3F7', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 700 }}>
                       {selectedPlayer.position_label || selectedPlayer.position}
                     </span>
-                    <span style={{ color: T.textSecondary, fontSize: '13px' }}>Age {selectedPlayer.age}</span>
-                    <span style={{ color: getOvrColor(selectedPlayer.overall_rating), fontWeight: 'bold', fontSize: '22px' }}>
+                    <span style={{ color: T.textDim, fontSize: 11 }}>Age {selectedPlayer.age}</span>
+                    <span style={{ color: getOvrColor(selectedPlayer.overall_rating), fontWeight: 700, fontSize: 14 }}>
                       {selectedPlayer.overall_rating} OVR
                     </span>
                   </div>
                 </div>
 
                 {/* Attributes */}
-                <div style={{ marginBottom: '24px' }}>
-                  <div style={{ color: T.textMuted, fontSize: '11px', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '1px' }}>Attributes</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ color: T.textDim, fontSize: 10, letterSpacing: 1, marginBottom: 8 }}>ATTRIBUTES</div>
+                  <div style={{ display: 'flex', gap: 16 }}>
                     {[
                       { label: 'Speed', value: selectedPlayer.speed },
                       { label: 'Strength', value: selectedPlayer.strength },
                       { label: 'Awareness', value: selectedPlayer.awareness },
                     ].map(attr => (
-                      <div key={attr.label} style={{ background: T.bgCard, borderRadius: '6px', padding: '10px', textAlign: 'center' }}>
-                        <div style={{ color: getOvrColor(attr.value), fontWeight: 'bold', fontSize: '20px' }}>{attr.value}</div>
-                        <div style={{ color: T.textSecondary, fontSize: '11px', marginTop: '2px' }}>{attr.label}</div>
+                      <div key={attr.label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 56 }}>
+                        <span style={{ color: '#4FC3F7', fontWeight: 700, fontSize: 18 }}>{attr.value}</span>
+                        <span style={{ color: T.textDim, fontSize: 9, letterSpacing: 0.5, marginTop: 2 }}>{attr.label}</span>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                {/* Stats toggle - only show for tracked positions */}
-                {['QB', 'RB', 'WR', 'TE'].includes(selectedPlayer.position) && (
+                {/* Stats toggle */}
+                {showStats(selectedPlayer.position) && (
                   <div>
-                    <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                    <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
                       {(['season', 'career'] as const).map(v => (
                         <button
                           key={v}
@@ -311,34 +338,42 @@ export default function Teams() {
                     {statsView === 'season' && (
                       <>
                         {!playerStats ? (
-                          <div style={{ color: T.textMuted, fontSize: '13px' }}>Loading...</div>
+                          <div style={{ color: T.textDim, fontSize: 12 }}>Loading...</div>
                         ) : playerStats.games === 0 ? (
-                          <div style={{ color: T.textMuted, fontSize: '13px' }}>No stats this season</div>
+                          <div style={{ color: T.textDim, fontSize: 12 }}>No stats this season</div>
                         ) : (
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                            <StatBox label="GP" value={playerStats.games} />
                             {selectedPlayer.position === 'QB' && <>
-                              <StatBox label="Games" value={playerStats.games} />
-                              <StatBox label="Pass Yards" value={playerStats.pass_yards} />
-                              <StatBox label="Touchdowns" value={playerStats.pass_tds} />
-                              <StatBox label="Interceptions" value={playerStats.interceptions} />
-                              <StatBox label="Completions" value={`${playerStats.completions}/${playerStats.pass_attempts}`} />
-                              <StatBox label="Comp %" value={playerStats.pass_attempts > 0 ? `${Math.round((playerStats.completions / playerStats.pass_attempts) * 100)}%` : '—'} />
+                              <StatBox label="YDS" value={playerStats.pass_yards} />
+                              <StatBox label="TD" value={playerStats.pass_tds} />
+                              <StatBox label="INT" value={playerStats.interceptions} />
+                              <StatBox label="CMP" value={playerStats.completions} />
+                              <StatBox label="ATT" value={playerStats.pass_attempts} />
+                              <StatBox label="PCT" value={playerStats.pass_attempts > 0 ? `${Math.round((playerStats.completions / playerStats.pass_attempts) * 100)}%` : '—'} />
                             </>}
                             {selectedPlayer.position === 'RB' && <>
-                              <StatBox label="Games" value={playerStats.games} />
-                              <StatBox label="Rush Yards" value={playerStats.rush_yards} />
-                              <StatBox label="Rush TDs" value={playerStats.rush_tds} />
-                              <StatBox label="Yds/Carry" value={playerStats.rush_attempts > 0 ? (playerStats.rush_yards / playerStats.rush_attempts).toFixed(1) : '—'} />
-                              <StatBox label="Receptions" value={playerStats.receptions} />
-                              <StatBox label="Rec Yards" value={playerStats.rec_yards} />
+                              <StatBox label="RYDS" value={playerStats.rush_yards} />
+                              <StatBox label="RTD" value={playerStats.rush_tds} />
+                              <StatBox label="YPC" value={playerStats.rush_attempts > 0 ? (playerStats.rush_yards / playerStats.rush_attempts).toFixed(1) : '—'} />
+                              <StatBox label="REC" value={playerStats.receptions} />
+                              <StatBox label="REYDS" value={playerStats.rec_yards} />
                             </>}
                             {(selectedPlayer.position === 'WR' || selectedPlayer.position === 'TE') && <>
-                              <StatBox label="Games" value={playerStats.games} />
-                              <StatBox label="Receptions" value={playerStats.receptions} />
-                              <StatBox label="Rec Yards" value={playerStats.rec_yards} />
-                              <StatBox label="Touchdowns" value={playerStats.rec_tds} />
-                              <StatBox label="Targets" value={playerStats.targets} />
-                              <StatBox label="Catch %" value={playerStats.targets > 0 ? `${Math.round((playerStats.receptions / playerStats.targets) * 100)}%` : '—'} />
+                              <StatBox label="YDS" value={playerStats.rec_yards} />
+                              <StatBox label="TD" value={playerStats.rec_tds} />
+                              <StatBox label="REC" value={playerStats.receptions} />
+                              <StatBox label="TGT" value={playerStats.targets} />
+                              <StatBox label="CTH%" value={playerStats.targets > 0 ? `${Math.round((playerStats.receptions / playerStats.targets) * 100)}%` : '—'} />
+                            </>}
+                            {DEF_POSITIONS.includes(selectedPlayer.position) && <>
+                              <StatBox label="SOLO" value={playerStats.tackles} />
+                              <StatBox label="AST" value={playerStats.assisted_tackles} />
+                              <StatBox label="TOT" value={(playerStats.tackles ?? 0) + (playerStats.assisted_tackles ?? 0)} />
+                              <StatBox label="SACKS" value={Number(playerStats.sacks ?? 0).toFixed(1)} />
+                              <StatBox label="TFL" value={playerStats.tfl} />
+                              <StatBox label="INT" value={playerStats.def_interceptions} />
+                              <StatBox label="PD" value={playerStats.pass_deflections} />
                             </>}
                           </div>
                         )}
@@ -348,13 +383,13 @@ export default function Teams() {
                     {statsView === 'career' && (
                       <>
                         {careerStats.length === 0 ? (
-                          <div style={{ color: T.textMuted, fontSize: '13px' }}>No career stats yet</div>
+                          <div style={{ color: T.textDim, fontSize: 12 }}>No career stats yet</div>
                         ) : (
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                             <thead>
-                              <tr style={{ borderBottom: `1px solid ${T.borderStrong}` }}>
-                                {(careerHeaders[selectedPlayer.position] || ['Season', 'G', 'YDS', 'TD', 'REC', 'TGT']).map(h => (
-                                  <th key={h} style={{ padding: '6px 8px', color: T.textMuted, textAlign: 'left', fontWeight: 'normal' }}>{h}</th>
+                              <tr>
+                                {getCareerHeaders(selectedPlayer.position).map(h => (
+                                  <th key={h} style={{ padding: '4px 8px', color: T.textDim, fontSize: 10, letterSpacing: 1, textAlign: 'left', borderBottom: `1px solid ${T.borderFaint}` }}>{h}</th>
                                 ))}
                               </tr>
                             </thead>
@@ -370,9 +405,9 @@ export default function Teams() {
                   </div>
                 )}
 
-                {!['QB', 'RB', 'WR', 'TE'].includes(selectedPlayer.position) && (
-                  <div style={{ color: T.textMuted, fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>
-                    Detailed stats not tracked for this position
+                {!showStats(selectedPlayer.position) && (
+                  <div style={{ color: T.textDim, fontSize: 12, marginTop: 8 }}>
+                    Stats not tracked for this position
                   </div>
                 )}
               </div>
