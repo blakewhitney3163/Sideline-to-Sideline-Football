@@ -88,7 +88,6 @@ function PlayerCard({ player, currentSeason, onClose }: { player: SelectedPlayer
   const [seasonStats, setSeasonStats] = useState<SeasonStats | null>(null);
   const [careerStats, setCareerStats] = useState<CareerSeasonStats[]>([]);
   const [loading, setLoading] = useState(true);
-  
 
   useEffect(() => {
     setLoading(true);
@@ -170,7 +169,7 @@ function PlayerCard({ player, currentSeason, onClose }: { player: SelectedPlayer
                     <StatLine label="YPR" value={(seasonStats.receptions ?? 0) > 0 ? ((seasonStats.rec_yards ?? 0) / seasonStats.receptions).toFixed(1) : '-'} />
                   </StatGroup>
                 )}
-                                {showDefense && ((seasonStats.tackles ?? 0) + (seasonStats.assisted_tackles ?? 0) > 0 || (seasonStats.sacks ?? 0) > 0) && (
+                {showDefense && ((seasonStats.tackles ?? 0) + (seasonStats.assisted_tackles ?? 0) > 0 || (seasonStats.sacks ?? 0) > 0) && (
                   <StatGroup label="DEFENSE">
                     <StatLine label="Tackles" value={(seasonStats.tackles ?? 0) + (seasonStats.assisted_tackles ?? 0)} color="#4FC3F7" />
                     <StatLine label="Solo" value={seasonStats.tackles ?? 0} />
@@ -226,6 +225,78 @@ function PlayerCard({ player, currentSeason, onClose }: { player: SelectedPlayer
   );
 }
 
+// ─── Team Stats Table ──────────────────────────────────────────────────────────
+
+function TeamStatsTable({ rows, sortKey, sortDir, onSort, thStyle, tdBase }: {
+  rows: any[];
+  sortKey: string;
+  sortDir: 'asc' | 'desc';
+  onSort: (k: string) => void;
+  thStyle: React.CSSProperties;
+  tdBase: React.CSSProperties;
+}) {
+  const sorted = [...rows].sort((a, b) => {
+    const av = a[sortKey] ?? 0;
+    const bv = b[sortKey] ?? 0;
+    return sortDir === 'desc' ? bv - av : av - bv;
+  });
+
+  const SortHdr = ({ k, label }: { k: string; label: string }) => (
+    <th
+      onClick={() => onSort(k)}
+      style={{ ...thStyle, textAlign: 'right', cursor: 'pointer', color: sortKey === k ? '#FF8740' : T.textDim, userSelect: 'none' }}
+    >
+      {label}{sortKey === k ? (sortDir === 'desc' ? ' ▼' : ' ▲') : ''}
+    </th>
+  );
+
+  if (rows.length === 0) {
+    return (
+      <div style={{ padding: 24, color: T.textDim, fontSize: 13 }}>
+        No team stats yet — simulate some games first.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ background: T.bgPanel, borderRadius: 6, overflow: 'hidden', border: `1px solid ${T.borderFaint}` }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr style={{ background: T.bgCard }}>
+            <th style={{ ...thStyle, width: 32, textAlign: 'center' }}>#</th>
+            <th style={{ ...thStyle, textAlign: 'left' }}>TEAM</th>
+            <th style={{ ...thStyle, textAlign: 'right' }}>W-L</th>
+            <SortHdr k="ppg"      label="PPG" />
+            <SortHdr k="papg"     label="PAPG" />
+            <SortHdr k="ypg"      label="YPG" />
+            <SortHdr k="to_diff"  label="TO±" />
+            <SortHdr k="to_given" label="TO GIVEN" />
+            <SortHdr k="to_taken" label="TO TAKEN" />
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((t, i) => {
+            const toDiffColor = t.to_diff > 0 ? '#4caf50' : t.to_diff < 0 ? '#e57373' : T.textMuted;
+            return (
+              <tr key={t.id} style={{ borderBottom: `1px solid ${T.borderFaint}`, background: i % 2 === 0 ? T.bgCard : 'transparent' }}>
+                <td style={{ ...tdBase, textAlign: 'center', color: T.textDim }}>{i + 1}</td>
+                <td style={{ ...tdBase, color: T.textPrimary, fontWeight: 'bold' }}>{t.city} {t.name}</td>
+                <td style={{ ...tdBase, textAlign: 'right', color: T.textMuted }}>{t.wins}–{t.losses}</td>
+                <td style={{ ...tdBase, textAlign: 'right', color: '#4FC3F7', fontWeight: 'bold' }}>{t.ppg}</td>
+                <td style={{ ...tdBase, textAlign: 'right', color: '#e57373' }}>{t.papg}</td>
+                <td style={{ ...tdBase, textAlign: 'right' }}>{(t.ypg ?? 0).toLocaleString()}</td>
+                <td style={{ ...tdBase, textAlign: 'right', fontWeight: 700, color: toDiffColor }}>{t.to_diff > 0 ? '+' : ''}{t.to_diff}</td>
+                <td style={{ ...tdBase, textAlign: 'right', color: T.textDim }}>{t.to_given}</td>
+                <td style={{ ...tdBase, textAlign: 'right', color: T.textDim }}>{t.to_taken}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // ─── Main Stats Page ──────────────────────────────────────────────────────────
 
 export default function Stats({ currentSeason }: Props) {
@@ -241,9 +312,9 @@ export default function Stats({ currentSeason }: Props) {
   const [selectedTeam, setSelectedTeam] = useState<TeamEntry | null>(null);
   const [teamStats, setTeamStats] = useState<any[] | null>(null);
   const [viewMode, setViewMode] = useState<'players' | 'teams'>('players');
-const [teamSeasonStats, setTeamSeasonStats] = useState<any[] | null>(null);
-const [teamSortKey, setTeamSortKey] = useState<string>('ppg');
-const [teamSortDir, setTeamSortDir] = useState<'asc'|'desc'>('desc');
+  const [teamSeasonStats, setTeamSeasonStats] = useState<any[] | null>(null);
+  const [teamSortKey, setTeamSortKey] = useState<string>('ppg');
+  const [teamSortDir, setTeamSortDir] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
     window.api.getSeasons().then((seasons: number[]) => setAvailableSeasons(seasons));
@@ -256,12 +327,12 @@ const [teamSortDir, setTeamSortDir] = useState<'asc'|'desc'>('desc');
     window.api.getStats(viewSeason).then((data: StatsData) => setStats(data));
   }, [viewSeason]);
 
-useEffect(() => {
-  if (viewMode === 'teams') {
-    window.api.getTeamSeasonStats(viewSeason).then((rows: any[]) => setTeamSeasonStats(rows));
-  }
-}, [viewMode, viewSeason]);
-  
+  useEffect(() => {
+    if (viewMode === 'teams') {
+      window.api.getTeamSeasonStats(viewSeason).then((rows: any[]) => setTeamSeasonStats(rows));
+    }
+  }, [viewMode, viewSeason]);
+
   useEffect(() => {
     if (selectedTeam) {
       window.api.getTeamStats(selectedTeam.id, viewSeason).then((rows: any[]) => setTeamStats(rows));
@@ -280,26 +351,25 @@ useEffect(() => {
 
   if (!stats) return <div style={{ padding: 40, color: T.textDim }}>Loading...</div>;
 
-  // When a team is selected, build category arrays from the full team roster stats
-  const teamPassing = teamStats ? [...teamStats].filter(p => (p.pass_attempts ?? 0) > 0).sort((a, b) => (b.pass_yards ?? 0) - (a.pass_yards ?? 0)) : null;
-  const teamRushing = teamStats ? [...teamStats].filter(p => (p.rush_attempts ?? 0) > 0).sort((a, b) => (b.rush_yards ?? 0) - (a.rush_yards ?? 0)) : null;
-  const teamReceiving = teamStats ? [...teamStats].filter(p => (p.targets ?? 0) > 0).sort((a, b) => (b.rec_yards ?? 0) - (a.rec_yards ?? 0)) : null;
-  const teamTackles = teamStats ? [...teamStats].filter(p => (p.tackles ?? 0) + (p.assisted_tackles ?? 0) > 0).sort((a, b) => ((b.tackles ?? 0) + (b.assisted_tackles ?? 0)) - ((a.tackles ?? 0) + (a.assisted_tackles ?? 0))) : null;
-  const teamSacks = teamStats ? [...teamStats].filter(p => (p.sacks ?? 0) > 0).sort((a, b) => (b.sacks ?? 0) - (a.sacks ?? 0)) : null;
-  const teamDefInts = teamStats ? [...teamStats].filter(p => (p.def_interceptions ?? 0) > 0 || (p.pass_deflections ?? 0) > 0).sort((a, b) => (b.def_interceptions ?? 0) - (a.def_interceptions ?? 0)) : null;
+  const teamPassing      = teamStats ? [...teamStats].filter(p => (p.pass_attempts ?? 0) > 0).sort((a, b) => (b.pass_yards ?? 0) - (a.pass_yards ?? 0)) : null;
+  const teamRushing      = teamStats ? [...teamStats].filter(p => (p.rush_attempts ?? 0) > 0).sort((a, b) => (b.rush_yards ?? 0) - (a.rush_yards ?? 0)) : null;
+  const teamReceiving    = teamStats ? [...teamStats].filter(p => (p.targets ?? 0) > 0).sort((a, b) => (b.rec_yards ?? 0) - (a.rec_yards ?? 0)) : null;
+  const teamTackles      = teamStats ? [...teamStats].filter(p => (p.tackles ?? 0) + (p.assisted_tackles ?? 0) > 0).sort((a, b) => ((b.tackles ?? 0) + (b.assisted_tackles ?? 0)) - ((a.tackles ?? 0) + (a.assisted_tackles ?? 0))) : null;
+  const teamSacks        = teamStats ? [...teamStats].filter(p => (p.sacks ?? 0) > 0).sort((a, b) => (b.sacks ?? 0) - (a.sacks ?? 0)) : null;
+  const teamDefInts      = teamStats ? [...teamStats].filter(p => (p.def_interceptions ?? 0) > 0 || (p.pass_deflections ?? 0) > 0).sort((a, b) => (b.def_interceptions ?? 0) - (a.def_interceptions ?? 0)) : null;
 
-  const passing = teamPassing ?? stats.passing;
-  const rushing = teamRushing ?? stats.rushing;
-  const receiving = teamReceiving ?? stats.receiving;
-  const tackles = teamTackles ?? (stats.tackles ?? []);
-  const sacks = teamSacks ?? (stats.sacks ?? []);
-  const defInterceptions = teamDefInts ?? (stats.defInterceptions ?? []);
+  const passing          = teamPassing  ?? stats.passing;
+  const rushing          = teamRushing  ?? stats.rushing;
+  const receiving        = teamReceiving ?? stats.receiving;
+  const tackles          = teamTackles  ?? (stats.tackles ?? []);
+  const sacks            = teamSacks    ?? (stats.sacks ?? []);
+  const defInterceptions = teamDefInts  ?? (stats.defInterceptions ?? []);
 
   const categories: { id: StatCategory; label: string }[] = [
-    { id: 'passing', label: 'Passing' },
-    { id: 'rushing', label: 'Rushing' },
+    { id: 'passing',   label: 'Passing'   },
+    { id: 'rushing',   label: 'Rushing'   },
     { id: 'receiving', label: 'Receiving' },
-    { id: 'defense', label: 'Defense' },
+    { id: 'defense',   label: 'Defense'   },
   ];
 
   const rowStyle = (i: number, p: BasePlayer): React.CSSProperties => ({
@@ -308,7 +378,7 @@ useEffect(() => {
     cursor: 'pointer',
   });
 
-  const tdBase: React.CSSProperties = { padding: '9px 10px', fontFamily: 'monospace', fontSize: 12 };
+  const tdBase: React.CSSProperties  = { padding: '9px 10px', fontFamily: 'monospace', fontSize: 12 };
   const thStyle: React.CSSProperties = { ...tdBase, color: T.borderStrong, fontSize: 10, letterSpacing: 1 };
 
   return (
@@ -322,14 +392,22 @@ useEffect(() => {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-  <div style={{ fontSize: 22, fontWeight: 'bold', color: T.textPrimary }}>
-    {viewMode === 'teams' ? `${viewSeason} Team Stats` : (selectedTeam ? `${selectedTeam.city} ${selectedTeam.name} — ` : '') + `${viewSeason} Season Leaders`}
-  </div>
-  <div style={{ display: 'flex', gap: 4 }}>
-    <button onClick={() => setViewMode('players')} style={{ padding: '4px 10px', fontSize: 10, background: viewMode==='players'?'#FF8740':T.bgCard, color: viewMode==='players'?'#000':T.textDim, border: `1px solid ${viewMode==='players'?'#FF8740':T.borderFaint}`, borderRadius: 3, cursor: 'pointer', fontWeight: viewMode==='players'?700:400 }}>PLAYERS</button>
-    <button onClick={() => setViewMode('teams')} style={{ padding: '4px 10px', fontSize: 10, background: viewMode==='teams'?'#FF8740':T.bgCard, color: viewMode==='teams'?'#000':T.textDim, border: `1px solid ${viewMode==='teams'?'#FF8740':T.borderFaint}`, borderRadius: 3, cursor: 'pointer', fontWeight: viewMode==='teams'?700:400 }}>TEAMS</button>
-  </div>
-</div>
+            <div style={{ fontSize: 22, fontWeight: 'bold', color: T.textPrimary }}>
+              {viewMode === 'teams'
+                ? `${viewSeason} Team Stats`
+                : (selectedTeam ? `${selectedTeam.city} ${selectedTeam.name} — ` : '') + `${viewSeason} Season Leaders`}
+            </div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button
+                onClick={() => setViewMode('players')}
+                style={{ padding: '4px 10px', fontSize: 10, background: viewMode === 'players' ? '#FF8740' : T.bgCard, color: viewMode === 'players' ? '#000' : T.textDim, border: `1px solid ${viewMode === 'players' ? '#FF8740' : T.borderFaint}`, borderRadius: 3, cursor: 'pointer', fontWeight: viewMode === 'players' ? 700 : 400 }}
+              >PLAYERS</button>
+              <button
+                onClick={() => setViewMode('teams')}
+                style={{ padding: '4px 10px', fontSize: 10, background: viewMode === 'teams' ? '#FF8740' : T.bgCard, color: viewMode === 'teams' ? '#000' : T.textDim, border: `1px solid ${viewMode === 'teams' ? '#FF8740' : T.borderFaint}`, borderRadius: 3, cursor: 'pointer', fontWeight: viewMode === 'teams' ? 700 : 400 }}
+              >TEAMS</button>
+            </div>
+          </div>
           <div style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>Click any player to view their full stats</div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -379,193 +457,30 @@ useEffect(() => {
         ))}
       </div>
 
-{viewMode === 'teams' && (() => {
-  const rows = teamSeasonStats ?? [];
-  const sortedTeams = [...rows].sort((a, b) => {
-    const av = a[teamSortKey] ?? 0, bv = b[teamSortKey] ?? 0;
-    return teamSortDir === 'desc' ? bv - av : av - bv;
-  });
-  const SortHdr = ({ k, label }: { k: string; label: string }) => (
-    <th onClick={() => { teamSortKey === k ? setTeamSortDir(d => d==='desc'?'asc':'desc') : (setTeamSortKey(k), setTeamSortDir('desc')); }}
-      style={{ ...thStyle, textAlign:'right', cursor:'pointer', color: teamSortKey===k?'#FF8740':T.textDim, userSelect:'none' }}>
-      {label}{teamSortKey===k?(teamSortDir==='desc'?' ▼':' ▲'):''}
-    </th>
-  );
-  return (
-    <div style={{ background: T.bgPanel, borderRadius: 6, overflow: 'hidden', border: `1px solid ${T.borderFaint}` }}>
-      {rows.length === 0 && <div style={{ padding: 24, color: T.textDim, fontSize: 13 }}>No team stats yet — simulate some games first.</div>}
-      {rows.length > 0 && (
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: T.bgCard }}>
-              <th style={{ ...thStyle, width: 32, textAlign: 'center' }}>#</th>
-              <th style={{ ...thStyle, textAlign: 'left' }}>TEAM</th>
-              <th style={{ ...thStyle, textAlign: 'right' }}>W-L</th>
-              <SortHdr k="ppg"     label="PPG" />
-              <SortHdr k="papg"    label="PAPG" />
-              <SortHdr k="ypg"     label="YPG" />
-              <SortHdr k="to_diff" label="TO±" />
-              <SortHdr k="to_given"  label="TO GIVEN" />
-              <SortHdr k="to_taken"  label="TO TAKEN" />
-            </tr>
-          </thead>
-          <tbody>
-            {sortedTeams.map((t, i) => {
-              const toDiffColor = t.to_diff > 0 ? '#4caf50' : t.to_diff < 0 ? '#e57373' : T.textMuted;
-              return (
-                <tr key={t.id} style={{ borderBottom: `1px solid ${T.borderFaint}`, background: i%2===0?T.bgCard:'transparent' }}>
-                  <td style={{ ...tdBase, textAlign: 'center', color: T.textDim }}>{i+1}</td>
-                  <td style={{ ...tdBase, color: T.textPrimary, fontWeight: 'bold' }}>{t.city} {t.name}</td>
-                  <td style={{ ...tdBase, textAlign: 'right', color: T.textMuted }}>{t.wins}–{t.losses}</td>
-                  <td style={{ ...tdBase, textAlign: 'right', color: '#4FC3F7', fontWeight: 'bold' }}>{t.ppg}</td>
-                  <td style={{ ...tdBase, textAlign: 'right', color: '#e57373' }}>{t.papg}</td>
-                  <td style={{ ...tdBase, textAlign: 'right' }}>{t.ypg.toLocaleString()}</td>
-                  <td style={{ ...tdBase, textAlign: 'right', fontWeight: 700, color: toDiffColor }}>{t.to_diff > 0 ? '+' : ''}{t.to_diff}</td>
-                  <td style={{ ...tdBase, textAlign: 'right', color: T.textDim }}>{t.to_given}</td>
-                  <td style={{ ...tdBase, textAlign: 'right', color: T.textDim }}>{t.to_taken}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      )}
-    </div>
-  );
-})()}
-
-{viewMode === 'players' && (
-      
-      {/* Passing */}
-      {category === 'passing' && (
-        <div style={{ background: T.bgPanel, borderRadius: 6, overflow: 'hidden', border: `1px solid ${T.borderFaint}` }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: T.bgCard }}>
-                <th style={{ ...thStyle, width: 32, textAlign: 'center' }}>#</th>
-                <th style={{ ...thStyle, textAlign: 'left' }}>PLAYER</th>
-                <th style={{ ...thStyle, textAlign: 'left' }}>TEAM</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>OVR</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>YDS</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>TD</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>INT</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>CMP</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>ATT</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>PCT</th>
-              </tr>
-            </thead>
-            <tbody>
-              {passing.length === 0 && <tr><td colSpan={10} style={{ ...tdBase, color: T.textDim, textAlign: 'center' }}>No passing stats yet</td></tr>}
-              {passing.map((p, i) => (
-                <tr key={p.player_id} style={rowStyle(i, p)} onClick={() => setSelectedPlayer(p)}>
-                  <td style={{ ...tdBase, textAlign: 'center', color: T.textDim }}>{i + 1}</td>
-                  <td style={{ ...tdBase, color: T.textPrimary, fontWeight: 'bold' }}>{p.player_name}</td>
-                  <td style={{ ...tdBase, color: T.textMuted }}>{p.team_name}</td>
-                  <td style={{ ...tdBase, textAlign: 'right', color: ovrColor(p.overall_rating), fontWeight: 'bold' }}>{p.overall_rating}</td>
-                  <td style={{ ...tdBase, textAlign: 'right', color: '#4FC3F7', fontWeight: 'bold' }}>{p.pass_yards}</td>
-                  <td style={{ ...tdBase, textAlign: 'right', color: '#81C784' }}>{p.pass_tds}</td>
-                  <td style={{ ...tdBase, textAlign: 'right', color: '#e57373' }}>{p.interceptions}</td>
-                  <td style={{ ...tdBase, textAlign: 'right' }}>{p.completions}</td>
-                  <td style={{ ...tdBase, textAlign: 'right' }}>{p.pass_attempts}</td>
-                  <td style={{ ...tdBase, textAlign: 'right' }}>{p.pass_attempts > 0 ? ((p.completions / p.pass_attempts) * 100).toFixed(1) + '%' : '-'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {/* Teams View */}
+      {viewMode === 'teams' && (
+        <TeamStatsTable
+          rows={teamSeasonStats ?? []}
+          sortKey={teamSortKey}
+          sortDir={teamSortDir}
+          onSort={(k) => {
+            if (teamSortKey === k) {
+              setTeamSortDir(d => d === 'desc' ? 'asc' : 'desc');
+            } else {
+              setTeamSortKey(k);
+              setTeamSortDir('desc');
+            }
+          }}
+          thStyle={thStyle}
+          tdBase={tdBase}
+        />
       )}
 
-      {/* Rushing */}
-      {category === 'rushing' && (
-        <div style={{ background: T.bgPanel, borderRadius: 6, overflow: 'hidden', border: `1px solid ${T.borderFaint}` }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: T.bgCard }}>
-                <th style={{ ...thStyle, width: 32, textAlign: 'center' }}>#</th>
-                <th style={{ ...thStyle, textAlign: 'left' }}>PLAYER</th>
-                <th style={{ ...thStyle, textAlign: 'left' }}>TEAM</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>OVR</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>YDS</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>TD</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>CAR</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>YPC</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rushing.length === 0 && <tr><td colSpan={8} style={{ ...tdBase, color: T.textDim, textAlign: 'center' }}>No rushing stats yet</td></tr>}
-              {rushing.map((p, i) => (
-                <tr key={p.player_id} style={rowStyle(i, p)} onClick={() => setSelectedPlayer(p)}>
-                  <td style={{ ...tdBase, textAlign: 'center', color: T.textDim }}>{i + 1}</td>
-                  <td style={{ ...tdBase, color: T.textPrimary, fontWeight: 'bold' }}>{p.player_name}</td>
-                  <td style={{ ...tdBase, color: T.textMuted }}>{p.team_name}</td>
-                  <td style={{ ...tdBase, textAlign: 'right', color: ovrColor(p.overall_rating), fontWeight: 'bold' }}>{p.overall_rating}</td>
-                  <td style={{ ...tdBase, textAlign: 'right', color: '#4FC3F7', fontWeight: 'bold' }}>{p.rush_yards}</td>
-                  <td style={{ ...tdBase, textAlign: 'right', color: '#81C784' }}>{p.rush_tds}</td>
-                  <td style={{ ...tdBase, textAlign: 'right' }}>{p.rush_attempts}</td>
-                  <td style={{ ...tdBase, textAlign: 'right' }}>{p.rush_attempts > 0 ? (p.rush_yards / p.rush_attempts).toFixed(1) : '-'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Receiving */}
-      {category === 'receiving' && (
-        <div style={{ background: T.bgPanel, borderRadius: 6, overflow: 'hidden', border: `1px solid ${T.borderFaint}` }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: T.bgCard }}>
-                <th style={{ ...thStyle, width: 32, textAlign: 'center' }}>#</th>
-                <th style={{ ...thStyle, textAlign: 'left' }}>PLAYER</th>
-                <th style={{ ...thStyle, textAlign: 'left' }}>TEAM</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>OVR</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>YDS</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>TD</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>REC</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>TGT</th>
-                <th style={{ ...thStyle, textAlign: 'right' }}>YPR</th>
-              </tr>
-            </thead>
-            <tbody>
-              {receiving.length === 0 && <tr><td colSpan={9} style={{ ...tdBase, color: T.textDim, textAlign: 'center' }}>No receiving stats yet</td></tr>}
-              {receiving.map((p, i) => (
-                <tr key={p.player_id} style={rowStyle(i, p)} onClick={() => setSelectedPlayer(p)}>
-                  <td style={{ ...tdBase, textAlign: 'center', color: T.textDim }}>{i + 1}</td>
-                  <td style={{ ...tdBase, color: T.textPrimary, fontWeight: 'bold' }}>{p.player_name}</td>
-                  <td style={{ ...tdBase, color: T.textMuted }}>{p.team_name}</td>
-                  <td style={{ ...tdBase, textAlign: 'right', color: ovrColor(p.overall_rating), fontWeight: 'bold' }}>{p.overall_rating}</td>
-                  <td style={{ ...tdBase, textAlign: 'right', color: '#4FC3F7', fontWeight: 'bold' }}>{p.rec_yards}</td>
-                  <td style={{ ...tdBase, textAlign: 'right', color: '#81C784' }}>{p.rec_tds}</td>
-                  <td style={{ ...tdBase, textAlign: 'right' }}>{p.receptions}</td>
-                  <td style={{ ...tdBase, textAlign: 'right' }}>{p.targets}</td>
-                  <td style={{ ...tdBase, textAlign: 'right' }}>{p.receptions > 0 ? (p.rec_yards / p.receptions).toFixed(1) : '-'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Defense */}
-      {category === 'defense' && (
-        <div>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-            {([
-              { id: 'tackles', label: 'Tackles' },
-              { id: 'sacks', label: 'Sacks' },
-              { id: 'interceptions', label: 'INTs / PDs' },
-            ] as { id: DefSubCat; label: string }[]).map(sub => (
-              <button key={sub.id} onClick={() => setDefSubCat(sub.id)} style={{
-                padding: '5px 14px', fontSize: 11,
-                background: defSubCat === sub.id ? T.bgBlue : T.bgPage,
-                color: defSubCat === sub.id ? '#4FC3F7' : T.textDim,
-                border: `1px solid ${defSubCat === sub.id ? '#2a2a4a' : T.bgCard}`,
-                borderRadius: 4, cursor: 'pointer', fontFamily: 'monospace',
-              }}>{sub.label}</button>
-            ))}
-          </div>
-
-          {defSubCat === 'tackles' && (
+      {/* Players View */}
+      {viewMode === 'players' && (
+        <>
+          {/* Passing */}
+          {category === 'passing' && (
             <div style={{ background: T.bgPanel, borderRadius: 6, overflow: 'hidden', border: `1px solid ${T.borderFaint}` }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
@@ -574,104 +489,236 @@ useEffect(() => {
                     <th style={{ ...thStyle, textAlign: 'left' }}>PLAYER</th>
                     <th style={{ ...thStyle, textAlign: 'left' }}>TEAM</th>
                     <th style={{ ...thStyle, textAlign: 'right' }}>OVR</th>
-                    <th style={{ ...thStyle, textAlign: 'right' }}>SOLO</th>
-                    <th style={{ ...thStyle, textAlign: 'right' }}>AST</th>
-                    <th style={{ ...thStyle, textAlign: 'right' }}>TOT</th>
-                    <th style={{ ...thStyle, textAlign: 'right' }}>SACKS</th>
-                    <th style={{ ...thStyle, textAlign: 'right' }}>TFL</th>
-                    <th style={{ ...thStyle, textAlign: 'right' }}>FF</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tackles.length === 0 && <tr><td colSpan={10} style={{ ...tdBase, color: T.textDim, textAlign: 'center' }}>No defensive stats yet — simulate some games first</td></tr>}
-                  {tackles.map((p, i) => (
-                    <tr key={p.player_id} style={rowStyle(i, p)} onClick={() => setSelectedPlayer(p)}>
-                      <td style={{ ...tdBase, textAlign: 'center', color: T.textDim }}>{i + 1}</td>
-                      <td style={{ ...tdBase, color: T.textPrimary, fontWeight: 'bold' }}>{p.player_name}</td>
-                      <td style={{ ...tdBase, color: T.textMuted }}>{p.team_name}</td>
-                      <td style={{ ...tdBase, textAlign: 'right', color: ovrColor(p.overall_rating), fontWeight: 'bold' }}>{p.overall_rating}</td>
-                      <td style={{ ...tdBase, textAlign: 'right', color: '#4FC3F7' }}>{p.tackles}</td>
-                      <td style={{ ...tdBase, textAlign: 'right' }}>{p.assisted_tackles}</td>
-                      <td style={{ ...tdBase, textAlign: 'right', fontWeight: 'bold' }}>{(p.tackles ?? 0) + (p.assisted_tackles ?? 0)}</td>
-                      <td style={{ ...tdBase, textAlign: 'right', color: '#FF8740' }}>{Number(p.sacks ?? 0).toFixed(1)}</td>
-                      <td style={{ ...tdBase, textAlign: 'right' }}>{p.tfl}</td>
-                      <td style={{ ...tdBase, textAlign: 'right' }}>{p.forced_fumbles}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {defSubCat === 'sacks' && (
-            <div style={{ background: T.bgPanel, borderRadius: 6, overflow: 'hidden', border: `1px solid ${T.borderFaint}` }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ background: T.bgCard }}>
-                    <th style={{ ...thStyle, width: 32, textAlign: 'center' }}>#</th>
-                    <th style={{ ...thStyle, textAlign: 'left' }}>PLAYER</th>
-                    <th style={{ ...thStyle, textAlign: 'left' }}>TEAM</th>
-                    <th style={{ ...thStyle, textAlign: 'right' }}>OVR</th>
-                    <th style={{ ...thStyle, textAlign: 'right' }}>SACKS</th>
-                    <th style={{ ...thStyle, textAlign: 'right' }}>TFL</th>
-                    <th style={{ ...thStyle, textAlign: 'right' }}>FF</th>
-                    <th style={{ ...thStyle, textAlign: 'right' }}>SOLO TKL</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sacks.length === 0 && <tr><td colSpan={8} style={{ ...tdBase, color: T.textDim, textAlign: 'center' }}>No sack data yet</td></tr>}
-                  {sacks.map((p, i) => (
-                    <tr key={p.player_id} style={rowStyle(i, p)} onClick={() => setSelectedPlayer(p)}>
-                      <td style={{ ...tdBase, textAlign: 'center', color: T.textDim }}>{i + 1}</td>
-                      <td style={{ ...tdBase, color: T.textPrimary, fontWeight: 'bold' }}>{p.player_name}</td>
-                      <td style={{ ...tdBase, color: T.textMuted }}>{p.team_name}</td>
-                      <td style={{ ...tdBase, textAlign: 'right', color: ovrColor(p.overall_rating), fontWeight: 'bold' }}>{p.overall_rating}</td>
-                      <td style={{ ...tdBase, textAlign: 'right', color: '#FF8740', fontWeight: 'bold' }}>{Number(p.sacks ?? 0).toFixed(1)}</td>
-                      <td style={{ ...tdBase, textAlign: 'right' }}>{p.tfl}</td>
-                      <td style={{ ...tdBase, textAlign: 'right' }}>{p.forced_fumbles}</td>
-                      <td style={{ ...tdBase, textAlign: 'right' }}>{p.tackles}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {defSubCat === 'interceptions' && (
-            <div style={{ background: T.bgPanel, borderRadius: 6, overflow: 'hidden', border: `1px solid ${T.borderFaint}` }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ background: T.bgCard }}>
-                    <th style={{ ...thStyle, width: 32, textAlign: 'center' }}>#</th>
-                    <th style={{ ...thStyle, textAlign: 'left' }}>PLAYER</th>
-                    <th style={{ ...thStyle, textAlign: 'left' }}>TEAM</th>
-                    <th style={{ ...thStyle, textAlign: 'right' }}>OVR</th>
+                    <th style={{ ...thStyle, textAlign: 'right' }}>YDS</th>
+                    <th style={{ ...thStyle, textAlign: 'right' }}>TD</th>
                     <th style={{ ...thStyle, textAlign: 'right' }}>INT</th>
-                    <th style={{ ...thStyle, textAlign: 'right' }}>PD</th>
-                    <th style={{ ...thStyle, textAlign: 'right' }}>DEF TD</th>
-                    <th style={{ ...thStyle, textAlign: 'right' }}>TACKLES</th>
+                    <th style={{ ...thStyle, textAlign: 'right' }}>CMP</th>
+                    <th style={{ ...thStyle, textAlign: 'right' }}>ATT</th>
+                    <th style={{ ...thStyle, textAlign: 'right' }}>PCT</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {defInterceptions.length === 0 && <tr><td colSpan={8} style={{ ...tdBase, color: T.textDim, textAlign: 'center' }}>No INT/PD data yet</td></tr>}
-                  {defInterceptions.map((p, i) => (
+                  {passing.length === 0 && <tr><td colSpan={10} style={{ ...tdBase, color: T.textDim, textAlign: 'center' }}>No passing stats yet</td></tr>}
+                  {passing.map((p, i) => (
                     <tr key={p.player_id} style={rowStyle(i, p)} onClick={() => setSelectedPlayer(p)}>
                       <td style={{ ...tdBase, textAlign: 'center', color: T.textDim }}>{i + 1}</td>
                       <td style={{ ...tdBase, color: T.textPrimary, fontWeight: 'bold' }}>{p.player_name}</td>
                       <td style={{ ...tdBase, color: T.textMuted }}>{p.team_name}</td>
                       <td style={{ ...tdBase, textAlign: 'right', color: ovrColor(p.overall_rating), fontWeight: 'bold' }}>{p.overall_rating}</td>
-                      <td style={{ ...tdBase, textAlign: 'right', color: '#4FC3F7', fontWeight: 'bold' }}>{p.def_interceptions}</td>
-                      <td style={{ ...tdBase, textAlign: 'right' }}>{p.pass_deflections}</td>
-                      <td style={{ ...tdBase, textAlign: 'right', color: '#81C784' }}>{p.def_tds}</td>
-                      <td style={{ ...tdBase, textAlign: 'right' }}>{p.tackles}</td>
+                      <td style={{ ...tdBase, textAlign: 'right', color: '#4FC3F7', fontWeight: 'bold' }}>{p.pass_yards}</td>
+                      <td style={{ ...tdBase, textAlign: 'right', color: '#81C784' }}>{p.pass_tds}</td>
+                      <td style={{ ...tdBase, textAlign: 'right', color: '#e57373' }}>{p.interceptions}</td>
+                      <td style={{ ...tdBase, textAlign: 'right' }}>{p.completions}</td>
+                      <td style={{ ...tdBase, textAlign: 'right' }}>{p.pass_attempts}</td>
+                      <td style={{ ...tdBase, textAlign: 'right' }}>{p.pass_attempts > 0 ? ((p.completions / p.pass_attempts) * 100).toFixed(1) + '%' : '-'}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           )}
-        </div>
+
+          {/* Rushing */}
+          {category === 'rushing' && (
+            <div style={{ background: T.bgPanel, borderRadius: 6, overflow: 'hidden', border: `1px solid ${T.borderFaint}` }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: T.bgCard }}>
+                    <th style={{ ...thStyle, width: 32, textAlign: 'center' }}>#</th>
+                    <th style={{ ...thStyle, textAlign: 'left' }}>PLAYER</th>
+                    <th style={{ ...thStyle, textAlign: 'left' }}>TEAM</th>
+                    <th style={{ ...thStyle, textAlign: 'right' }}>OVR</th>
+                    <th style={{ ...thStyle, textAlign: 'right' }}>YDS</th>
+                    <th style={{ ...thStyle, textAlign: 'right' }}>TD</th>
+                    <th style={{ ...thStyle, textAlign: 'right' }}>CAR</th>
+                    <th style={{ ...thStyle, textAlign: 'right' }}>YPC</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rushing.length === 0 && <tr><td colSpan={8} style={{ ...tdBase, color: T.textDim, textAlign: 'center' }}>No rushing stats yet</td></tr>}
+                  {rushing.map((p, i) => (
+                    <tr key={p.player_id} style={rowStyle(i, p)} onClick={() => setSelectedPlayer(p)}>
+                      <td style={{ ...tdBase, textAlign: 'center', color: T.textDim }}>{i + 1}</td>
+                      <td style={{ ...tdBase, color: T.textPrimary, fontWeight: 'bold' }}>{p.player_name}</td>
+                      <td style={{ ...tdBase, color: T.textMuted }}>{p.team_name}</td>
+                      <td style={{ ...tdBase, textAlign: 'right', color: ovrColor(p.overall_rating), fontWeight: 'bold' }}>{p.overall_rating}</td>
+                      <td style={{ ...tdBase, textAlign: 'right', color: '#4FC3F7', fontWeight: 'bold' }}>{p.rush_yards}</td>
+                      <td style={{ ...tdBase, textAlign: 'right', color: '#81C784' }}>{p.rush_tds}</td>
+                      <td style={{ ...tdBase, textAlign: 'right' }}>{p.rush_attempts}</td>
+                      <td style={{ ...tdBase, textAlign: 'right' }}>{p.rush_attempts > 0 ? (p.rush_yards / p.rush_attempts).toFixed(1) : '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Receiving */}
+          {category === 'receiving' && (
+            <div style={{ background: T.bgPanel, borderRadius: 6, overflow: 'hidden', border: `1px solid ${T.borderFaint}` }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: T.bgCard }}>
+                    <th style={{ ...thStyle, width: 32, textAlign: 'center' }}>#</th>
+                    <th style={{ ...thStyle, textAlign: 'left' }}>PLAYER</th>
+                    <th style={{ ...thStyle, textAlign: 'left' }}>TEAM</th>
+                    <th style={{ ...thStyle, textAlign: 'right' }}>OVR</th>
+                    <th style={{ ...thStyle, textAlign: 'right' }}>YDS</th>
+                    <th style={{ ...thStyle, textAlign: 'right' }}>TD</th>
+                    <th style={{ ...thStyle, textAlign: 'right' }}>REC</th>
+                    <th style={{ ...thStyle, textAlign: 'right' }}>TGT</th>
+                    <th style={{ ...thStyle, textAlign: 'right' }}>YPR</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {receiving.length === 0 && <tr><td colSpan={9} style={{ ...tdBase, color: T.textDim, textAlign: 'center' }}>No receiving stats yet</td></tr>}
+                  {receiving.map((p, i) => (
+                    <tr key={p.player_id} style={rowStyle(i, p)} onClick={() => setSelectedPlayer(p)}>
+                      <td style={{ ...tdBase, textAlign: 'center', color: T.textDim }}>{i + 1}</td>
+                      <td style={{ ...tdBase, color: T.textPrimary, fontWeight: 'bold' }}>{p.player_name}</td>
+                      <td style={{ ...tdBase, color: T.textMuted }}>{p.team_name}</td>
+                      <td style={{ ...tdBase, textAlign: 'right', color: ovrColor(p.overall_rating), fontWeight: 'bold' }}>{p.overall_rating}</td>
+                      <td style={{ ...tdBase, textAlign: 'right', color: '#4FC3F7', fontWeight: 'bold' }}>{p.rec_yards}</td>
+                      <td style={{ ...tdBase, textAlign: 'right', color: '#81C784' }}>{p.rec_tds}</td>
+                      <td style={{ ...tdBase, textAlign: 'right' }}>{p.receptions}</td>
+                      <td style={{ ...tdBase, textAlign: 'right' }}>{p.targets}</td>
+                      <td style={{ ...tdBase, textAlign: 'right' }}>{p.receptions > 0 ? (p.rec_yards / p.receptions).toFixed(1) : '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Defense */}
+          {category === 'defense' && (
+            <div>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                {([
+                  { id: 'tackles',       label: 'Tackles'    },
+                  { id: 'sacks',         label: 'Sacks'      },
+                  { id: 'interceptions', label: 'INTs / PDs' },
+                ] as { id: DefSubCat; label: string }[]).map(sub => (
+                  <button key={sub.id} onClick={() => setDefSubCat(sub.id)} style={{
+                    padding: '5px 14px', fontSize: 11,
+                    background: defSubCat === sub.id ? T.bgBlue : T.bgPage,
+                    color: defSubCat === sub.id ? '#4FC3F7' : T.textDim,
+                    border: `1px solid ${defSubCat === sub.id ? '#2a2a4a' : T.bgCard}`,
+                    borderRadius: 4, cursor: 'pointer', fontFamily: 'monospace',
+                  }}>{sub.label}</button>
+                ))}
+              </div>
+
+              {defSubCat === 'tackles' && (
+                <div style={{ background: T.bgPanel, borderRadius: 6, overflow: 'hidden', border: `1px solid ${T.borderFaint}` }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: T.bgCard }}>
+                        <th style={{ ...thStyle, width: 32, textAlign: 'center' }}>#</th>
+                        <th style={{ ...thStyle, textAlign: 'left' }}>PLAYER</th>
+                        <th style={{ ...thStyle, textAlign: 'left' }}>TEAM</th>
+                        <th style={{ ...thStyle, textAlign: 'right' }}>OVR</th>
+                        <th style={{ ...thStyle, textAlign: 'right' }}>SOLO</th>
+                        <th style={{ ...thStyle, textAlign: 'right' }}>AST</th>
+                        <th style={{ ...thStyle, textAlign: 'right' }}>TOT</th>
+                        <th style={{ ...thStyle, textAlign: 'right' }}>SACKS</th>
+                        <th style={{ ...thStyle, textAlign: 'right' }}>TFL</th>
+                        <th style={{ ...thStyle, textAlign: 'right' }}>FF</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tackles.length === 0 && <tr><td colSpan={10} style={{ ...tdBase, color: T.textDim, textAlign: 'center' }}>No defensive stats yet — simulate some games first</td></tr>}
+                      {tackles.map((p, i) => (
+                        <tr key={p.player_id} style={rowStyle(i, p)} onClick={() => setSelectedPlayer(p)}>
+                          <td style={{ ...tdBase, textAlign: 'center', color: T.textDim }}>{i + 1}</td>
+                          <td style={{ ...tdBase, color: T.textPrimary, fontWeight: 'bold' }}>{p.player_name}</td>
+                          <td style={{ ...tdBase, color: T.textMuted }}>{p.team_name}</td>
+                          <td style={{ ...tdBase, textAlign: 'right', color: ovrColor(p.overall_rating), fontWeight: 'bold' }}>{p.overall_rating}</td>
+                          <td style={{ ...tdBase, textAlign: 'right', color: '#4FC3F7' }}>{p.tackles}</td>
+                          <td style={{ ...tdBase, textAlign: 'right' }}>{p.assisted_tackles}</td>
+                          <td style={{ ...tdBase, textAlign: 'right', fontWeight: 'bold' }}>{(p.tackles ?? 0) + (p.assisted_tackles ?? 0)}</td>
+                          <td style={{ ...tdBase, textAlign: 'right', color: '#FF8740' }}>{Number(p.sacks ?? 0).toFixed(1)}</td>
+                          <td style={{ ...tdBase, textAlign: 'right' }}>{p.tfl}</td>
+                          <td style={{ ...tdBase, textAlign: 'right' }}>{p.forced_fumbles}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {defSubCat === 'sacks' && (
+                <div style={{ background: T.bgPanel, borderRadius: 6, overflow: 'hidden', border: `1px solid ${T.borderFaint}` }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: T.bgCard }}>
+                        <th style={{ ...thStyle, width: 32, textAlign: 'center' }}>#</th>
+                        <th style={{ ...thStyle, textAlign: 'left' }}>PLAYER</th>
+                        <th style={{ ...thStyle, textAlign: 'left' }}>TEAM</th>
+                        <th style={{ ...thStyle, textAlign: 'right' }}>OVR</th>
+                        <th style={{ ...thStyle, textAlign: 'right' }}>SACKS</th>
+                        <th style={{ ...thStyle, textAlign: 'right' }}>TFL</th>
+                        <th style={{ ...thStyle, textAlign: 'right' }}>FF</th>
+                        <th style={{ ...thStyle, textAlign: 'right' }}>SOLO TKL</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sacks.length === 0 && <tr><td colSpan={8} style={{ ...tdBase, color: T.textDim, textAlign: 'center' }}>No sack data yet</td></tr>}
+                      {sacks.map((p, i) => (
+                        <tr key={p.player_id} style={rowStyle(i, p)} onClick={() => setSelectedPlayer(p)}>
+                          <td style={{ ...tdBase, textAlign: 'center', color: T.textDim }}>{i + 1}</td>
+                          <td style={{ ...tdBase, color: T.textPrimary, fontWeight: 'bold' }}>{p.player_name}</td>
+                          <td style={{ ...tdBase, color: T.textMuted }}>{p.team_name}</td>
+                          <td style={{ ...tdBase, textAlign: 'right', color: ovrColor(p.overall_rating), fontWeight: 'bold' }}>{p.overall_rating}</td>
+                          <td style={{ ...tdBase, textAlign: 'right', color: '#FF8740', fontWeight: 'bold' }}>{Number(p.sacks ?? 0).toFixed(1)}</td>
+                          <td style={{ ...tdBase, textAlign: 'right' }}>{p.tfl}</td>
+                          <td style={{ ...tdBase, textAlign: 'right' }}>{p.forced_fumbles}</td>
+                          <td style={{ ...tdBase, textAlign: 'right' }}>{p.tackles}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {defSubCat === 'interceptions' && (
+                <div style={{ background: T.bgPanel, borderRadius: 6, overflow: 'hidden', border: `1px solid ${T.borderFaint}` }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: T.bgCard }}>
+                        <th style={{ ...thStyle, width: 32, textAlign: 'center' }}>#</th>
+                        <th style={{ ...thStyle, textAlign: 'left' }}>PLAYER</th>
+                        <th style={{ ...thStyle, textAlign: 'left' }}>TEAM</th>
+                        <th style={{ ...thStyle, textAlign: 'right' }}>OVR</th>
+                        <th style={{ ...thStyle, textAlign: 'right' }}>INT</th>
+                        <th style={{ ...thStyle, textAlign: 'right' }}>PD</th>
+                        <th style={{ ...thStyle, textAlign: 'right' }}>DEF TD</th>
+                        <th style={{ ...thStyle, textAlign: 'right' }}>TACKLES</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {defInterceptions.length === 0 && <tr><td colSpan={8} style={{ ...tdBase, color: T.textDim, textAlign: 'center' }}>No INT/PD data yet</td></tr>}
+                      {defInterceptions.map((p, i) => (
+                        <tr key={p.player_id} style={rowStyle(i, p)} onClick={() => setSelectedPlayer(p)}>
+                          <td style={{ ...tdBase, textAlign: 'center', color: T.textDim }}>{i + 1}</td>
+                          <td style={{ ...tdBase, color: T.textPrimary, fontWeight: 'bold' }}>{p.player_name}</td>
+                          <td style={{ ...tdBase, color: T.textMuted }}>{p.team_name}</td>
+                          <td style={{ ...tdBase, textAlign: 'right', color: ovrColor(p.overall_rating), fontWeight: 'bold' }}>{p.overall_rating}</td>
+                          <td style={{ ...tdBase, textAlign: 'right', color: '#4FC3F7', fontWeight: 'bold' }}>{p.def_interceptions}</td>
+                          <td style={{ ...tdBase, textAlign: 'right' }}>{p.pass_deflections}</td>
+                          <td style={{ ...tdBase, textAlign: 'right', color: '#81C784' }}>{p.def_tds}</td>
+                          <td style={{ ...tdBase, textAlign: 'right' }}>{p.tackles}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
+
     </div>
   );
 }
