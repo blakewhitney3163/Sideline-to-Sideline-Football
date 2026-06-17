@@ -180,9 +180,10 @@ db.exec(`
     season INTEGER NOT NULL,
     round INTEGER NOT NULL,
     is_used INTEGER DEFAULT 0,
-    UNIQUE(original_team_id, season, round)
+      UNIQUE(original_team_id, season, round)
   )
-  // after the pick_assets CREATE TABLE block
+`);
+
 try { db.exec(`CREATE TABLE IF NOT EXISTS team_trade_overrides (
   team_id INTEGER PRIMARY KEY,
   status  TEXT    NOT NULL
