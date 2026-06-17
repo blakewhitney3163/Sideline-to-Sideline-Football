@@ -1008,9 +1008,9 @@ ipcMain.handle('simulate-playoffs', (_event: any, season?: number) => {
   const nfcTeams = seedTeams('NFC');
     const insertGame = db.prepare(`INSERT INTO games (season, week, home_team_id, away_team_id, home_score, away_score, home_q1, home_q2, home_q3, home_q4, away_q1, away_q2, away_q3, away_q4, is_playoff, is_simulated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1)`);
 
-  const simGame = (homeTeam: any, awayTeam: any, week: number) => {
-    cons
-        insertGame.run(s, week, homeTeam.id, awayTeam.id, result.homeScore, result.awayScore, result.homeQuarters[0], result.homeQuarters[1], result.homeQuarters[2], result.homeQuarters[3], result.awayQuarters[0], result.awayQuarters[1], result.awayQuarters[2], result.awayQuarters[3]);
+    const simGame = (homeTeam: any, awayTeam: any, week: number) => {
+    const result = simulateGame(homeTeam.id, awayTeam.id);
+        insertGame.run(s, week, homeTeam.id, awayTeam.id, result.homeScore, result.awayScore,
     return { home: homeTeam, away: awayTeam, homeScore: result.homeScore, awayScore: result.awayScore, winner: result.homeScore > result.awayScore ? homeTeam : awayTeam };
   };
 
