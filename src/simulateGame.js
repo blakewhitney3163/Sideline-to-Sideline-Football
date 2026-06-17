@@ -67,7 +67,7 @@ function generatePlayerStats(teamId, score, offenseRating) {
   const qb = qbs[0] ?? null;
 
   const totalTDs = Math.max(0, Math.round(score / 7));
-  const passTDs  = clamp(Math.round(totalTDs * 0.6), 0, totalTDs);
+  const passTDs  = clamp(Math.round(totalTDs * 0.65), 0, totalTDs);
   const rushTDs  = totalTDs - passTDs;
 
   const defStatDefaults = {
@@ -123,7 +123,8 @@ function generatePlayerStats(teamId, score, offenseRating) {
     const speedFactor = (attr(rb, 'speed') - 70) * 0.03;
     const ypc         = Math.max(2.8, randomNormal(4.2 + speedFactor, 0.8));
     const rushYards   = clamp(carries * ypc, 0, 220);
-    const rbRushTDs   = i === 0 && rushTDs > 0 ? rushTDs : 0;
+    const rbRushTDs = i === 0 && rushTDs > 0 ? Math.ceil(rushTDs * 0.75) :
+                  i === 1 && rushTDs > 1 && Math.random() < 0.3 ? 1 : 0;
 
     stats.push({
       player_id: rb.id, team_id: teamId,
