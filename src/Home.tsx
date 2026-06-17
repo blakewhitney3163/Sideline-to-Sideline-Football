@@ -272,6 +272,16 @@ export default function Home({ currentSeason, onSeasonAdvance, userTeam, onNavig
   if (weekResult?.userPSOpenSpots > 0) {
     setPSAlert(`Practice squad has ${weekResult.userPSOpenSpots} open spot${weekResult.userPSOpenSpots !== 1 ? 's' : ''}. Sign free agents in Franchise → Practice Squad tab.`);
   }
+  // If the season just ended, load playoff seeds immediately so the
+  // home page shows seeds without requiring a page navigation.
+  if (status.currentWeek === null && status.hasSchedule) {
+    const seeds = await window.api.getPlayoffSeeds();
+    setPlayoffSeeds(seeds);
+    const week18 = await window.api.getWeekMatchups(18);
+    setMatchups(week18);
+    setViewWeek(18);
+  }
+
   setSimulating(false);
 };
 

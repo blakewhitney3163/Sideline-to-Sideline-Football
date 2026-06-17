@@ -335,12 +335,11 @@ export default function Stats({ currentSeason }: Props) {
   }, [viewMode, viewSeason]);
 
   useEffect(() => {
+    setTeamStats(null);
     if (selectedTeam) {
       window.api.getTeamStats(selectedTeam.id, viewSeason).then((rows: any[]) => setTeamStats(rows));
-    } else {
-      setTeamStats(null);
     }
-  }, [selectedTeam, viewSeason]);
+  }, [selectedTeam?.id, viewSeason]);
 
   const handleImport = async () => {
     setImporting(true);
