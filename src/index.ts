@@ -7,7 +7,7 @@ import { balanceRosters } from './helpers/balanceRosters';
 import { registerSettingsHandlers, getDifficultyFactor } from './handlers/settingsHandlers';
 import { registerTradeHandlers } from './handlers/tradeHandlers';
 import { registerSimHandlers } from './handlers/simHandlers';
-import { registerContractHandlers } from './handlers/contractHandlers';
+import { registerContractHandlers, calcFairMarket } from './handlers/contractHandlers';
 
 // Auto-seed teams if fresh DB
 const teamCount = (db.prepare('SELECT COUNT(*) as cnt FROM teams').get() as any).cnt;
