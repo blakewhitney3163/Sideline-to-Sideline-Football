@@ -60,6 +60,12 @@ export function registerSettingsHandlers(): void {
     return { success: true };
   });
 
+  ipcMain.handle('balance-rosters', () => {
+  balanceRosters();
+  const faCount = (db.prepare('SELECT COUNT(*) as count FROM players WHERE is_free_agent = 1').get() as any).count;
+  return { success: true, freeAgents: faCount };
+});
+
   ipcMain.handle('check-setup-done', () => {
     const cnt = (db.prepare('SELECT COUNT(*) as cnt FROM career_stats_history').get() as any).cnt;
     return cnt > 0;
