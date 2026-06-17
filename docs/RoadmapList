@@ -3,10 +3,6 @@ Difficulty level (simulation)
 Notification center / news feed (e.g. "Player X retired", "CPU team signed Y", "Player Z called up")
 Game simulation improvements — more realistic play-by-play or box score detail
 Season leaders on home page updated every week (and showing up once simulate happens)
-On stats page - teams, passing/rushing/receiving/defense don’t change
-When season is done, it says loading seeds on home page (until you navigate to a new page)
-Rushing TDs are a little too high
-INTs maybe a little too low on offense
 Player editor
 Team editor
 break out index file into more manageable files for scaleability
