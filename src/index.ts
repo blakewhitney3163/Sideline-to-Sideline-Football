@@ -1486,15 +1486,14 @@ ipcMain.handle('release-player', (_event: any, playerId: number) => {
   const releasingTeamId = playerRow?.team_id ?? null;
 
   if (isInSeason) {
-    // Preserve contract so salary travels with the player through waivers
-    db.prepare('UPDATE contracts SET team_id = NULL WHERE player_id = ?').run(playerId);
     const currentWeek = weekRow.week;
-db.prepare(`UPDATE players SET team_id = NULL, is_free_agent = 1, roster_status = 'waivers', waived_by_team_id = ?, waiver_placed_week = ? WHERE id = ?`)
-  .run(releasingTeamId, currentWeek, playerId);
+    // Leave contract intact — salary travels with the player through waivers
+    db.prepare(`UPDATE players SET team_id = NULL, is_free_agent = 1, roster_status = 'waivers', waived_by_team_id = ?, waiver_placed_week = ? WHERE id = ?`)
+      .run(releasingTeamId, currentWeek, playerId);
   } else {
-    // Off-season: contract is void, player enters FA eligible for new deal
+    // Off-season: void the contract, player enters FA eligible for a new deal
     db.prepare('DELETE FROM contracts WHERE player_id = ?').run(playerId);
-    db.prepare(`UPDATE players SET team_id = NULL, is_free_agent = 1, roster_status = 'free_agent', waived_by_team_id = NULL WHERE id = ?`)
+    db.prepare(`UPDATE players SET team_id = NULL, is_free_agent = 1, roster_status = 'free_agent', waived_by_team_id = NULL, waiver_placed_week = NULL WHERE id = ?`)
       .run(playerId);
   }
   return { success: true, onWaivers: !!isInSeason };
