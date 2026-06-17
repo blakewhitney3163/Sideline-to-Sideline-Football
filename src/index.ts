@@ -1476,16 +1476,21 @@ ipcMain.handle('extend-player', (_event: any, { playerId, years, salary }: {
 });
 
 ipcMain.handle('release-player', (_event: any, playerId: number) => {
+  const season = getCurrentSeason();
   const scheduleExists = (db.prepare(
-  'SELECT COUNT(*) as count FROM games WHERE season = ? AND is_playoff = 0'
-).get(season) as any).count > 0;
-const isInSeason = scheduleExists;
+    'SELECT COUNT(*) as count FROM games WHERE season = ? AND is_playoff = 0'
+  ).get(season) as any).count > 0;
+  const isInSeason = scheduleExists;
+
+  const currentWeekRow = db.prepare(
+    'SELECT MIN(week) as week FROM games WHERE season = ? AND is_simulated = 0 AND is_playoff = 0'
+  ).get(season) as any;
+  const currentWeek = currentWeekRow?.week ?? 1;
 
   const playerRow = db.prepare('SELECT team_id FROM players WHERE id = ?').get(playerId) as any;
   const releasingTeamId = playerRow?.team_id ?? null;
 
   if (isInSeason) {
-    const currentWeek = weekRow.week;
     // Leave contract intact — salary travels with the player through waivers
     db.prepare(`UPDATE players SET team_id = NULL, is_free_agent = 1, roster_status = 'waivers', waived_by_team_id = ?, waiver_placed_week = ? WHERE id = ?`)
       .run(releasingTeamId, currentWeek, playerId);
