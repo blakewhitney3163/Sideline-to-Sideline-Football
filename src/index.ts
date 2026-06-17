@@ -363,9 +363,10 @@ const POS_INJURY_RISK: Record<string, number> = {
   OL: 0.020, DL: 0.025, LB: 0.035, CB: 0.035, S: 0.025, K: 0.008,
 };
 
-function rollInjuries(playerStats: any[]) {
+function rollInjuries(playerStats: any[]): { player_id: number; team_id: number; position: string; injury_status: string }[] {
+  const newlyInjured: { player_id: number; team_id: number; position: string; injury_status: string }[] = [];
   for (const stat of playerStats) {
-    const player = db.prepare('SELECT position, injury_status FROM players WHERE id = ?').get(stat.player_id) as any;
+    const player = db.prepare('SELECT position, injury_status, team_id FROM players WHERE id = ?').get(stat.player_id) as any;
     if (!player || player.injury_status !== 'healthy') continue;
 
     const risk = POS_INJURY_RISK[player.position] ?? 0.03;
@@ -381,7 +382,90 @@ function rollInjuries(playerStats: any[]) {
     const injuryType = INJURY_TYPES[Math.floor(Math.random() * INJURY_TYPES.length)];
     db.prepare("UPDATE players SET injury_status = ?, weeks_out = ?, injury_type = ? WHERE id = ?")
       .run(status, weeksOut, injuryType, stat.player_id);
+
+    newlyInjured.push({ player_id: stat.player_id, team_id: player.team_id, position: player.position, injury_status: status });
   }
+  return newlyInjured;
+}
+function getPosGroup(pos: string): string[] {
+  if (['RB', 'HB', 'FB'].includes(pos)) return ['RB', 'HB', 'FB'];
+  if (['OL', 'LT', 'LG', 'C', 'RG', 'RT'].includes(pos)) return ['OL', 'LT', 'LG', 'C', 'RG', 'RT'];
+  if (['DL', 'DE', 'DT', 'LE', 'RE', 'IDL'].includes(pos)) return ['DL', 'DE', 'DT', 'LE', 'RE', 'IDL'];
+  if (['LB', 'MLB', 'OLB', 'LOLB', 'ROLB', 'ILB', 'WILL', 'MIKE'].includes(pos)) return ['LB', 'MLB', 'OLB', 'LOLB', 'ROLB', 'ILB', 'WILL', 'MIKE'];
+  if (['S', 'FS', 'SS'].includes(pos)) return ['S', 'FS', 'SS'];
+  return [pos];
+}
+
+function processRosterAdjustments(
+  newlyInjured: { player_id: number; team_id: number; position: string; injury_status: string }[],
+  userTeamId: number
+): { callups: { name: string; position: string; teamName: string; isUserTeam: boolean }[]; userPSOpenSpots: number } {
+  const callups: any[] = [];
+
+  // Auto call-up for out/ir injuries
+  for (const injured of newlyInjured.filter(p => p.injury_status === 'out' || p.injury_status === 'ir')) {
+    const group = getPosGroup(injured.position);
+    const placeholders = group.map(() => '?').join(', ');
+    const psPlayer = db.prepare(`
+      SELECT id, first_name, last_name, position
+      FROM players WHERE team_id = ? AND roster_status = 'practice_squad'
+      AND position IN (${placeholders})
+      ORDER BY overall_rating DESC LIMIT 1
+    `).get(injured.team_id, ...group) as any;
+
+    if (psPlayer) {
+      const activeCount = (db.prepare(
+        "SELECT COUNT(*) as count FROM players WHERE team_id = ? AND roster_status = 'active'"
+      ).get(injured.team_id) as any).count;
+      if (activeCount < 53) {
+        db.prepare("UPDATE players SET roster_status = 'active' WHERE id = ?").run(psPlayer.id);
+        const teamRow = db.prepare('SELECT city, name FROM teams WHERE id = ?').get(injured.team_id) as any;
+        callups.push({
+          name: `${psPlayer.first_name} ${psPlayer.last_name}`,
+          position: psPlayer.position,
+          teamName: teamRow ? `${teamRow.city} ${teamRow.name}` : 'Unknown',
+          isUserTeam: injured.team_id === userTeamId,
+        });
+      }
+    }
+  }
+
+  // CPU teams: auto-fill open PS spots from free agents
+  const allTeams = db.prepare('SELECT id FROM teams').all() as any[];
+  for (const team of allTeams) {
+    if (team.id === userTeamId) continue;
+    const psCount = (db.prepare(
+      "SELECT COUNT(*) as count FROM players WHERE team_id = ? AND roster_status = 'practice_squad'"
+    ).get(team.id) as any).count;
+    const openSpots = 16 - psCount;
+    if (openSpots <= 0) continue;
+
+    const fas = db.prepare(
+      "SELECT id FROM players WHERE team_id IS NULL ORDER BY overall_rating DESC LIMIT ?"
+    ).all(openSpots) as any[];
+
+    for (const fa of fas) {
+      db.prepare("UPDATE players SET team_id = ?, roster_status = 'practice_squad' WHERE id = ?")
+        .run(team.id, fa.id);
+      const existing = db.prepare('SELECT id FROM contracts WHERE player_id = ?').get(fa.id);
+      if (existing) {
+        db.prepare(
+          'UPDATE contracts SET team_id = ?, years_total = 1, years_remaining = 1, annual_salary = 0.87, guaranteed_amount = 0, guaranteed_pct = 0 WHERE player_id = ?'
+        ).run(team.id, fa.id);
+      } else {
+        db.prepare(
+          'INSERT INTO contracts (player_id, team_id, years_total, years_remaining, annual_salary, guaranteed_amount, guaranteed_pct) VALUES (?, ?, 1, 1, 0.87, 0, 0)'
+        ).run(fa.id, team.id);
+      }
+    }
+  }
+
+  // Count user's open PS spots
+  const userPSCount = (db.prepare(
+    "SELECT COUNT(*) as count FROM players WHERE team_id = ? AND roster_status = 'practice_squad'"
+  ).get(userTeamId) as any).count;
+
+  return { callups, userPSOpenSpots: Math.max(0, 16 - userPSCount) };
 }
 
 // ─── IPC Handlers ─────────────────────────────────────────────────────────────
@@ -901,9 +985,11 @@ ipcMain.handle('simulate-week', (_event: any, week: number) => {
       }
     }
   });
-  runWeek();
-
-  rollInjuries(allStats);
+const newlyInjured = rollInjuries(allStats);
+  const userTeamRow = db.prepare("SELECT value FROM settings WHERE key = 'user_team_id'").get() as any;
+  const userTeamId = userTeamRow ? parseInt(userTeamRow.value) : -1;
+  const rosterResult = processRosterAdjustments(newlyInjured, userTeamId);
+  return { week, season, gamesSimulated: games.length, callups: rosterResult.callups, userPSOpenSpots: rosterResult.userPSOpenSpots };
 
   return { week, season, gamesSimulated: games.length };
 });
@@ -1106,6 +1192,38 @@ ipcMain.handle('get-roster-spots', (_event: any, teamId: number) => {
   const active = counts.find((r: any) => r.roster_status === 'active')?.count ?? 0;
   const ps = counts.find((r: any) => r.roster_status === 'practice_squad')?.count ?? 0;
   return { active, ps, activeMax: 53, psMax: 16, activeFree: 53 - active, psFree: 16 - ps };
+});
+
+ipcMain.handle('sign-free-agent-to-ps', (_event: any, playerId: number) => {
+  const teamRow = db.prepare("SELECT value FROM settings WHERE key = 'user_team_id'").get() as any;
+  if (!teamRow) return { success: false, reason: 'No franchise selected.' };
+  const teamId = parseInt(teamRow.value);
+
+  const psCount = (db.prepare(
+    "SELECT COUNT(*) as count FROM players WHERE team_id = ? AND roster_status = 'practice_squad'"
+  ).get(teamId) as any).count;
+  if (psCount >= 16) return { success: false, reason: 'Practice squad is full (16/16).' };
+
+  const player = db.prepare(
+    'SELECT id, first_name, last_name, position FROM players WHERE id = ? AND team_id IS NULL'
+  ).get(playerId) as any;
+  if (!player) return { success: false, reason: 'Player not available.' };
+
+  db.prepare("UPDATE players SET team_id = ?, roster_status = 'practice_squad' WHERE id = ?")
+    .run(teamId, playerId);
+
+  const existing = db.prepare('SELECT id FROM contracts WHERE player_id = ?').get(playerId);
+  if (existing) {
+    db.prepare(
+      'UPDATE contracts SET team_id = ?, years_total = 1, years_remaining = 1, annual_salary = 0.87, guaranteed_amount = 0, guaranteed_pct = 0 WHERE player_id = ?'
+    ).run(teamId, playerId);
+  } else {
+    db.prepare(
+      'INSERT INTO contracts (player_id, team_id, years_total, years_remaining, annual_salary, guaranteed_amount, guaranteed_pct) VALUES (?, ?, 1, 1, 0.87, 0, 0)'
+    ).run(playerId, teamId);
+  }
+
+  return { success: true, name: `${player.first_name} ${player.last_name}` };
 });
 
 ipcMain.handle('get-free-agents', (_event: any, position?: string) => {
