@@ -15,35 +15,70 @@ const POSITION_MAP = {
   'K': 'K',
 };
 
+// CSV columns that are NOT stored as raw integers — handled specially or skipped
+const SKIP_CSV = new Set([
+  'madden_id', 'team', 'season', 'fullname', 'high_pos_group',
+  'position_group', 'position', 'overallrating', 'archetype',
+  'runningstyle', 'birthdate', 'return',
+]);
+
 function parseCSV(filePath) {
   const lines = fs.readFileSync(filePath, 'utf8').split('\n').filter(l => l.trim());
   const headers = lines[0].split(',').map(h => h.trim());
-  return lines.slice(1).map(line => {
-    const values = line.split(',');
-    const row = {};
-    headers.forEach((h, i) => row[h] = values[i] ? values[i].trim() : '');
-    return row;
-  });
+  return {
+    headers,
+    rows: lines.slice(1).map(line => {
+      const values = line.split(',');
+      const row = {};
+      headers.forEach((h, i) => row[h] = values[i] ? values[i].trim() : '');
+      return row;
+    }),
+  };
 }
 
 function splitName(fullname) {
   const parts = fullname.trim().split(' ');
-  const first = parts[0];
-  const last = parts.slice(1).join(' ');
-  return { first, last };
+  return { first: parts[0], last: parts.slice(1).join(' ') };
 }
 
 function importFromMadden(csvPath) {
   if (!csvPath) csvPath = path.join(process.cwd(), 'src', 'madden-ratings.csv');
-
   if (!fs.existsSync(csvPath)) {
     console.error('madden-ratings.csv not found at:', csvPath);
     return { imported: 0, error: 'CSV not found' };
   }
 
   console.log('Reading Madden ratings CSV...');
-  const csvPlayers = parseCSV(csvPath);
-  console.log(`Found ${csvPlayers.length} players in CSV`);
+  const { headers, rows } = parseCSV(csvPath);
+  console.log(`Found ${rows.length} players in CSV`);
+
+  const i   = v => parseInt(v) || 0;
+  const avg = (...vals) => Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
+
+  // Raw CSV columns we store directly (all numeric, not in SKIP_CSV)
+  const rawCols = headers.filter(h => !SKIP_CSV.has(h));
+
+  // Ensure all raw columns + derived columns exist in players table
+  const existingCols = new Set(
+    db.prepare('PRAGMA table_info(players)').all().map(c => c.name)
+  );
+  const derivedCols = ['throw_accuracy', 'throw_power', 'route_running', 'tackle_rating',
+    'coverage', 'pass_rush', 'kick_power', 'kick_accuracy', 'kick_return'];
+  for (const col of [...rawCols, ...derivedCols]) {
+    if (!existingCols.has(col)) {
+      db.prepare(`ALTER TABLE players ADD COLUMN ${col} INTEGER DEFAULT 0`).run();
+      console.log(`Players: auto-added column ${col}`);
+    }
+  }
+
+  // Build dynamic INSERT
+  const fixedCols = ['team_id', 'first_name', 'last_name', 'position', 'position_label',
+    'age', 'overall_rating'];
+  const allCols = [...fixedCols, ...rawCols, ...derivedCols];
+  const insert = db.prepare(`
+    INSERT INTO players (${allCols.join(', ')})
+    VALUES (${allCols.map(() => '?').join(', ')})
+  `);
 
   const teams = db.prepare('SELECT id, abbreviation FROM teams').all();
   const teamMap = {};
@@ -52,56 +87,49 @@ function importFromMadden(csvPath) {
   db.prepare('DELETE FROM players').run();
   console.log('Cleared existing players');
 
-  const insert = db.prepare(`
-    INSERT INTO players (
-      team_id, first_name, last_name, position, position_label, age,
-      overall_rating, speed, strength, awareness,
-      throw_accuracy, throw_power, catching, route_running,
-      tackle_rating, coverage, pass_rush, kick_power, kick_accuracy
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-  const i   = v => parseInt(v) || 70;
-  const avg = (...vals) => Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
-
   let imported = 0;
   let skipped = 0;
 
   const runImport = db.transaction(() => {
-    for (const p of csvPlayers) {
+    for (const p of rows) {
       const position = POSITION_MAP[p.position];
       if (!position) { skipped++; continue; }
-
       const teamId = teamMap[p.team];
       if (!teamId) { skipped++; continue; }
-
       const { first, last } = splitName(p.fullname);
       if (!first || !last) { skipped++; continue; }
 
-       insert.run(
+      // Fixed values
+      const fixedVals = [
         teamId, first, last, position, p.position,
         parseInt(p.age) || 25,
         i(p.overallrating),
-        i(p.speed),
-        i(p.strength),
-        i(p.awareness),
-        avg(i(p.throwaccuracyshort), i(p.throwaccuracymid), i(p.throwaccuracydeep)),
-        i(p.throwpower),
-        avg(i(p.catching), i(p.catchintraffic)),
-        avg(i(p.shortrouterunning), i(p.midrouterunning), i(p.deeprouterunning)),
-        i(p.tackle),
-        avg(i(p.mancoverage), i(p.zonecoverage)),
-        avg(i(p.strength), i(p.pursuit)),
-        i(p.kickpower),
-        i(p.kickaccuracy)
-      );
+      ];
 
+      // Raw CSV values (stored as-is)
+      const rawVals = rawCols.map(col => i(p[col]));
+
+      // Derived values (computed for UI backward compatibility)
+      const derivedVals = [
+        avg(i(p.throwaccuracyshort), i(p.throwaccuracymid), i(p.throwaccuracydeep)), // throw_accuracy
+        i(p.throwpower),                                                               // throw_power
+        avg(i(p.shortrouterunning), i(p.midrouterunning), i(p.deeprouterunning)),    // route_running
+        i(p.tackle),                                                                   // tackle_rating
+        avg(i(p.mancoverage), i(p.zonecoverage)),                                     // coverage
+        avg(i(p.strength), i(p.pursuit)),                                             // pass_rush
+        i(p.kickpower),                                                                // kick_power
+        i(p.kickaccuracy),                                                             // kick_accuracy
+        i(p.return),                                                                   // kick_return
+      ];
+
+      insert.run(...fixedVals, ...rawVals, ...derivedVals);
       imported++;
     }
   });
 
   runImport();
 
-  // Assign dev traits to freshly imported players
+  // Assign dev traits
   const allPlayers = db.prepare('SELECT id, overall_rating FROM players').all();
   const assignTrait = db.prepare("UPDATE players SET dev_trait = ? WHERE id = ?");
   const assignTraits = db.transaction(() => {
@@ -123,12 +151,8 @@ function importFromMadden(csvPath) {
   });
   assignTraits();
 
-  console.log(`Imported: ${imported} players, dev traits assigned`);
-  return { imported };
-}
-
-if (require.main === module) {
-  importFromMadden();
+  console.log(`Imported: ${imported} players, skipped: ${skipped}`);
+  return { imported, skipped };
 }
 
 module.exports = { importFromMadden };
