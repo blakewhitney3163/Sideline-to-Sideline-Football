@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron';
-const { db } = require('../database');
+import { db } from '../database';
 import { getCurrentSeason } from '../helpers/getCurrentSeason';
 import { calcFairMarket } from './contractHandlers';
 import { HOF_MIN_GAMES, HOF_THRESHOLDS } from '../constants';
