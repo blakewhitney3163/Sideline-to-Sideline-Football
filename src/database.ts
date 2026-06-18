@@ -213,6 +213,22 @@ db.exec(`
     pass_deflections REAL DEFAULT 0,
     forced_fumbles REAL DEFAULT 0
   );
+
+  db.exec(`
+  CREATE TABLE IF NOT EXISTS news_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    season INTEGER NOT NULL,
+    week INTEGER DEFAULT 0,
+    event_type TEXT NOT NULL,
+    category TEXT NOT NULL,
+    headline TEXT NOT NULL,
+    detail TEXT,
+    team_id INTEGER,
+    player_id INTEGER,
+    created_at INTEGER DEFAULT (strftime('%s', 'now'))
+  )
+`);
+
 `);
 
 // ─── Player Column Migrations ─────────────────────────────────────────────────
