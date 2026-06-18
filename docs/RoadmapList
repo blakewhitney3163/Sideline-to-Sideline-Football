@@ -89,16 +89,6 @@ Windows Build Verification — The app is developed on macOS. better-sqlite3
   desktop gaming customers are on Windows.
 
 IMPORTANT — Fix before growing the codebase further
-────────────────────────────────────────────────────────────────────────────────
-Fat IPC Handlers — Business logic is scattered across contractHandlers.ts,
-  simHandlers.ts, and seasonHandlers.ts. The service layer (ContractService,
-  SeasonService, TradeService) is the right pattern — more logic should move
-  there so handlers are thin IPC bridges only.
-
-[FIXED June 18, 2026] JS → TS Conversion — generatePlayers.js, getStandings.js,
-  seedTeams.js, and simulatePlayoffs.js converted to TypeScript with proper
-  imports, typed interfaces, exported functions, and no auto-execution on
-  import. Old .js files deleted.
 
 Automated Tests — Zero test coverage. The simulation engine, CPU GM logic,
   and trade evaluator are exactly the kind of business logic that needs
