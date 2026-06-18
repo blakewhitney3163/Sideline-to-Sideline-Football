@@ -14,25 +14,22 @@ interface Props {
   setData?: (data: PlayoffData) => void;
 }
 
-export default function Playoffs({ data: propData, setData: propSetData }: Props = {}) {
-  const { currentSeason } = useGameStore();
-  const [simulating, setSimulating] = useState(false);
-  const [localData, setLocalData] = useState<PlayoffData | null>(propData ?? null);
-  const data = propData !== undefined ? propData : localData;
-  const setData = propSetData ?? setLocalData;
-
 function GameCard({ game, label }: { game: PlayoffGame; label?: string }) {
   const homeWon = game.homeScore > game.awayScore;
   return (
-    <div style={{ background: T.bgPanel, border: `1px solid ${T.borderFaint}`, borderRadius: 6, padding: '10px 14px', marginBottom: 8 }}>
-      {label && <div style={{ color: T.textDim, fontSize: 9, fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>{label}</div>}
+    <div style={{ background: T.bgCard, borderRadius: 6, padding: '8px 12px', marginBottom: 6 }}>
+      {label && <div style={{ fontSize: 9, color: T.textDim, marginBottom: 4, letterSpacing: 1 }}>{label}</div>}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-        <span style={{ color: homeWon ? T.textPrimary : T.textMuted, fontWeight: homeWon ? 700 : 400 }}>{game.home.city} {game.home.name}</span>
-        <span style={{ color: homeWon ? '#4caf50' : T.textMuted, fontWeight: 700, fontSize: 16 }}>{game.homeScore}</span>
+        <span style={{ color: homeWon ? T.textPrimary : T.textMuted, fontWeight: homeWon ? 700 : 400, fontSize: 12 }}>
+          {game.home.city} {game.home.name}
+        </span>
+        <span style={{ color: homeWon ? T.green : T.textMuted, fontWeight: 700 }}>{game.homeScore}</span>
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ color: !homeWon ? T.textPrimary : T.textMuted, fontWeight: !homeWon ? 700 : 400 }}>{game.away.city} {game.away.name}</span>
-        <span style={{ color: !homeWon ? '#4caf50' : T.textMuted, fontWeight: 700, fontSize: 16 }}>{game.awayScore}</span>
+        <span style={{ color: !homeWon ? T.textPrimary : T.textMuted, fontWeight: !homeWon ? 700 : 400, fontSize: 12 }}>
+          {game.away.city} {game.away.name}
+        </span>
+        <span style={{ color: !homeWon ? T.green : T.textMuted, fontWeight: 700 }}>{game.awayScore}</span>
       </div>
     </div>
   );
@@ -40,23 +37,26 @@ function GameCard({ game, label }: { game: PlayoffGame; label?: string }) {
 
 function SeedList({ seeds }: { seeds: PlayoffTeam[] }) {
   return (
-    <div style={{ marginBottom: 16 }}>
-      <div style={{ color: T.textDim, fontSize: 9, fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>SEEDS</div>
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: 9, color: T.textDim, letterSpacing: 1, marginBottom: 4 }}>SEEDS</div>
       {seeds.map((t, i) => (
-        <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 0', borderBottom: `1px solid ${T.borderFaint}` }}>
-          <span style={{ color: i === 0 ? '#FF8740' : T.textDim, fontSize: 11, width: 16 }}>{i + 1}</span>
-          <span style={{ color: T.textPrimary, flex: 1, fontSize: 13 }}>{t.city} {t.name}</span>
-          <span style={{ color: T.textDim, fontSize: 11 }}>{t.wins}W</span>
-          {i === 0 && <span style={{ color: '#4caf50', fontSize: 9, fontWeight: 700 }}>BYE</span>}
+        <div key={t.id} style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 11, marginBottom: 2 }}>
+          <span style={{ color: T.textDim, width: 14 }}>{i + 1}</span>
+          <span style={{ color: T.textPrimary, flex: 1 }}>{t.city} {t.name}</span>
+          <span style={{ color: T.textMuted }}>{t.wins}W</span>
+          {i === 0 && <span style={{ fontSize: 9, color: T.green, fontWeight: 700 }}>BYE</span>}
         </div>
       ))}
     </div>
   );
 }
 
-export default function Playoffs({ data, setData }: Props) {
+export default function Playoffs({ data: propData, setData: propSetData }: Props = {}) {
   const { currentSeason } = useGameStore();
   const [simulating, setSimulating] = useState(false);
+  const [localData, setLocalData] = useState<PlayoffData | null>(propData ?? null);
+  const data = propData !== undefined ? propData : localData;
+  const setData = propSetData ?? setLocalData;
 
   const handleSimulate = async () => {
     setSimulating(true);
@@ -66,39 +66,48 @@ export default function Playoffs({ data, setData }: Props) {
   };
 
   return (
-    <div style={{ padding: '20px 24px', maxWidth: 900, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
-        <h2 style={{ color: T.textPrimary, fontSize: 18, fontWeight: 700, margin: 0 }}>{currentSeason} Playoffs</h2>
-        <button onClick={handleSimulate} disabled={simulating} style={{
-          padding: '8px 20px', fontSize: 12, fontWeight: 700, cursor: simulating ? 'not-allowed' : 'pointer',
-          background: '#0a1a3a', border: '1px solid #4FC3F7', borderRadius: 4, color: '#4FC3F7',
-        }}>
+    <div style={{ padding: 24, fontFamily: 'monospace' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+        <h2 style={{ margin: 0, color: T.textPrimary, fontSize: 18 }}>{currentSeason} Playoffs</h2>
+        <button
+          onClick={handleSimulate}
+          disabled={simulating}
+          style={{
+            padding: '8px 16px', fontSize: 12, fontWeight: 700,
+            background: simulating ? T.bgCard : T.green,
+            color: simulating ? T.textMuted : '#000',
+            border: 'none', borderRadius: 4, cursor: simulating ? 'not-allowed' : 'pointer',
+          }}
+        >
           {simulating ? 'Simulating...' : data ? 'Re-Simulate' : 'Simulate Playoffs'}
         </button>
       </div>
 
       {!data ? (
-        <div style={{ color: T.textDim, fontSize: 13, padding: '40px 0' }}>Click "Simulate Playoffs" to run the bracket.</div>
+        <div style={{ color: T.textMuted, fontSize: 13 }}>Click "Simulate Playoffs" to run the bracket.</div>
       ) : (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32, marginBottom: 32 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 24 }}>
             {(['afc', 'nfc'] as const).map(conf => (
-              <div key={conf}>
-                <div style={{ color: T.textDim, fontSize: 10, fontWeight: 700, letterSpacing: 2, marginBottom: 12 }}>{conf.toUpperCase()}</div>
+              <div key={conf} style={{ background: T.bgPanel, borderRadius: 8, padding: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.textPrimary, marginBottom: 12, letterSpacing: 1 }}>
+                  {conf.toUpperCase()}
+                </div>
                 <SeedList seeds={data[conf].seeds} />
-                <div style={{ color: T.textDim, fontSize: 9, fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>WILD CARD</div>
+                <div style={{ fontSize: 9, color: T.textDim, letterSpacing: 1, marginBottom: 6 }}>WILD CARD</div>
                 {data[conf].wildCard.map((g, i) => <GameCard key={i} game={g} />)}
-                <div style={{ color: T.textDim, fontSize: 9, fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>DIVISIONAL</div>
+                <div style={{ fontSize: 9, color: T.textDim, letterSpacing: 1, marginBottom: 6, marginTop: 8 }}>DIVISIONAL</div>
                 {data[conf].divisional.map((g, i) => <GameCard key={i} game={g} />)}
-                <div style={{ color: T.textDim, fontSize: 9, fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>CHAMPIONSHIP</div>
+                <div style={{ fontSize: 9, color: T.textDim, letterSpacing: 1, marginBottom: 6, marginTop: 8 }}>CHAMPIONSHIP</div>
                 <GameCard game={data[conf].championship} />
               </div>
             ))}
           </div>
-          <div style={{ background: '#0a1020', border: '1px solid #4FC3F7', borderRadius: 8, padding: '20px 24px' }}>
-            <div style={{ color: '#4FC3F7', fontSize: 10, fontWeight: 700, letterSpacing: 2, marginBottom: 12 }}>SUPER BOWL</div>
+
+          <div style={{ background: T.bgGold, borderRadius: 8, padding: 16, textAlign: 'center' }}>
+            <div style={{ fontSize: 11, color: T.gold, letterSpacing: 2, marginBottom: 8 }}>SUPER BOWL</div>
             <GameCard game={data.superBowl} />
-            <div style={{ color: '#FFD700', fontSize: 18, fontWeight: 700, marginTop: 12 }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: T.gold, marginTop: 8 }}>
               🏆 {data.superBowl.winner.city} {data.superBowl.winner.name}
             </div>
           </div>
