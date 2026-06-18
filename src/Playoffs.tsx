@@ -10,9 +10,16 @@ interface ConferenceBracket { seeds: PlayoffTeam[]; wildCard: PlayoffGame[]; div
 interface PlayoffData { afc: ConferenceBracket; nfc: ConferenceBracket; superBowl: PlayoffGame; }
 
 interface Props {
-  data: PlayoffData | null;
-  setData: (data: PlayoffData) => void;
+  data?: PlayoffData | null;
+  setData?: (data: PlayoffData) => void;
 }
+
+export default function Playoffs({ data: propData, setData: propSetData }: Props = {}) {
+  const { currentSeason } = useGameStore();
+  const [simulating, setSimulating] = useState(false);
+  const [localData, setLocalData] = useState<PlayoffData | null>(propData ?? null);
+  const data = propData !== undefined ? propData : localData;
+  const setData = propSetData ?? setLocalData;
 
 function GameCard({ game, label }: { game: PlayoffGame; label?: string }) {
   const homeWon = game.homeScore > game.awayScore;
