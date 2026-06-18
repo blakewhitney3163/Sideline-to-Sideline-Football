@@ -1,27 +1,26 @@
 import React, { useEffect, useState } from 'react';
 import { T } from './theme';
-import { DepthPlayer, UserTeam } from './depthChart/types';
+import { DepthPlayer } from './depthChart/types';
 import { POSITION_GROUPS, GROUP_LABELS, TRAIT_META } from './depthChart/depthUtils';
 import DepthChartList from './depthChart/DepthChartList';
 import StarterCard from './depthChart/StarterCard';
+import { useGameStore } from './store/gameStore';
 
 declare const window: any;
 
-interface Props {
-  userTeam: UserTeam;
-}
-
-export default function DepthChart({ userTeam }: Props) {
-  const [chart, setChart] = useState<Record<string, DepthPlayer[]>>({});
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState<string | null>(null);
-  const [resetting, setResetting] = useState(false);
+export default function DepthChart() {
+  const { userTeam } = useGameStore();
+  const [chart, setChart]           = useState<Record<string, DepthPlayer[]>>({});
+  const [loading, setLoading]       = useState(true);
+  const [saving, setSaving]         = useState<string | null>(null);
+  const [resetting, setResetting]   = useState(false);
   const [activeGroup, setActiveGroup] = useState('QB');
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast]           = useState<string | null>(null);
 
-  useEffect(() => { load(); }, [userTeam.id]);
+  useEffect(() => { if (userTeam) load(); }, [userTeam?.id]);
 
   const load = async () => {
+    if (!userTeam) return;
     setLoading(true);
     const data = await window.api.getDepthChart(userTeam.id);
     setChart(data);
@@ -34,7 +33,7 @@ export default function DepthChart({ userTeam }: Props) {
   };
 
   const handleMoveUp = async (idx: number) => {
-    if (idx === 0) return;
+    if (idx === 0 || !userTeam) return;
     const players = [...(chart[activeGroup] ?? [])];
     [players[idx - 1], players[idx]] = [players[idx], players[idx - 1]];
     setChart({ ...chart, [activeGroup]: players });
@@ -45,6 +44,7 @@ export default function DepthChart({ userTeam }: Props) {
   };
 
   const handleMoveDown = async (idx: number) => {
+    if (!userTeam) return;
     const players = [...(chart[activeGroup] ?? [])];
     if (idx >= players.length - 1) return;
     [players[idx], players[idx + 1]] = [players[idx + 1], players[idx]];
@@ -56,6 +56,7 @@ export default function DepthChart({ userTeam }: Props) {
   };
 
   const handleReset = async () => {
+    if (!userTeam) return;
     setResetting(true);
     await window.api.resetDepthChart(userTeam.id);
     await load();
@@ -63,49 +64,40 @@ export default function DepthChart({ userTeam }: Props) {
     showToast('Depth chart reset to OVR order');
   };
 
-  const players = chart[activeGroup] ?? [];
+  if (!userTeam) return null;
+
+  const players      = chart[activeGroup] ?? [];
   const injuredCount = Object.values(chart).flat().filter(p => p.injury_status !== 'healthy').length;
 
-  if (loading) return (
-    <div style={{ color: T.textDim, fontSize: 13, padding: 24 }}>Loading depth chart...</div>
-  );
+  if (loading) return <div style={{ color: '#555', padding: 40 }}>Loading depth chart...</div>;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-
-      {/* Toast */}
+    <div style={{ padding: '20px 24px', maxWidth: 900, margin: '0 auto' }}>
       {toast && (
-        <div style={{
-          position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
-          background: '#222', border: `1px solid ${T.borderFaint}`, color: T.textPrimary,
-          padding: '8px 18px', borderRadius: 6, fontSize: 13, zIndex: 999,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
-        }}>
+        <div style={{ position: 'fixed', top: 20, right: 24, background: '#0a2a0a', border: '1px solid #4caf50', borderRadius: 6, padding: '8px 16px', color: '#4caf50', fontSize: 12, zIndex: 1000 }}>
           {toast}
         </div>
       )}
 
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: `1px solid ${T.borderFaint}` }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
         <div>
-          <h2 style={{ color: T.textPrimary, fontSize: 18, fontWeight: 700, margin: '0 0 2px' }}>Depth Chart</h2>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: T.textDim }}>
+          <h2 style={{ color: T.textPrimary, fontSize: 18, fontWeight: 700, margin: 0 }}>Depth Chart</h2>
+          <div style={{ color: T.textDim, fontSize: 12, marginTop: 2 }}>
             {userTeam.city} {userTeam.name}
             {injuredCount > 0 && (
-              <span style={{ color: '#FF8740', fontWeight: 700 }}>⚠ {injuredCount} injured</span>
+              <span style={{ color: '#FF8740', marginLeft: 8 }}>⚠ {injuredCount} injured</span>
             )}
           </div>
         </div>
         <button onClick={handleReset} disabled={resetting} style={{
-          padding: '7px 14px', fontSize: 12, fontWeight: 700, borderRadius: 5, cursor: resetting ? 'not-allowed' : 'pointer',
-          background: T.bgPanel, border: `1px solid ${T.borderFaint}`, color: T.textMuted,
+          marginLeft: 'auto', padding: '6px 14px', fontSize: 11, cursor: resetting ? 'not-allowed' : 'pointer',
+          background: T.bgPage, border: `1px solid ${T.borderFaint}`, borderRadius: 4, color: T.textMuted, fontFamily: 'monospace',
         }}>
           {resetting ? 'Resetting...' : '↺ Reset to OVR Order'}
         </button>
       </div>
 
-      {/* Position Group Tabs */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', padding: '10px 16px', borderBottom: `1px solid ${T.borderFaint}` }}>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 20 }}>
         {POSITION_GROUPS.map(group => {
           const groupPlayers = chart[group] ?? [];
           if (groupPlayers.length === 0) return null;
@@ -120,32 +112,22 @@ export default function DepthChart({ userTeam }: Props) {
               fontWeight: activeGroup === group ? 'bold' : 'normal',
               fontSize: 12, cursor: 'pointer', fontFamily: 'monospace',
             }}>
-              {group}{hasInjury && <span style={{ color: '#FF8740', marginLeft: 3 }}>⚠</span>}
+              {group}{hasInjury && <span style={{ marginLeft: 4 }}>⚠</span>}
             </button>
           );
         })}
       </div>
 
-      {/* Group sub-header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 16px', borderBottom: `1px solid ${T.borderFaint}` }}>
-        <span style={{ color: T.textDim, fontSize: 10, letterSpacing: 1, fontWeight: 700 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        <span style={{ color: T.textDim, fontSize: 10, fontWeight: 700, letterSpacing: 1 }}>
           {GROUP_LABELS[activeGroup]?.toUpperCase()} — {players.length} PLAYERS
         </span>
-        {saving === activeGroup && (
-          <span style={{ color: T.textDim, fontSize: 10 }}>saving...</span>
-        )}
+        {saving === activeGroup && <span style={{ color: T.textDim, fontSize: 11 }}>saving...</span>}
       </div>
 
-      {/* Two-panel body */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        <DepthChartList
-          players={players}
-          activeGroup={activeGroup}
-          saving={saving}
-          onMoveUp={handleMoveUp}
-          onMoveDown={handleMoveDown}
-        />
-        <StarterCard players={players} activeGroup={activeGroup} />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 24 }}>
+        <DepthChartList players={players} onMoveUp={handleMoveUp} onMoveDown={handleMoveDown} />
+        <StarterCard player={players[0] ?? null} />
       </div>
     </div>
   );
