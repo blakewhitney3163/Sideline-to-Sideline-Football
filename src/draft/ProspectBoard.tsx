@@ -71,7 +71,7 @@ const ProspectRow = React.memo(({ index, style, data }: ListChildComponentProps<
       >
         <span style={{ color: T.textDim, fontSize: 10 }}>{index + 1}</span>
         <div>
-          <div style={{ fontWeight: 600, fontSize: 12, color: T.text }}>
+          <div style={{ fontWeight: 600, fontSize: 12, color: T.textPrimary }}>
             {p.first_name} {p.last_name}
           </div>
           <div style={{ fontSize: 10, color: T.textMuted }}>Age {p.age}</div>
@@ -156,7 +156,7 @@ export default function ProspectBoard({
                 ON THE CLOCK — ROUND {currentRound}
                 {totalPicksThisRound > 1 ? ` · PICK ${currentPickIdx + 1}/${totalPicksThisRound}` : ''} · SLOT #{pickNum}
               </div>
-              <div style={{ color: T.text, fontWeight: 700, fontSize: 13 }}>
+              <div style={{ color: T.textPrimary, fontWeight: 700, fontSize: 13 }}>
                 {userTeam.city} {userTeam.name}
               </div>
             </div>
