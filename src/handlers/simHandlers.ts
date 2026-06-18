@@ -358,12 +358,13 @@ export function registerSimHandlers(): void {
     return { game, players };
   });
 
-  ipcMain.handle('get-playoff-seeds', () => {
+    ipcMain.handle('get-playoff-seeds', () => {
     const season = getCurrentSeason();
+    const records = gameRepo.getAllRecords(season);
     const getSeeds = (conference: string) =>
       (db.prepare('SELECT id, city, name FROM teams WHERE conference = ?').all(conference) as any[])
         .map((t: any) => {
-          const { wins, losses } = gameRepo.getTeamRecord(t.id, season);
+          const { wins = 0, losses = 0 } = records[t.id] ?? {};
           return { ...t, wins, losses, team_name: `${t.city} ${t.name}` };
         })
         .sort((a: any, b: any) => b.wins - a.wins).slice(0, 7);
