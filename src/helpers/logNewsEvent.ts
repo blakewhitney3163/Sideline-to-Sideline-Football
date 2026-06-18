@@ -1,13 +1,23 @@
 import { db } from '../database';
 import { getCurrentSeason } from './getCurrentSeason';
 
-export type NewsCategory = 'transactions' | 'injuries' | 'draft' | 'season' | 'milestones';
+export type NewsCategory =
+  | 'transactions'
+  | 'injuries'
+  | 'injury'
+  | 'draft'
+  | 'season'
+  | 'milestones'
+  | 'game'
+  | 'trade';
 
 export function logNewsEvent(params: {
-  eventType: string;
+  eventType?: string;
   category: NewsCategory;
-  headline: string;
+  headline?: string;
+  title?: string;
   detail?: string;
+  body?: string;
   teamId?: number | null;
   playerId?: number | null;
   season?: number;
@@ -15,16 +25,18 @@ export function logNewsEvent(params: {
 }): void {
   try {
     const season = params.season ?? getCurrentSeason();
+    const headline = params.headline ?? params.title ?? '';
+    const detail = params.detail ?? params.body ?? null;
     db.prepare(`
       INSERT INTO news_events (season, week, event_type, category, headline, detail, team_id, player_id)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       season,
       params.week ?? 0,
-      params.eventType,
+      params.eventType ?? params.category,
       params.category,
-      params.headline,
-      params.detail ?? null,
+      headline,
+      detail,
       params.teamId ?? null,
       params.playerId ?? null,
     );
