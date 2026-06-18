@@ -29,12 +29,24 @@ export function rollInjuries(playerStats: any[]): InjuredPlayer[] {
     const rand = Math.random();
     let status: string, weeksOut: number;
     if (rand < 0.40)      { status = 'questionable'; weeksOut = 1; }
-    else if (rand < 0.72) { status = 'out'; weeksOut = Math.floor(Math.random() * 2) + 2; }
-    else if (rand < 0.92) { status = 'out'; weeksOut = Math.floor(Math.random() * 3) + 3; }
-    else                  { status = 'ir';  weeksOut = Math.floor(Math.random() * 5) + 4; }
+    else if (rand < 0.72) { status = 'out';          weeksOut = Math.floor(Math.random() * 2) + 2; }
+    else if (rand < 0.92) { status = 'out';          weeksOut = Math.floor(Math.random() * 3) + 3; }
+    else                  { status = 'ir';            weeksOut = Math.floor(Math.random() * 5) + 4; }
 
-    playerRepo.updateInjury(stat.player_id, status, weeksOut, INJURY_TYPES[Math.floor(Math.random() * INJURY_TYPES.length)]);
-    newlyInjured.push({ player_id: stat.player_id, team_id: player.team_id!, position: player.position, injury_status: status });
+    const injuryType = INJURY_TYPES[Math.floor(Math.random() * INJURY_TYPES.length)]; // ← extract before push
+
+    playerRepo.updateInjury(stat.player_id, status, weeksOut, injuryType);
+    newlyInjured.push({
+      player_id:      stat.player_id,
+      team_id:        player.team_id!,
+      position:       player.position,
+      injury_status:  status,
+      first_name:     player.first_name,     // ← add
+      last_name:      player.last_name,      // ← add
+      overall_rating: player.overall_rating, // ← add
+      injury_type:    injuryType,            // ← add
+      weeks_out:      weeksOut,              // ← add
+    });
   }
   return newlyInjured;
 }
