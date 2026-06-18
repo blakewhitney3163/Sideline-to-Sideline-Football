@@ -16,22 +16,22 @@ interface Props {
 export default function Draft({ onDraftComplete }: Props) {
   const { userTeam, currentSeason } = useGameStore();
 
-  const [prospects, setProspects]           = useState<Prospect[]>([]);
-  const [draftOrder, setDraftOrder]         = useState<DraftTeam[]>([]);
+  const [prospects, setProspects] = useState<Prospect[]>([]);
+  const [draftOrder, setDraftOrder] = useState<DraftTeam[]>([]);
   const [roundPickSlots, setRoundPickSlots] = useState<PickSlot[]>([]);
-  const [userPickSlots, setUserPickSlots]   = useState<number[]>([]);
+  const [userPickSlots, setUserPickSlots] = useState<number[]>([]);
   const [currentPickIdx, setCurrentPickIdx] = useState(0);
-  const [currentRound, setCurrentRound]     = useState(1);
-  const [myPicks, setMyPicks]               = useState<MyPick[]>([]);
-  const [lastCpuPicks, setLastCpuPicks]     = useState<CpuPick[]>([]);
-  const [posFilter, setPosFilter]           = useState('ALL');
+  const [currentRound, setCurrentRound] = useState(1);
+  const [myPicks, setMyPicks] = useState<MyPick[]>([]);
+  const [lastCpuPicks, setLastCpuPicks] = useState<CpuPick[]>([]);
+  const [posFilter, setPosFilter] = useState('ALL');
   const [draftGenerated, setDraftGenerated] = useState(false);
-  const [draftFinished, setDraftFinished]   = useState(false);
-  const [showResults, setShowResults]       = useState(false);
-  const [generating, setGenerating]         = useState(false);
-  const [running, setRunning]               = useState(false);
-  const [scoutsUsed, setScoutsUsed]         = useState(0);
-  const [scouting, setScouting]             = useState<number | null>(null);
+  const [draftFinished, setDraftFinished] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [scoutsUsed, setScoutsUsed] = useState(0);
+  const [scouting, setScouting] = useState<number | null>(null);
 
   useEffect(() => { loadDraft(); }, [userTeam?.id]);
 
@@ -45,8 +45,8 @@ export default function Draft({ onDraftComplete }: Props) {
     setProspects(cls); setDraftOrder(order); setScoutsUsed(sc);
     setDraftGenerated(cls.length > 0);
 
-    const drafted     = cls.filter((p: Prospect) => p.is_drafted);
-    const roundsDone  = Math.floor(drafted.length / 32);
+    const drafted = cls.filter((p: Prospect) => p.is_drafted);
+    const roundsDone = Math.floor(drafted.length / 32);
     if (roundsDone >= 7) {
       setDraftFinished(true); setCurrentRound(7);
     } else {
@@ -91,7 +91,7 @@ export default function Draft({ onDraftComplete }: Props) {
   const handlePick = async (prospect: Prospect) => {
     if (running || !userTeam) return;
     setRunning(true);
-    const slot        = userPickSlots[currentPickIdx] ?? 1;
+    const slot = userPickSlots[currentPickIdx] ?? 1;
     const overallPick = (currentRound - 1) * 32 + slot;
     await window.api.makeDraftPick({ prospectId: prospect.id, teamId: userTeam.id, round: currentRound, pick: overallPick });
 
@@ -135,70 +135,87 @@ export default function Draft({ onDraftComplete }: Props) {
 
   if (!userTeam) return null;
 
-  const scoutsLeft          = MAX_SCOUTS - scoutsUsed;
-  const available           = prospects.filter(p => !p.is_drafted && (posFilter === 'ALL' || p.position === posFilter));
-  const pickNum             = userPickSlots[currentPickIdx];
+  const scoutsLeft = MAX_SCOUTS - scoutsUsed;
+  const available = prospects.filter(p => !p.is_drafted && (posFilter === 'ALL' || p.position === posFilter));
+  const pickNum = userPickSlots[currentPickIdx];
   const totalPicksThisRound = userPickSlots.length;
 
   if (!draftGenerated) return (
-    <div style={{ padding: '40px 24px', maxWidth: 600, margin: '0 auto', textAlign: 'center' }}>
-      <h2 style={{ color: T.textPrimary, fontSize: 20, fontWeight: 700, marginBottom: 12 }}>{currentSeason} NFL Draft</h2>
-      <p style={{ color: T.textDim, fontSize: 13, marginBottom: 24 }}>
+    <div style={{ padding: '40px 24px', maxWidth: 700, margin: '0 auto', textAlign: 'center' }}>
+      <div style={{ fontSize: 20, fontWeight: 700, color: T.textPrimary, marginBottom: 12 }}>{currentSeason} NFL Draft</div>
+      <div style={{ color: T.textDim, fontSize: 13, marginBottom: 24 }}>
         Generate the rookie class before the draft begins — 280 prospects across all positions.
-      </p>
-      <button onClick={handleGenerate} disabled={generating} style={{
-        padding: '12px 28px', fontSize: 13, fontWeight: 700, cursor: generating ? 'not-allowed' : 'pointer',
-        background: '#0a1a3a', border: '1px solid #4FC3F7', borderRadius: 4, color: '#4FC3F7',
-      }}>
+      </div>
+      <button onClick={handleGenerate} disabled={generating} style={{ padding: '10px 28px', background: T.bgGreen, border: '1px solid #2a4a2a', borderRadius: 6, color: '#4caf50', fontWeight: 700, fontSize: 14, cursor: generating ? 'not-allowed' : 'pointer' }}>
         {generating ? 'Generating...' : '▶ Generate Draft Class'}
       </button>
     </div>
   );
 
   if (draftFinished) return (
-    <DraftSummary picks={myPicks} userTeam={userTeam} currentSeason={currentSeason} onComplete={handleCompleteDraft} running={running} />
+    <DraftSummary
+      myPicks={myPicks}
+      userTeam={userTeam}
+      currentSeason={currentSeason}
+      onComplete={handleCompleteDraft}
+      running={running}
+    />
   );
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      <div style={{ padding: '16px 24px', borderBottom: `1px solid ${T.borderFaint}`, background: T.bgPanel, flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-          <h2 style={{ color: T.textPrimary, fontSize: 18, fontWeight: 700, margin: 0 }}>{currentSeason} NFL Draft</h2>
-          <span style={{ color: T.textDim, fontSize: 12 }}>Round {currentRound} of 7</span>
-          <span style={{ color: T.textDim, fontSize: 12 }}>{available.length} prospects available</span>
-          {totalPicksThisRound > 1 && !showResults && (
-            <span style={{ color: '#FF8740', fontSize: 12 }}>
-              You have {totalPicksThisRound} picks this round (Pick {currentPickIdx + 1} of {totalPicksThisRound})
-            </span>
-          )}
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ color: T.textDim, fontSize: 10, letterSpacing: 1 }}>SCOUTS</span>
-            <span style={{ color: scoutsLeft > 5 ? '#4caf50' : scoutsLeft > 0 ? '#FF8740' : '#e57373', fontWeight: 700, fontSize: 16 }}>
-              {scoutsLeft} / {MAX_SCOUTS}
-            </span>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '16px 24px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: T.textPrimary }}>{currentSeason} NFL Draft</div>
+          <div style={{ fontSize: 11, color: T.textDim, marginTop: 2 }}>
+            Round {currentRound} of 7 &nbsp;·&nbsp; {available.length} prospects available
+            {totalPicksThisRound > 1 && !showResults && (
+              <span style={{ color: '#FF8740', marginLeft: 8 }}>
+                You have {totalPicksThisRound} picks this round (Pick {currentPickIdx + 1} of {totalPicksThisRound})
+              </span>
+            )}
+          </div>
+        </div>
+        <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
+          <div style={{ fontSize: 10, color: T.textDim, letterSpacing: 1 }}>SCOUTS</div>
+          <div style={{ color: scoutsLeft >= 5 ? '#4caf50' : scoutsLeft > 0 ? '#FF8740' : '#e57373', fontWeight: 700, fontSize: 16 }}>
+            {scoutsLeft} / {MAX_SCOUTS}
           </div>
         </div>
       </div>
 
       <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 300px', overflow: 'hidden' }}>
         <ProspectBoard
-          prospects={available}
+          available={available}
           posFilter={posFilter}
-          onPosFilter={setPosFilter}
+          setPosFilter={setPosFilter}
+          showResults={showResults}
+          userPickSlots={userPickSlots}
+          currentPickIdx={currentPickIdx}
+          currentRound={currentRound}
+          pickNum={pickNum}
+          totalPicksThisRound={totalPicksThisRound}
+          myPicks={myPicks}
+          lastCpuPicks={lastCpuPicks}
+          roundPickSlots={roundPickSlots}
+          draftOrder={draftOrder}
+          scoutsLeft={scoutsLeft}
+          scouting={scouting}
+          running={running}
+          userTeam={userTeam}
           onPick={handlePick}
           onAutoPick={handleAutoPick}
           onScout={handleScout}
-          scouting={scouting}
-          scoutsLeft={scoutsLeft}
-          running={running}
-          showResults={showResults}
-          lastCpuPicks={lastCpuPicks}
-          pickNum={pickNum}
           onNextRound={handleNextRound}
-          currentRound={currentRound}
-          userTeamId={userTeam.id}
+          currentSeason={currentSeason}
         />
-        <MyPicksSidebar picks={myPicks} />
+        <MyPicksSidebar
+          myPicks={myPicks}
+          currentRound={currentRound}
+          roundPickSlots={roundPickSlots}
+          draftOrder={draftOrder}
+          userTeam={userTeam}
+        />
       </div>
     </div>
   );
