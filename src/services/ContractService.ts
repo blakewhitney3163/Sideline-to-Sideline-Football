@@ -1,6 +1,6 @@
 import { db } from '../database';
 import { playerRepo, contractRepo, gameRepo } from '../repositories';
-import { MAX_ACTIVE_ROSTER, MIN_CPU_ROSTER, SALARY_CAP } from '../constants';
+import { MAX_ACTIVE_ROSTER, MAX_PRACTICE_SQUAD, MIN_CPU_ROSTER, SALARY_CAP } from '../constants';
 import { getCurrentSeason } from '../helpers/getCurrentSeason';
 import { SuccessResult } from '../types';
 import { logNewsEvent } from '../helpers/logNewsEvent';
