@@ -1,5 +1,5 @@
 import { ipcMain, app } from 'electron';
-const { db, generateContracts } = require('../database');
+import { db, generateContracts } from '../database';
 const { importFromMadden } = require('../importfromMadden');
 import { balanceRosters } from '../helpers/balanceRosters';
 import { settingsRepo } from '../repositories';
