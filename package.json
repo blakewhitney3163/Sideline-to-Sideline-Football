@@ -6,17 +6,17 @@
   "main": ".webpack/main",
   "private": true,
   "scripts": {
-  "start": "electron-forge start",
-  "package": "electron-forge package",
-  "make": "electron-forge make",
-  "publish": "electron-forge publish",
-  "lint": "eslint --ext .ts,.tsx .",
-  "test": "vitest run",
-  "simulate": "npm rebuild better-sqlite3 && node src/simulateSeason.js && .\\node_modules\\.bin\\electron-rebuild -v 42.4.0 --force && rmdir /s /q .webpack 2>nul & npm start",
-  "import-madden": "npm rebuild better-sqlite3 && node src/importFromMadden.js && .\\node_modules\\.bin\\electron-rebuild -v 42.4.0 --force",
-  "update-ratings": "npm rebuild better-sqlite3 && node src/updateRatings.js && .\\node_modules\\.bin\\electron-rebuild -v 42.4.0 --force",
-  "import-players": "npm rebuild better-sqlite3 && node src/importPlayers.js && .\\node_modules\\.bin\\electron-rebuild -v 42.4.0 --force"
-},
+    "start": "electron-forge start",
+    "package": "electron-forge package",
+    "make": "electron-forge make",
+    "publish": "electron-forge publish",
+    "lint": "eslint --ext .ts,.tsx .",
+    "test": "vitest run",
+    "simulate": "npm rebuild better-sqlite3 && node src/simulateSeason.js && .\\node_modules\\.bin\\electron-rebuild -v 42.4.0 --force && rmdir /s /q .webpack 2>nul & npm start",
+    "import-madden": "npm rebuild better-sqlite3 && node src/importFromMadden.js && .\\node_modules\\.bin\\electron-rebuild -v 42.4.0 --force",
+    "update-ratings": "npm rebuild better-sqlite3 && node src/updateRatings.js && .\\node_modules\\.bin\\electron-rebuild -v 42.4.0 --force",
+    "import-players": "npm rebuild better-sqlite3 && node src/importPlayers.js && .\\node_modules\\.bin\\electron-rebuild -v 42.4.0 --force"
+  },
   "keywords": [],
   "author": {
     "name": "Blake Whitney",
