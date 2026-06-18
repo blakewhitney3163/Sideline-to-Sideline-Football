@@ -1,8 +1,8 @@
 import { ipcMain } from 'electron';
-const { db } = require('../database');
 import { getCurrentSeason } from '../helpers/getCurrentSeason';
-import { SALARY_CAP, MAX_ACTIVE_ROSTER, MAX_PRACTICE_SQUAD, PS_MINIMUM_SALARY, MIN_CPU_ROSTER } from '../constants';
+import { SALARY_CAP, MAX_ACTIVE_ROSTER, MAX_PRACTICE_SQUAD, MIN_CPU_ROSTER } from '../constants';
 import { CapSummary, RosterSpots, SuccessResult } from '../types';
+import { settingsRepo, playerRepo, contractRepo, gameRepo } from '../repositories';
 
 // ─── Market Rate Helper ───────────────────────────────────────────────────────
 
@@ -40,39 +40,15 @@ export function calcFairMarket(ovr: number, position: string, devTrait: string):
 export function registerContractHandlers(): void {
 
   ipcMain.handle('get-team-contracts', (_event: any, teamId: number) => {
-    return db.prepare(`
-      SELECT p.id, p.first_name, p.last_name, p.position, p.position_label,
-             p.overall_rating, p.age, p.dev_trait, p.roster_status,
-             c.annual_salary, c.years_remaining, c.years_total,
-             c.guaranteed_amount, c.guaranteed_pct,
-             c.id as contract_id
-      FROM contracts c
-      JOIN players p ON c.player_id = p.id
-      WHERE c.team_id = ? AND p.roster_status = 'active'
-      ORDER BY c.annual_salary DESC
-    `).all(teamId);
+    return contractRepo.getByTeam(teamId);
   });
 
   ipcMain.handle('get-practice-squad', (_event: any, teamId: number) => {
-    return db.prepare(`
-      SELECT p.id, p.first_name, p.last_name, p.position, p.position_label,
-             p.overall_rating, p.age, p.dev_trait,
-             c.annual_salary, c.years_remaining
-      FROM players p
-      LEFT JOIN contracts c ON c.player_id = p.id
-      WHERE p.team_id = ? AND p.roster_status = 'practice_squad'
-      ORDER BY p.overall_rating DESC
-    `).all(teamId);
+    return playerRepo.getPracticeSquad(teamId);
   });
 
   ipcMain.handle('get-cap-summary', (_event: any, teamId: number): Promise<CapSummary> => {
-    const result = db.prepare(`
-      SELECT COALESCE(SUM(c.annual_salary), 0) as used_cap
-      FROM contracts c
-      JOIN players p ON c.player_id = p.id
-      WHERE c.team_id = ? AND p.roster_status = 'active'
-    `).get(teamId) as any;
-    const usedCap = Math.round(result.used_cap * 10) / 10;
+    const usedCap = contractRepo.getCapUsage(teamId);
     return {
       total_cap: SALARY_CAP,
       used_cap: usedCap,
@@ -81,12 +57,7 @@ export function registerContractHandlers(): void {
   });
 
   ipcMain.handle('get-roster-spots', (_event: any, teamId: number): Promise<RosterSpots> => {
-    const counts = db.prepare(`
-      SELECT roster_status, COUNT(*) as count
-      FROM players WHERE team_id = ? GROUP BY roster_status
-    `).all(teamId) as any[];
-    const active = counts.find((r: any) => r.roster_status === 'active')?.count ?? 0;
-    const ps = counts.find((r: any) => r.roster_status === 'practice_squad')?.count ?? 0;
+    const { active, ps } = playerRepo.getCountByStatus(teamId);
     return {
       active, ps,
       activeMax: MAX_ACTIVE_ROSTER,
@@ -97,62 +68,39 @@ export function registerContractHandlers(): void {
   });
 
   ipcMain.handle('sign-free-agent-to-ps', (_event: any, playerId: number): Promise<SuccessResult> => {
-    const teamRow = db.prepare("SELECT value FROM settings WHERE key = 'user_team_id'").get() as any;
-    if (!teamRow) return { success: false, reason: 'No franchise selected.' } as any;
-    const teamId = parseInt(teamRow.value);
+    const teamId = settingsRepo.getUserTeamId();
+    if (!teamId) return { success: false, reason: 'No franchise selected.' } as any;
 
-    const psCount = (db.prepare(
-      "SELECT COUNT(*) as count FROM players WHERE team_id = ? AND roster_status = 'practice_squad'"
-    ).get(teamId) as any).count;
-    if (psCount >= MAX_PRACTICE_SQUAD) return { success: false, reason: `Practice squad is full (${MAX_PRACTICE_SQUAD}/${MAX_PRACTICE_SQUAD}).` } as any;
+    if (playerRepo.getPSCount(teamId) >= MAX_PRACTICE_SQUAD)
+      return { success: false, reason: `Practice squad is full (${MAX_PRACTICE_SQUAD}/${MAX_PRACTICE_SQUAD}).` } as any;
 
-    const player = db.prepare(
-      'SELECT id, first_name, last_name, position FROM players WHERE id = ? AND team_id IS NULL'
-    ).get(playerId) as any;
-    if (!player) return { success: false, reason: 'Player not available.' } as any;
+    const player = playerRepo.getById(playerId);
+    if (!player || player.team_id !== null) return { success: false, reason: 'Player not available.' } as any;
 
-    db.prepare("UPDATE players SET team_id = ?, roster_status = 'practice_squad', is_free_agent = 0 WHERE id = ?")
-      .run(teamId, playerId);
-
-    const existing = db.prepare('SELECT id FROM contracts WHERE player_id = ?').get(playerId);
-    if (existing) {
-      db.prepare(
-        'UPDATE contracts SET team_id = ?, years_total = 1, years_remaining = 1, annual_salary = ?, guaranteed_amount = 0, guaranteed_pct = 0 WHERE player_id = ?'
-      ).run(teamId, PS_MINIMUM_SALARY, playerId);
-    } else {
-      db.prepare(
-        'INSERT INTO contracts (player_id, team_id, years_total, years_remaining, annual_salary, guaranteed_amount, guaranteed_pct) VALUES (?, ?, 1, 1, ?, 0, 0)'
-      ).run(playerId, teamId, PS_MINIMUM_SALARY);
-    }
-
+    playerRepo.assignToPS(playerId, teamId);
+    contractRepo.createPS(playerId, teamId);
     return { success: true } as any;
   });
 
   ipcMain.handle('get-free-agents', (_event: any, position?: string) => {
-    const query = position && position !== 'ALL'
-      ? "SELECT id, first_name, last_name, position, position_label, overall_rating, age, dev_trait FROM players WHERE is_free_agent = 1 AND position = ? ORDER BY overall_rating DESC LIMIT 200"
-      : "SELECT id, first_name, last_name, position, position_label, overall_rating, age, dev_trait FROM players WHERE is_free_agent = 1 ORDER BY overall_rating DESC LIMIT 200";
-    return position && position !== 'ALL'
-      ? db.prepare(query).all(position)
-      : db.prepare(query).all();
+    return playerRepo.getFreeAgents(position);
   });
 
   ipcMain.handle('extend-player', (_event: any, { playerId, years, salary }: {
     playerId: number; years: number; salary: number;
   }): Promise<SuccessResult> => {
-    const contract = db.prepare('SELECT * FROM contracts WHERE player_id = ?').get(playerId) as any;
+    const contract = contractRepo.getByPlayer(playerId);
     if (!contract) return { success: false, reason: 'No contract found.' } as any;
     const guaranteedPct = Math.round(40 + Math.random() * 20);
     const guaranteedAmount = Math.round(salary * years * (guaranteedPct / 100) * 10) / 10;
-    db.prepare('UPDATE contracts SET years_total = ?, years_remaining = ?, annual_salary = ?, guaranteed_amount = ?, guaranteed_pct = ? WHERE player_id = ?')
-      .run(years, years, salary, guaranteedAmount, guaranteedPct, playerId);
+    contractRepo.update(playerId, years, salary, guaranteedAmount, guaranteedPct);
     return { success: true } as any;
   });
 
   ipcMain.handle('restructure-player', (_event: any, { playerId, pct }: {
     playerId: number; pct: number;
   }): Promise<SuccessResult> => {
-    const contract = db.prepare('SELECT * FROM contracts WHERE player_id = ?').get(playerId) as any;
+    const contract = contractRepo.getByPlayer(playerId);
     if (!contract) return { success: false, reason: 'No contract found.' } as any;
     if (contract.years_remaining < 2) return { success: false, reason: 'Need 2+ years remaining to restructure.' } as any;
 
@@ -161,40 +109,28 @@ export function registerContractHandlers(): void {
     const newSalary = Math.round((contract.annual_salary - savings) * 10) / 10;
     const newGuaranteed = Math.round(((contract.guaranteed_amount ?? 0) + convertedAmount) * 10) / 10;
     const newGuaranteedPct = Math.min(100, Math.round((newGuaranteed / (newSalary * contract.years_remaining)) * 100));
-
-    db.prepare('UPDATE contracts SET annual_salary = ?, guaranteed_amount = ?, guaranteed_pct = ? WHERE player_id = ?')
-      .run(newSalary, newGuaranteed, newGuaranteedPct, playerId);
-
+    contractRepo.updateSalary(playerId, newSalary, newGuaranteed, newGuaranteedPct);
     return { success: true, savings, newSalary } as any;
   });
 
   ipcMain.handle('release-player', (_event: any, playerId: number): Promise<SuccessResult> => {
     const season = getCurrentSeason();
-    const scheduleExists = (db.prepare(
-      'SELECT COUNT(*) as count FROM games WHERE season = ? AND is_playoff = 0'
-    ).get(season) as any).count > 0;
-    const isInSeason = scheduleExists;
-
-    const currentWeekRow = db.prepare(
-      'SELECT MIN(week) as week FROM games WHERE season = ? AND is_simulated = 0 AND is_playoff = 0'
-    ).get(season) as any;
-    const currentWeek = currentWeekRow?.week ?? 1;
-
-    const playerRow = db.prepare('SELECT team_id FROM players WHERE id = ?').get(playerId) as any;
-    const releasingTeamId = playerRow?.team_id ?? null;
+    const isInSeason = gameRepo.countBySeason(season) > 0;
+    const currentWeek = gameRepo.getCurrentWeek(season) ?? 1;
+    const player = playerRepo.getById(playerId);
+    const releasingTeamId = player?.team_id ?? null;
 
     if (isInSeason) {
-      db.prepare(`UPDATE players SET team_id = NULL, is_free_agent = 0, roster_status = 'waivers', waived_by_team_id = ?, waiver_placed_week = ? WHERE id = ?`)
-        .run(releasingTeamId, currentWeek, playerId);
+      playerRepo.releaseToWaivers(playerId, releasingTeamId, currentWeek);
     } else {
-      db.prepare('DELETE FROM contracts WHERE player_id = ?').run(playerId);
-      db.prepare(`UPDATE players SET team_id = NULL, is_free_agent = 1, roster_status = 'free_agent', waived_by_team_id = NULL, waiver_placed_week = NULL WHERE id = ?`)
-        .run(playerId);
+      contractRepo.delete(playerId);
+      playerRepo.releaseToFA(playerId);
     }
-    return { success: true } as any;
+    return { success: true, onWaivers: isInSeason } as any;
   });
 
   ipcMain.handle('get-team-stats', (_event: any, teamId: number, season?: number) => {
+    const { db } = require('../database');
     const s = season ?? getCurrentSeason();
     return db.prepare(`
       SELECT p.id as player_id, p.first_name || ' ' || p.last_name AS player_name,
@@ -220,17 +156,17 @@ export function registerContractHandlers(): void {
   });
 
   ipcMain.handle('promote-from-ps', (_event: any, playerId: number): Promise<SuccessResult> => {
-    const teamRow = db.prepare("SELECT value FROM settings WHERE key = 'user_team_id'").get() as any;
-    if (!teamRow) return { success: false, reason: 'No franchise selected.' } as any;
-    const teamId = parseInt(teamRow.value);
+    const teamId = settingsRepo.getUserTeamId();
+    if (!teamId) return { success: false, reason: 'No franchise selected.' } as any;
 
-    const active = (db.prepare("SELECT COUNT(*) as count FROM players WHERE team_id = ? AND roster_status = 'active'").get(teamId) as any).count;
-    if (active >= MAX_ACTIVE_ROSTER) return { success: false, reason: `Active roster is full (${MAX_ACTIVE_ROSTER}/${MAX_ACTIVE_ROSTER}). Release a player first.` } as any;
+    if (playerRepo.getActiveCount(teamId) >= MAX_ACTIVE_ROSTER)
+      return { success: false, reason: `Active roster is full (${MAX_ACTIVE_ROSTER}/${MAX_ACTIVE_ROSTER}). Release a player first.` } as any;
 
-    const player = db.prepare('SELECT * FROM players WHERE id = ? AND roster_status = ?').get(playerId, 'practice_squad') as any;
-    if (!player) return { success: false, reason: 'Player not on practice squad.' } as any;
+    const player = playerRepo.getById(playerId);
+    if (!player || player.roster_status !== 'practice_squad')
+      return { success: false, reason: 'Player not on practice squad.' } as any;
 
-    db.prepare("UPDATE players SET roster_status = 'active' WHERE id = ?").run(playerId);
+    playerRepo.updateRosterStatus(playerId, 'active');
 
     const SAL_RANGES: Record<string, [number, number]> = {
       QB: [1.0, 42], WR: [1.0, 28], DL: [1.0, 32], LB: [1.0, 18],
@@ -241,40 +177,27 @@ export function registerContractHandlers(): void {
     const ovrFactor = Math.pow(Math.max(0, (player.overall_rating - 70)) / 29, 2.5);
     const salary = Math.round((minSal + ovrFactor * (maxSal - minSal)) * 10) / 10;
     const years = player.age <= 25 ? 3 : player.age <= 29 ? 2 : 1;
-
-    const existing = db.prepare('SELECT id FROM contracts WHERE player_id = ?').get(playerId);
-    if (existing) {
-      db.prepare('UPDATE contracts SET years_total = ?, years_remaining = ?, annual_salary = ?, guaranteed_amount = ?, guaranteed_pct = ? WHERE player_id = ?')
-        .run(years, years, salary, Math.round(salary * years * 0.3 * 10) / 10, 30, playerId);
-    } else {
-      db.prepare('INSERT INTO contracts (player_id, team_id, years_total, years_remaining, annual_salary, guaranteed_amount, guaranteed_pct) VALUES (?, ?, ?, ?, ?, ?, ?)')
-        .run(playerId, teamId, years, years, salary, Math.round(salary * years * 0.3 * 10) / 10, 30);
-    }
-
+    const guaranteed = Math.round(salary * years * 0.3 * 10) / 10;
+    contractRepo.update(playerId, years, salary, guaranteed, 30);
     return { success: true } as any;
   });
 
   ipcMain.handle('sign-free-agent', (_event: any, { playerId, years, salary }: {
     playerId: number; years: number; salary: number;
   }): Promise<SuccessResult> => {
-    const teamRow = db.prepare("SELECT value FROM settings WHERE key = 'user_team_id'").get() as any;
-    if (!teamRow) return { success: false, reason: 'No franchise selected.' } as any;
-    const teamId = parseInt(teamRow.value);
+    const teamId = settingsRepo.getUserTeamId();
+    if (!teamId) return { success: false, reason: 'No franchise selected.' } as any;
 
-    const spots = (db.prepare("SELECT COUNT(*) as count FROM players WHERE team_id = ? AND roster_status = 'active'").get(teamId) as any).count;
-    if (spots >= MAX_ACTIVE_ROSTER) return { success: false, reason: `Active roster is full (${MAX_ACTIVE_ROSTER}/${MAX_ACTIVE_ROSTER}). Release a player first.` } as any;
+    if (playerRepo.getActiveCount(teamId) >= MAX_ACTIVE_ROSTER)
+      return { success: false, reason: `Active roster is full (${MAX_ACTIVE_ROSTER}/${MAX_ACTIVE_ROSTER}). Release a player first.` } as any;
 
-    const player = db.prepare('SELECT id, overall_rating, age, position, dev_trait FROM players WHERE id = ?').get(playerId) as any;
+    const player = playerRepo.getById(playerId);
     if (!player) return { success: false, reason: 'Player not found.' } as any;
 
     const fairMarket = calcFairMarket(player.overall_rating, player.position, player.dev_trait);
     const ratio = salary / Math.max(fairMarket, 1);
-
     let acceptChance =
-      ratio >= 1.00 ? 1.00 :
-      ratio >= 0.85 ? 0.90 :
-      ratio >= 0.70 ? 0.60 :
-      ratio >= 0.50 ? 0.20 : 0.00;
+      ratio >= 1.00 ? 1.00 : ratio >= 0.85 ? 0.90 : ratio >= 0.70 ? 0.60 : ratio >= 0.50 ? 0.20 : 0.00;
 
     if (player.age >= 33) acceptChance = Math.min(1, acceptChance + 0.15);
     if (player.age >= 36) acceptChance = Math.min(1, acceptChance + 0.15);
@@ -282,18 +205,11 @@ export function registerContractHandlers(): void {
     if (player.dev_trait === 'Superstar') acceptChance = Math.max(0, acceptChance - 0.10);
 
     const season = getCurrentSeason();
-    const record = db.prepare(`
-      SELECT
-        SUM(CASE WHEN (home_team_id = ? AND home_score > away_score) OR (away_team_id = ? AND away_score > home_score) THEN 1 ELSE 0 END) as wins,
-        COUNT(*) as played
-      FROM games WHERE (home_team_id = ? OR away_team_id = ?) AND season = ? AND is_simulated = 1 AND is_playoff = 0
-    `).get(teamId, teamId, teamId, teamId, season) as any;
-    const winPct = record?.played >= 4 ? record.wins / record.played : 0.5;
+    const { wins, played } = gameRepo.getWinRecord(teamId, season);
+    const winPct = played >= 4 ? wins / played : 0.5;
     if (winPct >= 0.65) acceptChance = Math.min(1, acceptChance + 0.08);
 
-    const accepted = Math.random() < acceptChance;
-
-    if (!accepted) {
+    if (Math.random() >= acceptChance) {
       const reason =
         ratio < 0.50 ? `Insulted by the offer. ${player.dev_trait === 'X-Factor' || player.dev_trait === 'Superstar' ? 'Elite players' : 'Players'} don't sign for that salary.` :
         ratio < 0.70 ? `Not enough money. Looking for closer to ${fairMarket.toFixed(1)}M/yr on the open market.` :
@@ -304,71 +220,51 @@ export function registerContractHandlers(): void {
 
     const guaranteedPct = Math.round(30 + Math.random() * 30);
     const guaranteedAmount = Math.round(salary * years * (guaranteedPct / 100) * 10) / 10;
-
-    db.prepare("UPDATE players SET team_id = ?, is_free_agent = 0, roster_status = 'active' WHERE id = ?").run(teamId, playerId);
-    db.prepare(`INSERT INTO contracts (player_id, team_id, years_total, years_remaining, annual_salary, guaranteed_amount, guaranteed_pct)
-      VALUES (?, ?, ?, ?, ?, ?, ?)`)
-      .run(playerId, teamId, years, years, salary, guaranteedAmount, guaranteedPct);
+    playerRepo.activate(playerId, teamId);
+    contractRepo.create(playerId, teamId, years, salary, guaranteedAmount, guaranteedPct);
     return { success: true } as any;
   });
 
   ipcMain.handle('get-expiring-contracts', () => {
-    const teamRow = db.prepare("SELECT value FROM settings WHERE key = 'user_team_id'").get() as any;
-    if (!teamRow) return [];
-    const teamId = parseInt(teamRow.value);
-    return db.prepare(`
-      SELECT p.id, p.first_name, p.last_name, p.position, p.position_label,
-             p.overall_rating, p.age, p.dev_trait,
-             c.annual_salary, c.years_remaining, c.years_total,
-             c.guaranteed_amount, c.guaranteed_pct, c.id as contract_id
-      FROM contracts c
-      JOIN players p ON c.player_id = p.id
-      WHERE c.team_id = ? AND p.roster_status = 'active' AND c.years_remaining = 1
-      ORDER BY c.annual_salary DESC
-    `).all(teamId);
+    const teamId = settingsRepo.getUserTeamId();
+    if (!teamId) return [];
+    return contractRepo.getExpiring(teamId);
   });
 
   ipcMain.handle('resign-player', (_event: any, { playerId, years, salary }: {
     playerId: number; years: number; salary: number;
   }): Promise<SuccessResult> => {
-    const player = db.prepare('SELECT id, overall_rating, age, position, dev_trait FROM players WHERE id = ?').get(playerId) as any;
+    const player = playerRepo.getById(playerId);
     if (!player) return { success: false, reason: 'Player not found.' } as any;
 
     const fairMarket = calcFairMarket(player.overall_rating, player.position, player.dev_trait);
     const ratio = salary / Math.max(fairMarket, 1);
-
     let acceptChance =
-      ratio >= 1.00 ? 1.00 :
-      ratio >= 0.85 ? 0.95 :
-      ratio >= 0.70 ? 0.70 :
-      ratio >= 0.50 ? 0.25 : 0.00;
+      ratio >= 1.00 ? 1.00 : ratio >= 0.85 ? 0.95 : ratio >= 0.70 ? 0.70 : ratio >= 0.50 ? 0.25 : 0.00;
 
     if (player.age >= 33) acceptChance = Math.min(1, acceptChance + 0.15);
     if (player.age >= 36) acceptChance = Math.min(1, acceptChance + 0.15);
     if (player.dev_trait === 'X-Factor') acceptChance = Math.max(0, acceptChance - 0.15);
     if (player.dev_trait === 'Superstar') acceptChance = Math.max(0, acceptChance - 0.08);
 
-    const accepted = Math.random() < acceptChance;
-
-    if (!accepted) {
+    if (Math.random() >= acceptChance) {
       const reason =
         ratio < 0.50 ? `Insulted by the offer. Looking for around ${fairMarket.toFixed(1)}M/yr.` :
         ratio < 0.70 ? `Not enough to stay. Asking price is closer to ${fairMarket.toFixed(1)}M/yr.` :
         ratio < 0.85 ? `Wants to test the market. Try offering closer to ${fairMarket.toFixed(1)}M/yr.` :
         `Decided to explore other options despite the offer.`;
-      return { success: false, reason } as any;
+      return { success: false, reason, willHitFA: true } as any;
     }
 
     const guaranteedPct = Math.round(35 + Math.random() * 25);
     const guaranteedAmount = Math.round(salary * years * (guaranteedPct / 100) * 10) / 10;
-    db.prepare('UPDATE contracts SET years_total = ?, years_remaining = ?, annual_salary = ?, guaranteed_amount = ?, guaranteed_pct = ? WHERE player_id = ?')
-      .run(years, years, salary, guaranteedAmount, guaranteedPct, playerId);
+    contractRepo.update(playerId, years, salary, guaranteedAmount, guaranteedPct);
     return { success: true } as any;
   });
 
   ipcMain.handle('get-offseason-status', () => {
-    const teamRow = db.prepare("SELECT value FROM settings WHERE key = 'user_team_id'").get() as any;
     const season = getCurrentSeason();
+    const { db } = require('../database');
     const champion = db.prepare('SELECT team_id FROM champions WHERE season = ?').get(season);
     const draftGenerated = champion
       ? (db.prepare('SELECT COUNT(*) as count FROM draft_prospects WHERE season = ?').get(season) as any).count > 0
@@ -376,66 +272,44 @@ export function registerContractHandlers(): void {
     const draftComplete = draftGenerated
       ? (db.prepare('SELECT COUNT(*) as count FROM draft_prospects WHERE season = ? AND is_drafted = 0').get(season) as any).count === 0
       : false;
-    if (!teamRow) return { playoffsComplete: !!champion, pendingResigns: 0, draftGenerated, draftComplete };
-    const teamId = parseInt(teamRow.value);
-    const pending = (db.prepare(`
-      SELECT COUNT(*) as count FROM contracts c
-      JOIN players p ON c.player_id = p.id
-      WHERE c.team_id = ? AND p.roster_status = 'active' AND c.years_remaining = 1
-    `).get(teamId) as any).count;
-    return { playoffsComplete: !!champion, pendingResigns: pending, draftGenerated, draftComplete };
+    const teamId = settingsRepo.getUserTeamId();
+    if (!teamId) return { playoffsComplete: !!champion, pendingResigns: 0, draftGenerated, draftComplete };
+    const pendingResigns = contractRepo.countExpiring(teamId);
+    return { playoffsComplete: !!champion, pendingResigns, draftGenerated, draftComplete };
   });
 
   // ─── CPU Free Agency ─────────────────────────────────────────────────────────
 
   ipcMain.handle('cpu-fa-signing', () => {
-    const userTeamIdRow = db.prepare("SELECT value FROM settings WHERE key = 'user_team_id'").get() as any;
-    const userTeamId = userTeamIdRow ? parseInt(userTeamIdRow.value) : -1;
-
+    const userTeamId = settingsRepo.getUserTeamId() ?? -1;
+    const { db } = require('../database');
     const cpuTeams = db.prepare('SELECT id FROM teams WHERE id != ?').all(userTeamId) as any[];
     let totalSigned = 0;
     const signingsByTeam: Record<number, number> = {};
 
     const runSignings = db.transaction(() => {
       for (const team of cpuTeams) {
-        const activeCount = (db.prepare("SELECT COUNT(*) as cnt FROM players WHERE team_id = ? AND roster_status = 'active'").get(team.id) as any).cnt;
-        let slotsLeft = MAX_ACTIVE_ROSTER - activeCount;
+        let slotsLeft = MAX_ACTIVE_ROSTER - playerRepo.getActiveCount(team.id);
         if (slotsLeft <= 0) continue;
 
-        const posCounts = db.prepare(`
-          SELECT position, COUNT(*) as cnt
-          FROM players WHERE team_id = ? AND roster_status = 'active'
-          GROUP BY position
-        `).all(team.id) as any[];
+        const posCounts = db.prepare(`SELECT position, COUNT(*) as cnt FROM players WHERE team_id = ? AND roster_status = 'active' GROUP BY position`).all(team.id) as any[];
         const byPos: Record<string, number> = {};
         for (const r of posCounts) byPos[r.position] = r.cnt;
 
         let teamSigned = 0;
         for (const [pos, minCount] of Object.entries(MIN_CPU_ROSTER)) {
           if (slotsLeft <= 0) break;
-          const current = byPos[pos] ?? 0;
-          const needed = Math.max(0, minCount - current);
-
+          const needed = Math.max(0, minCount - (byPos[pos] ?? 0));
           for (let i = 0; i < needed && slotsLeft > 0; i++) {
-            const fa = db.prepare(`
-              SELECT id, overall_rating, age, position, dev_trait
-              FROM players WHERE is_free_agent = 1 AND position = ?
-              ORDER BY overall_rating DESC LIMIT 1
-            `).get(pos) as any;
+            const fas = playerRepo.getFreeAgents(pos, 1);
+            const fa = fas[0];
             if (!fa) break;
-
             const fair = calcFairMarket(fa.overall_rating, fa.position, fa.dev_trait);
             const salary = Math.round(fair * (0.90 + Math.random() * 0.15) * 10) / 10;
             const years = fa.age <= 27 ? 2 : 1;
             const gtd = Math.round(salary * years * 0.30 * 10) / 10;
-
-            db.prepare("UPDATE players SET team_id = ?, is_free_agent = 0, roster_status = 'active' WHERE id = ?")
-              .run(team.id, fa.id);
-            db.prepare(`
-              INSERT INTO contracts (player_id, team_id, years_total, years_remaining, annual_salary, guaranteed_amount, guaranteed_pct)
-              VALUES (?, ?, ?, ?, ?, ?, 30)
-            `).run(fa.id, team.id, years, years, salary, gtd);
-
+            playerRepo.activate(fa.id, team.id);
+            contractRepo.create(fa.id, team.id, years, salary, gtd, 30);
             totalSigned++;
             teamSigned++;
             slotsLeft--;
@@ -446,7 +320,6 @@ export function registerContractHandlers(): void {
     });
     runSignings();
 
-    const teamsActive = Object.keys(signingsByTeam).length;
-    return { totalSigned, teamsActive };
+    return { totalSigned, teamsActive: Object.keys(signingsByTeam).length };
   });
 }
