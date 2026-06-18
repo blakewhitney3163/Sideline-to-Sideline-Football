@@ -124,3 +124,6 @@ In-Game Narrative / Play-by-Play — Text play-by-play during simulation.
 Franchise Tag + Tender System — Standard NFL roster mechanic missing today.
 
 League Expansion / Relocation — Add teams, move teams, custom identities.
+
+Bug Fix:
+on the team/depth chart views, OL doesn't show pass/run block ratings 
