@@ -33,7 +33,6 @@ export function getRatingCols(pos: string): RatingCol[] {
     return [{ label: 'KPW', key: 'kick_power' }, { label: 'KAC', key: 'kick_accuracy' }, { label: 'AWR', key: 'awareness' }];
   return [{ label: 'SPD', key: 'speed' }, { label: 'STR', key: 'strength' }, { label: 'AWR', key: 'awareness' }];
 }
-}
 
 export function getOvrColor(ovr: number): string {
   if (ovr >= 90) return '#FFD700';
