@@ -291,7 +291,7 @@ if (!playerCols.find(c => c.name === 'waiver_placed_week')) {
 // ─── Player Attribute Column Migrations ───────────────────────────────────────
 
 const attrCols: string[] = ['throw_accuracy', 'throw_power', 'catching', 'route_running',
-  'tackle_rating', 'coverage', 'pass_rush'];
+  'tackle_rating', 'coverage', 'pass_rush', 'kick_power', 'kick_accuracy'];
 for (const col of attrCols) {
   if (!playerCols.find(c => c.name === col)) {
     db.prepare(`ALTER TABLE players ADD COLUMN ${col} INTEGER DEFAULT 70`).run();
