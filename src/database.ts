@@ -573,5 +573,3 @@ export function runMigrations(): void {
 }
 
 runMigrations();
-
-console.log('Database ready');
