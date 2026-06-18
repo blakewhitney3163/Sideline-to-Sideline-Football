@@ -89,8 +89,9 @@ export default function Stats({ currentSeason }: Props) {
   const teamReceiving    = teamStats ? [...teamStats].filter(p => (p.targets ?? 0) > 0).sort((a, b) => (b.rec_yards ?? 0) - (a.rec_yards ?? 0)) : null;
   const teamTackles      = teamStats ? [...teamStats].filter(p => (p.tackles ?? 0) + (p.assisted_tackles ?? 0) > 0).sort((a, b) => ((b.tackles ?? 0) + (b.assisted_tackles ?? 0)) - ((a.tackles ?? 0) + (a.assisted_tackles ?? 0))) : null;
   const teamSacks        = teamStats ? [...teamStats].filter(p => (p.sacks ?? 0) > 0).sort((a, b) => (b.sacks ?? 0) - (a.sacks ?? 0)) : null;
-  const teamDefInts      = teamStats ? [...teamStats].filter(p => (p.def_interceptions ?? 0) > 0 || (p.pass_deflections ?? 0) > 0).sort((a, b) => (b.def_interceptions ?? 0) - (a.def_interceptions ?? 0)) : null;
-
+  const teamDefInts = teamStats ? [...teamStats].filter(p => (p.def_interceptions ?? 0) > 0 || (p.pass_deflections ?? 0) > 0).sort((a, b) => (b.def_interceptions ?? 0) - (a.def_interceptions ?? 0)) : null;
+  const teamKickers = teamStats ? [...teamStats].filter(p => (p.fg_att ?? 0) > 0).sort((a, b) => (b.fg_made ?? 0) - (a.fg_made ?? 0)) : null;
+  
   const filterSearch = (rows: any[]) =>
     searchQuery ? rows.filter(p => p.player_name?.toLowerCase().includes(searchQuery.toLowerCase())) : rows;
 
