@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron';
 const { db } = require('../database');
 import { getCurrentSeason } from '../helpers/getCurrentSeason';
+import { SALARY_CAP, MAX_ACTIVE_ROSTER, MAX_PRACTICE_SQUAD, PS_MINIMUM_SALARY, MIN_CPU_ROSTER } from '../constants';
 
 // ─── Market Rate Helper ───────────────────────────────────────────────────────
 
@@ -40,10 +41,10 @@ export function registerContractHandlers(): void {
   ipcMain.handle('get-team-contracts', (_event: any, teamId: number) => {
     return db.prepare(`
       SELECT p.id, p.first_name, p.last_name, p.position, p.position_label,
-        p.overall_rating, p.age, p.dev_trait, p.roster_status,
-        c.annual_salary, c.years_remaining, c.years_total,
-        c.guaranteed_amount, c.guaranteed_pct,
-        c.id as contract_id
+             p.overall_rating, p.age, p.dev_trait, p.roster_status,
+             c.annual_salary, c.years_remaining, c.years_total,
+             c.guaranteed_amount, c.guaranteed_pct,
+             c.id as contract_id
       FROM contracts c
       JOIN players p ON c.player_id = p.id
       WHERE c.team_id = ? AND p.roster_status = 'active'
@@ -54,8 +55,8 @@ export function registerContractHandlers(): void {
   ipcMain.handle('get-practice-squad', (_event: any, teamId: number) => {
     return db.prepare(`
       SELECT p.id, p.first_name, p.last_name, p.position, p.position_label,
-        p.overall_rating, p.age, p.dev_trait,
-        c.annual_salary, c.years_remaining
+             p.overall_rating, p.age, p.dev_trait,
+             c.annual_salary, c.years_remaining
       FROM players p
       LEFT JOIN contracts c ON c.player_id = p.id
       WHERE p.team_id = ? AND p.roster_status = 'practice_squad'
@@ -64,7 +65,6 @@ export function registerContractHandlers(): void {
   });
 
   ipcMain.handle('get-cap-summary', (_event: any, teamId: number) => {
-    const SALARY_CAP = 279.2;
     const result = db.prepare(`
       SELECT COALESCE(SUM(c.annual_salary), 0) as used_cap
       FROM contracts c
@@ -86,7 +86,13 @@ export function registerContractHandlers(): void {
     `).all(teamId) as any[];
     const active = counts.find((r: any) => r.roster_status === 'active')?.count ?? 0;
     const ps = counts.find((r: any) => r.roster_status === 'practice_squad')?.count ?? 0;
-    return { active, ps, activeMax: 53, psMax: 16, activeFree: 53 - active, psFree: 16 - ps };
+    return {
+      active, ps,
+      activeMax: MAX_ACTIVE_ROSTER,
+      psMax: MAX_PRACTICE_SQUAD,
+      activeFree: MAX_ACTIVE_ROSTER - active,
+      psFree: MAX_PRACTICE_SQUAD - ps,
+    };
   });
 
   ipcMain.handle('sign-free-agent-to-ps', (_event: any, playerId: number) => {
@@ -97,7 +103,7 @@ export function registerContractHandlers(): void {
     const psCount = (db.prepare(
       "SELECT COUNT(*) as count FROM players WHERE team_id = ? AND roster_status = 'practice_squad'"
     ).get(teamId) as any).count;
-    if (psCount >= 16) return { success: false, reason: 'Practice squad is full (16/16).' };
+    if (psCount >= MAX_PRACTICE_SQUAD) return { success: false, reason: `Practice squad is full (${MAX_PRACTICE_SQUAD}/${MAX_PRACTICE_SQUAD}).` };
 
     const player = db.prepare(
       'SELECT id, first_name, last_name, position FROM players WHERE id = ? AND team_id IS NULL'
@@ -110,12 +116,12 @@ export function registerContractHandlers(): void {
     const existing = db.prepare('SELECT id FROM contracts WHERE player_id = ?').get(playerId);
     if (existing) {
       db.prepare(
-        'UPDATE contracts SET team_id = ?, years_total = 1, years_remaining = 1, annual_salary = 0.87, guaranteed_amount = 0, guaranteed_pct = 0 WHERE player_id = ?'
-      ).run(teamId, playerId);
+        'UPDATE contracts SET team_id = ?, years_total = 1, years_remaining = 1, annual_salary = ?, guaranteed_amount = 0, guaranteed_pct = 0 WHERE player_id = ?'
+      ).run(teamId, PS_MINIMUM_SALARY, playerId);
     } else {
       db.prepare(
-        'INSERT INTO contracts (player_id, team_id, years_total, years_remaining, annual_salary, guaranteed_amount, guaranteed_pct) VALUES (?, ?, 1, 1, 0.87, 0, 0)'
-      ).run(playerId, teamId);
+        'INSERT INTO contracts (player_id, team_id, years_total, years_remaining, annual_salary, guaranteed_amount, guaranteed_pct) VALUES (?, ?, 1, 1, ?, 0, 0)'
+      ).run(playerId, teamId, PS_MINIMUM_SALARY);
     }
 
     return { success: true, name: `${player.first_name} ${player.last_name}` };
@@ -189,18 +195,18 @@ export function registerContractHandlers(): void {
     const s = season ?? getCurrentSeason();
     return db.prepare(`
       SELECT p.id as player_id, p.first_name || ' ' || p.last_name AS player_name,
-        p.overall_rating, p.age, p.position, p.dev_trait,
-        t.city || ' ' || t.name AS team_name,
-        SUM(st.pass_yards) AS pass_yards, SUM(st.pass_tds) AS pass_tds,
-        SUM(st.interceptions) AS interceptions, SUM(st.completions) AS completions,
-        SUM(st.pass_attempts) AS pass_attempts,
-        SUM(st.rush_yards) AS rush_yards, SUM(st.rush_tds) AS rush_tds, SUM(st.rush_attempts) AS rush_attempts,
-        SUM(st.rec_yards) AS rec_yards, SUM(st.rec_tds) AS rec_tds,
-        SUM(st.receptions) AS receptions, SUM(st.targets) AS targets,
-        SUM(st.tackles) AS tackles, SUM(st.assisted_tackles) AS assisted_tackles,
-        SUM(st.sacks) AS sacks, SUM(st.tfl) AS tfl, SUM(st.forced_fumbles) AS forced_fumbles,
-        SUM(st.def_interceptions) AS def_interceptions,
-        SUM(st.pass_deflections) AS pass_deflections, SUM(st.def_tds) AS def_tds
+             p.overall_rating, p.age, p.position, p.dev_trait,
+             t.city || ' ' || t.name AS team_name,
+             SUM(st.pass_yards) AS pass_yards, SUM(st.pass_tds) AS pass_tds,
+             SUM(st.interceptions) AS interceptions, SUM(st.completions) AS completions,
+             SUM(st.pass_attempts) AS pass_attempts,
+             SUM(st.rush_yards) AS rush_yards, SUM(st.rush_tds) AS rush_tds, SUM(st.rush_attempts) AS rush_attempts,
+             SUM(st.rec_yards) AS rec_yards, SUM(st.rec_tds) AS rec_tds,
+             SUM(st.receptions) AS receptions, SUM(st.targets) AS targets,
+             SUM(st.tackles) AS tackles, SUM(st.assisted_tackles) AS assisted_tackles,
+             SUM(st.sacks) AS sacks, SUM(st.tfl) AS tfl, SUM(st.forced_fumbles) AS forced_fumbles,
+             SUM(st.def_interceptions) AS def_interceptions,
+             SUM(st.pass_deflections) AS pass_deflections, SUM(st.def_tds) AS def_tds
       FROM stats st
       JOIN players p ON st.player_id = p.id
       JOIN teams t ON st.team_id = t.id
@@ -216,7 +222,7 @@ export function registerContractHandlers(): void {
     const teamId = parseInt(teamRow.value);
 
     const active = (db.prepare("SELECT COUNT(*) as count FROM players WHERE team_id = ? AND roster_status = 'active'").get(teamId) as any).count;
-    if (active >= 53) return { success: false, reason: 'Active roster is full (53/53). Release a player first.' };
+    if (active >= MAX_ACTIVE_ROSTER) return { success: false, reason: `Active roster is full (${MAX_ACTIVE_ROSTER}/${MAX_ACTIVE_ROSTER}). Release a player first.` };
 
     const player = db.prepare('SELECT * FROM players WHERE id = ? AND roster_status = ?').get(playerId, 'practice_squad') as any;
     if (!player) return { success: false, reason: 'Player not on practice squad.' };
@@ -253,7 +259,7 @@ export function registerContractHandlers(): void {
     const teamId = parseInt(teamRow.value);
 
     const spots = (db.prepare("SELECT COUNT(*) as count FROM players WHERE team_id = ? AND roster_status = 'active'").get(teamId) as any).count;
-    if (spots >= 53) return { success: false, reason: 'Active roster is full (53/53). Release a player first.' };
+    if (spots >= MAX_ACTIVE_ROSTER) return { success: false, reason: `Active roster is full (${MAX_ACTIVE_ROSTER}/${MAX_ACTIVE_ROSTER}). Release a player first.` };
 
     const player = db.prepare('SELECT id, overall_rating, age, position, dev_trait FROM players WHERE id = ?').get(playerId) as any;
     if (!player) return { success: false, reason: 'Player not found.' };
@@ -309,9 +315,9 @@ export function registerContractHandlers(): void {
     const teamId = parseInt(teamRow.value);
     return db.prepare(`
       SELECT p.id, p.first_name, p.last_name, p.position, p.position_label,
-        p.overall_rating, p.age, p.dev_trait,
-        c.annual_salary, c.years_remaining, c.years_total,
-        c.guaranteed_amount, c.guaranteed_pct, c.id as contract_id
+             p.overall_rating, p.age, p.dev_trait,
+             c.annual_salary, c.years_remaining, c.years_total,
+             c.guaranteed_amount, c.guaranteed_pct, c.id as contract_id
       FROM contracts c
       JOIN players p ON c.player_id = p.id
       WHERE c.team_id = ? AND p.roster_status = 'active' AND c.years_remaining = 1
@@ -383,10 +389,6 @@ export function registerContractHandlers(): void {
     const userTeamIdRow = db.prepare("SELECT value FROM settings WHERE key = 'user_team_id'").get() as any;
     const userTeamId = userTeamIdRow ? parseInt(userTeamIdRow.value) : -1;
 
-    const MIN_ROSTER: Record<string, number> = {
-      QB: 2, RB: 3, WR: 4, TE: 2, OL: 6, DL: 4, LB: 4, CB: 4, S: 2, K: 1,
-    };
-
     const cpuTeams = db.prepare('SELECT id FROM teams WHERE id != ?').all(userTeamId) as any[];
     let totalSigned = 0;
     const signingsByTeam: Record<number, number> = {};
@@ -394,7 +396,7 @@ export function registerContractHandlers(): void {
     const runSignings = db.transaction(() => {
       for (const team of cpuTeams) {
         const activeCount = (db.prepare("SELECT COUNT(*) as cnt FROM players WHERE team_id = ? AND roster_status = 'active'").get(team.id) as any).cnt;
-        let slotsLeft = 53 - activeCount;
+        let slotsLeft = MAX_ACTIVE_ROSTER - activeCount;
         if (slotsLeft <= 0) continue;
 
         const posCounts = db.prepare(`
@@ -406,7 +408,7 @@ export function registerContractHandlers(): void {
         for (const r of posCounts) byPos[r.position] = r.cnt;
 
         let teamSigned = 0;
-        for (const [pos, minCount] of Object.entries(MIN_ROSTER)) {
+        for (const [pos, minCount] of Object.entries(MIN_CPU_ROSTER)) {
           if (slotsLeft <= 0) break;
           const current = byPos[pos] ?? 0;
           const needed = Math.max(0, minCount - current);
