@@ -4,6 +4,7 @@ import { getCurrentSeason } from '../helpers/getCurrentSeason';
 import { calcFairMarket } from './contractHandlers';
 import { HOF_MIN_GAMES, HOF_THRESHOLDS } from '../constants';
 import { AdvanceSeasonResult } from '../types';
+import { settingsRepo, playerRepo, contractRepo, gameRepo } from '../repositories';
 
 // ─── HOF Eligibility ──────────────────────────────────────────────────────────
 
@@ -22,10 +23,8 @@ export function registerSeasonHandlers(): void {
     const s = season ?? getCurrentSeason();
     const teams = db.prepare('SELECT id, city, name, conference, division FROM teams').all();
     return teams.map((team: any) => {
-      const wins = db.prepare(`SELECT COUNT(*) as count FROM games WHERE season = ? AND is_simulated = 1 AND is_playoff = 0 AND ((home_team_id = ? AND home_score > away_score) OR (away_team_id = ? AND away_score > home_score))`).get(s, team.id, team.id).count;
-      const losses = db.prepare(`SELECT COUNT(*) as count FROM games WHERE season = ? AND is_simulated = 1 AND is_playoff = 0 AND ((home_team_id = ? AND home_score < away_score) OR (away_team_id = ? AND away_score < home_score))`).get(s, team.id, team.id).count;
-      const ties = db.prepare(`SELECT COUNT(*) as count FROM games WHERE season = ? AND is_simulated = 1 AND is_playoff = 0 AND (home_team_id = ? OR away_team_id = ?) AND home_score = away_score`).get(s, team.id, team.id).count;
-      return { ...team, wins, losses, ties };
+      const record = gameRepo.getTeamRecord(team.id, s);
+      return { ...team, wins: record.wins, losses: record.losses, ties: record.ties };
     });
   });
 
@@ -213,7 +212,7 @@ export function registerSeasonHandlers(): void {
 
     const players = db.prepare(
       `SELECT id, age, overall_rating, speed, strength, awareness, dev_trait, position,
-      throw_accuracy, throw_power, catching, route_running, tackle_rating, coverage, pass_rush
+        throw_accuracy, throw_power, catching, route_running, tackle_rating, coverage, pass_rush
       FROM players WHERE roster_status != 'retired'`
     ).all() as any[];
 
@@ -333,15 +332,14 @@ export function registerSeasonHandlers(): void {
         if (p.overall_rating < 72) chance = Math.min(0.95, chance * 1.5);
         if (Math.random() < chance) {
           db.prepare("UPDATE players SET roster_status = 'retired', team_id = NULL, is_free_agent = 0 WHERE id = ?").run(p.id);
-          db.prepare('DELETE FROM contracts WHERE player_id = ?').run(p.id);
+          contractRepo.delete(p.id);
           retired.push({ id: p.id, name: `${p.first_name} ${p.last_name}`, position: p.position, age: p.age, ovr: p.overall_rating });
         }
       }
     });
     retirePlayers();
 
-    const userTeamIdRow = db.prepare("SELECT value FROM settings WHERE key = 'user_team_id'").get() as any;
-    const userTeamId = userTeamIdRow ? parseInt(userTeamIdRow.value) : -1;
+    const userTeamId = settingsRepo.getUserTeamId() ?? -1;
 
     const expiringCpuPlayers = db.prepare(`
       SELECT p.id, p.overall_rating, p.age, p.position, p.dev_trait, c.team_id
@@ -359,20 +357,19 @@ export function registerSeasonHandlers(): void {
           const fair = calcFairMarket(p.overall_rating, p.position, p.dev_trait);
           const salary = Math.round(fair * (1.0 + Math.random() * 0.10) * 10) / 10;
           const years = p.age <= 26 ? 3 : p.age <= 30 ? 2 : 1;
-          db.prepare('UPDATE contracts SET years_total = ?, years_remaining = ?, annual_salary = ? WHERE player_id = ?')
-            .run(years, years, salary, p.id);
+          contractRepo.update(p.id, years, salary, Math.round(salary * years * 0.35 * 10) / 10, 35);
           cpuResigns++;
         }
       }
     });
     doResigns();
 
-    db.prepare('UPDATE contracts SET years_remaining = years_remaining - 1').run();
+    contractRepo.decrementYears();
     const expiredPlayers = db.prepare('SELECT player_id FROM contracts WHERE years_remaining <= 0').all() as any[];
     const expireContracts = db.transaction(() => {
       for (const { player_id } of expiredPlayers) {
-        db.prepare('DELETE FROM contracts WHERE player_id = ?').run(player_id);
-        db.prepare("UPDATE players SET team_id = NULL, is_free_agent = 1, roster_status = 'free_agent' WHERE id = ?").run(player_id);
+        contractRepo.delete(player_id);
+        playerRepo.releaseToFA(player_id);
       }
     });
     expireContracts();
@@ -450,7 +447,7 @@ export function registerSeasonHandlers(): void {
     });
     runHof();
 
-    db.prepare("UPDATE settings SET value = ? WHERE key = 'current_season'").run(String(next));
-    return { nextSeason: next, retired, cpuResigns, breakouts: breakoutIds.size, hofInductees };
+    settingsRepo.set('current_season', String(next));
+    return { nextSeason: next, retired, cpuResigns, breakouts: breakoutIds.size, hofInductees } as any;
   });
 }
