@@ -17,7 +17,7 @@ export function registerSeasonHandlers(): void {
     db.prepare('SELECT * FROM teams ORDER BY conference, division, name').all());
 
   ipcMain.handle('get-roster', (_event: any, teamId: number) =>
-    db.prepare(`SELECT id, first_name, last_name, position, position_label, overall_rating, age, speed, strength, awareness, dev_trait, throw_accuracy, throw_power, catching, route_running, tackle_rating, coverage, pass_rush FROM players WHERE team_id = ? ORDER BY CASE position WHEN 'QB' THEN 1 WHEN 'RB' THEN 2 WHEN 'WR' THEN 3 WHEN 'TE' THEN 4 WHEN 'OL' THEN 5 WHEN 'DL' THEN 6 WHEN 'LB' THEN 7 WHEN 'CB' THEN 8 WHEN 'S' THEN 9 WHEN 'K' THEN 10 ELSE 11 END, overall_rating DESC`).all(teamId));
+    db.prepare(`SELECT id, first_name, last_name, position, position_label, overall_rating, age, speed, strength, awareness, dev_trait, throw_accuracy, throw_power, catching, route_running, tackle_rating, coverage, pass_rush, kickpower, kickaccuracy FROM players WHERE team_id = ? ORDER BY CASE position WHEN 'QB' THEN 1 WHEN 'RB' THEN 2 WHEN 'WR' THEN 3 WHEN 'TE' THEN 4 WHEN 'OL' THEN 5 WHEN 'DL' THEN 6 WHEN 'LB' THEN 7 WHEN 'CB' THEN 8 WHEN 'S' THEN 9 WHEN 'K' THEN 10 ELSE 11 END, overall_rating DESC`).all(teamId));
 
   ipcMain.handle('get-player-stats', (_event: any, playerId: number) => {
     const season = getCurrentSeason();
