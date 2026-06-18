@@ -11,6 +11,8 @@ declare const window: any;
 interface CpuFaResult { totalSigned: number; teamsActive: number; }
 
 export default function Franchise() {
+  const { userTeam, currentSeason, playoffsComplete } = useGameStore();
+  if (!userTeam) return null;
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [practiceSquad, setPracticeSquad] = useState<PracticePlayer[]>([]);
   const [freeAgents, setFreeAgents] = useState<FreeAgent[]>([]);
