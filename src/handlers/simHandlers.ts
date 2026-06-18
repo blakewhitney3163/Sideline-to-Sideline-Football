@@ -1,10 +1,11 @@
 import { ipcMain } from 'electron';
 const { db } = require('../database');
-import { simulateGame, type SimResult } from '../simulateGame';
+import { simulateGame } from '../simulateGame';
 import { getCurrentSeason } from '../helpers/getCurrentSeason';
 import { getDifficultyFactor } from './settingsHandlers';
-import { POSITION_TO_GROUP, WAIVER_POS_MAX, SOFT_CAP_M, MAX_ACTIVE_ROSTER, MAX_PRACTICE_SQUAD, PS_MINIMUM_SALARY } from '../constants';
+import { POSITION_TO_GROUP, WAIVER_POS_MAX, SOFT_CAP_M, MAX_ACTIVE_ROSTER, MAX_PRACTICE_SQUAD } from '../constants';
 import { InjuredPlayer, Callup } from '../types';
+import { settingsRepo, playerRepo, contractRepo, gameRepo } from '../repositories';
 
 // ─── Injury Helpers ───────────────────────────────────────────────────────────
 
@@ -17,7 +18,7 @@ const POS_INJURY_RISK: Record<string, number> = {
 function rollInjuries(playerStats: any[]): InjuredPlayer[] {
   const newlyInjured: InjuredPlayer[] = [];
   for (const stat of playerStats) {
-    const player = db.prepare('SELECT position, injury_status, team_id FROM players WHERE id = ?').get(stat.player_id) as any;
+    const player = playerRepo.getById(stat.player_id);
     if (!player || player.injury_status !== 'healthy') continue;
 
     const risk = POS_INJURY_RISK[player.position] ?? 0.03;
@@ -31,9 +32,7 @@ function rollInjuries(playerStats: any[]): InjuredPlayer[] {
     else { status = 'ir'; weeksOut = Math.floor(Math.random() * 5) + 4; }
 
     const injuryType = INJURY_TYPES[Math.floor(Math.random() * INJURY_TYPES.length)];
-    db.prepare("UPDATE players SET injury_status = ?, weeks_out = ?, injury_type = ? WHERE id = ?")
-      .run(status, weeksOut, injuryType, stat.player_id);
-
+    playerRepo.updateInjury(stat.player_id, status, weeksOut, injuryType);
     newlyInjured.push({ player_id: stat.player_id, team_id: player.team_id, position: player.position, injury_status: status });
   }
   return newlyInjured;
@@ -52,7 +51,7 @@ function processWaivers(userTeamId: number, week: number): void {
   const season = getCurrentSeason();
   const waiverPlayers = db.prepare(`
     SELECT p.id, p.waived_by_team_id, p.position,
-           COALESCE(c.annual_salary, 1.0) as annual_salary
+      COALESCE(c.annual_salary, 1.0) as annual_salary
     FROM players p
     LEFT JOIN contracts c ON c.player_id = p.id
     WHERE p.roster_status = 'waivers' AND p.waiver_placed_week < ?
@@ -62,8 +61,8 @@ function processWaivers(userTeamId: number, week: number): void {
 
   const cpuTeams = db.prepare(`
     SELECT t.id,
-           COUNT(CASE WHEN (g.home_team_id = t.id AND g.home_score > g.away_score)
-                      OR (g.away_team_id = t.id AND g.away_score > g.home_score) THEN 1 END) as wins
+      COUNT(CASE WHEN (g.home_team_id = t.id AND g.home_score > g.away_score)
+        OR (g.away_team_id = t.id AND g.away_score > g.home_score) THEN 1 END) as wins
     FROM teams t
     LEFT JOIN games g ON (g.home_team_id = t.id OR g.away_team_id = t.id)
       AND g.season = ? AND g.is_simulated = 1 AND g.is_playoff = 0
@@ -75,17 +74,11 @@ function processWaivers(userTeamId: number, week: number): void {
 
   for (const team of cpuTeams) {
     if (remaining.length === 0) break;
-
-    const active = (db.prepare(
-      "SELECT COUNT(*) as count FROM players WHERE team_id = ? AND roster_status = 'active'"
-    ).get(team.id) as any).count;
-    if (active >= MAX_ACTIVE_ROSTER) continue;
+    if (playerRepo.getActiveCount(team.id) >= MAX_ACTIVE_ROSTER) continue;
 
     const teamSalary = (db.prepare(`
       SELECT COALESCE(SUM(c.annual_salary), 0) as total
-      FROM contracts c
-      JOIN players p ON c.player_id = p.id
-      WHERE p.team_id = ?
+      FROM contracts c JOIN players p ON c.player_id = p.id WHERE p.team_id = ?
     `).get(team.id) as any).total;
 
     let claimedIdx = -1;
@@ -111,18 +104,17 @@ function processWaivers(userTeamId: number, week: number): void {
     const claimed = remaining.splice(claimedIdx, 1)[0];
     db.prepare("UPDATE players SET team_id = ?, roster_status = 'active', is_free_agent = 0, waived_by_team_id = NULL, waiver_placed_week = NULL WHERE id = ?")
       .run(team.id, claimed.id);
-    const existing = db.prepare('SELECT id FROM contracts WHERE player_id = ?').get(claimed.id);
-    if (existing) {
-      db.prepare('UPDATE contracts SET team_id = ? WHERE player_id = ?').run(team.id, claimed.id);
+    const existingContract = contractRepo.getByPlayer(claimed.id);
+    if (existingContract) {
+      contractRepo.updateTeam(claimed.id, team.id);
     } else {
-      db.prepare('INSERT INTO contracts (player_id, team_id, years_total, years_remaining, annual_salary, guaranteed_amount, guaranteed_pct) VALUES (?, ?, 1, 1, ?, 0, 0)')
-        .run(claimed.id, team.id, claimed.annual_salary);
+      contractRepo.create(claimed.id, team.id, 1, claimed.annual_salary, 0, 0);
     }
   }
 
   for (const p of remaining) {
-    db.prepare('DELETE FROM contracts WHERE player_id = ?').run(p.id);
-    db.prepare("UPDATE players SET roster_status = 'free_agent', is_free_agent = 1, waived_by_team_id = NULL, waiver_placed_week = NULL WHERE id = ?").run(p.id);
+    contractRepo.delete(p.id);
+    playerRepo.releaseToFA(p.id);
   }
 }
 
@@ -142,30 +134,22 @@ function processRosterAdjustments(
       ORDER BY overall_rating DESC LIMIT 1
     `).get(injured.team_id, ...group) as any;
 
-    if (psPlayer) {
-      const activeCount = (db.prepare(
-        "SELECT COUNT(*) as count FROM players WHERE team_id = ? AND roster_status = 'active'"
-      ).get(injured.team_id) as any).count;
-      if (activeCount < MAX_ACTIVE_ROSTER) {
-        db.prepare("UPDATE players SET roster_status = 'active' WHERE id = ?").run(psPlayer.id);
-        const teamRow = db.prepare('SELECT city, name FROM teams WHERE id = ?').get(injured.team_id) as any;
-        callups.push({
-          name: `${psPlayer.first_name} ${psPlayer.last_name}`,
-          position: psPlayer.position,
-          teamName: teamRow ? `${teamRow.city} ${teamRow.name}` : 'Unknown',
-          isUserTeam: injured.team_id === userTeamId,
-        });
-      }
+    if (psPlayer && playerRepo.getActiveCount(injured.team_id) < MAX_ACTIVE_ROSTER) {
+      playerRepo.updateRosterStatus(psPlayer.id, 'active');
+      const teamRow = db.prepare('SELECT city, name FROM teams WHERE id = ?').get(injured.team_id) as any;
+      callups.push({
+        name: `${psPlayer.first_name} ${psPlayer.last_name}`,
+        position: psPlayer.position,
+        teamName: teamRow ? `${teamRow.city} ${teamRow.name}` : 'Unknown',
+        isUserTeam: injured.team_id === userTeamId,
+      });
     }
   }
 
   const allTeams = db.prepare('SELECT id FROM teams').all() as any[];
   for (const team of allTeams) {
     if (team.id === userTeamId) continue;
-    const psCount = (db.prepare(
-      "SELECT COUNT(*) as count FROM players WHERE team_id = ? AND roster_status = 'practice_squad'"
-    ).get(team.id) as any).count;
-    const openSpots = MAX_PRACTICE_SQUAD - psCount;
+    const openSpots = MAX_PRACTICE_SQUAD - playerRepo.getPSCount(team.id);
     if (openSpots <= 0) continue;
 
     const fas = db.prepare(
@@ -173,26 +157,12 @@ function processRosterAdjustments(
     ).all(openSpots) as any[];
 
     for (const fa of fas) {
-      db.prepare("UPDATE players SET team_id = ?, roster_status = 'practice_squad' WHERE id = ?")
-        .run(team.id, fa.id);
-      const existing = db.prepare('SELECT id FROM contracts WHERE player_id = ?').get(fa.id);
-      if (existing) {
-        db.prepare(
-          'UPDATE contracts SET team_id = ?, years_total = 1, years_remaining = 1, annual_salary = ?, guaranteed_amount = 0, guaranteed_pct = 0 WHERE player_id = ?'
-        ).run(team.id, PS_MINIMUM_SALARY, fa.id);
-      } else {
-        db.prepare(
-          'INSERT INTO contracts (player_id, team_id, years_total, years_remaining, annual_salary, guaranteed_amount, guaranteed_pct) VALUES (?, ?, 1, 1, ?, 0, 0)'
-        ).run(fa.id, team.id, PS_MINIMUM_SALARY);
-      }
+      playerRepo.assignToPS(fa.id, team.id);
+      contractRepo.createPS(fa.id, team.id);
     }
   }
 
-  const userPSCount = (db.prepare(
-    "SELECT COUNT(*) as count FROM players WHERE team_id = ? AND roster_status = 'practice_squad'"
-  ).get(userTeamId) as any).count;
-
-  return { callups, userPSOpenSpots: Math.max(0, MAX_PRACTICE_SQUAD - userPSCount) };
+  return { callups, userPSOpenSpots: Math.max(0, MAX_PRACTICE_SQUAD - playerRepo.getPSCount(userTeamId)) };
 }
 
 // ─── Register Handlers ────────────────────────────────────────────────────────
@@ -200,48 +170,30 @@ function processRosterAdjustments(
 export function registerSimHandlers(): void {
 
   ipcMain.handle('get-waiver-wire', () => {
-    const teamRow = db.prepare("SELECT value FROM settings WHERE key = 'user_team_id'").get() as any;
-    const userTeamId = teamRow ? parseInt(teamRow.value) : -1;
-    const players = db.prepare(`
-      SELECT id, first_name, last_name, position, position_label,
-             overall_rating, age, dev_trait,
-             speed, strength, awareness, waived_by_team_id
-      FROM players WHERE roster_status = 'waivers'
-      ORDER BY overall_rating DESC
-    `).all() as any[];
-    return players.map((p: any) => ({ ...p, canClaim: p.waived_by_team_id !== userTeamId }));
+    const userTeamId = settingsRepo.getUserTeamId() ?? -1;
+    return playerRepo.getOnWaivers(userTeamId);
   });
 
   ipcMain.handle('claim-waiver', (_event: any, playerId: number) => {
-    const teamRow = db.prepare("SELECT value FROM settings WHERE key = 'user_team_id'").get() as any;
-    if (!teamRow) return { success: false, reason: 'No franchise selected.' };
-    const teamId = parseInt(teamRow.value);
+    const teamId = settingsRepo.getUserTeamId();
+    if (!teamId) return { success: false, reason: 'No franchise selected.' };
 
-    const active = (db.prepare(
-      "SELECT COUNT(*) as count FROM players WHERE team_id = ? AND roster_status = 'active'"
-    ).get(teamId) as any).count;
-    if (active >= MAX_ACTIVE_ROSTER) return { success: false, reason: `Active roster is full (${MAX_ACTIVE_ROSTER}/${MAX_ACTIVE_ROSTER}). Release a player first.` };
+    if (playerRepo.getActiveCount(teamId) >= MAX_ACTIVE_ROSTER)
+      return { success: false, reason: `Active roster is full (${MAX_ACTIVE_ROSTER}/${MAX_ACTIVE_ROSTER}). Release a player first.` };
 
-    const player = db.prepare(
-      'SELECT * FROM players WHERE id = ? AND roster_status = ?'
-    ).get(playerId, 'waivers') as any;
-    if (!player) return { success: false, reason: 'Player no longer on waivers.' };
-
-    if (player.waived_by_team_id === teamId) {
-      return { success: false, reason: 'You cannot re-claim a player you just released to waivers.' };
-    }
+    const player = playerRepo.getById(playerId);
+    if (!player || player.roster_status !== 'waivers') return { success: false, reason: 'Player no longer on waivers.' };
+    if (player.waived_by_team_id === teamId) return { success: false, reason: 'You cannot re-claim a player you just released to waivers.' };
 
     db.prepare("UPDATE players SET team_id = ?, roster_status = 'active', is_free_agent = 0, waived_by_team_id = NULL WHERE id = ?")
       .run(teamId, playerId);
 
-    const existing = db.prepare('SELECT id FROM contracts WHERE player_id = ?').get(playerId);
-    if (existing) {
-      db.prepare('UPDATE contracts SET team_id = ? WHERE player_id = ?').run(teamId, playerId);
+    const existingContract = contractRepo.getByPlayer(playerId);
+    if (existingContract) {
+      contractRepo.updateTeam(playerId, teamId);
     } else {
-      db.prepare('INSERT INTO contracts (player_id, team_id, years_total, years_remaining, annual_salary, guaranteed_amount, guaranteed_pct) VALUES (?, ?, 1, 1, 1.0, 0, 0)')
-        .run(playerId, teamId);
+      contractRepo.create(playerId, teamId, 1, 1.0, 0, 0);
     }
-
     return { success: true, name: `${player.first_name} ${player.last_name}` };
   });
 
@@ -286,8 +238,7 @@ export function registerSimHandlers(): void {
 
   ipcMain.handle('generate-schedule', () => {
     const season = getCurrentSeason();
-    const existing = (db.prepare('SELECT COUNT(*) as count FROM games WHERE season = ? AND is_playoff = 0').get(season) as any).count;
-    if (existing > 0) return { alreadyExists: true, season };
+    if (gameRepo.countBySeason(season) > 0) return { alreadyExists: true, season };
 
     const teams = (db.prepare('SELECT id FROM teams').all() as any[]).map((t: any) => t.id);
     const insertGame = db.prepare('INSERT INTO games (season, week, home_team_id, away_team_id, is_simulated) VALUES (?, ?, ?, ?, 0)');
@@ -295,8 +246,7 @@ export function registerSimHandlers(): void {
     const shuffledForByes = [...teams].sort(() => Math.random() - 0.5);
     const byeWeekMap: Record<number, number> = {};
     for (let i = 0; i < shuffledForByes.length; i++) {
-      const byeWeek = 5 + Math.floor(i / 4);
-      byeWeekMap[shuffledForByes[i]] = byeWeek;
+      byeWeekMap[shuffledForByes[i]] = 5 + Math.floor(i / 4);
     }
 
     const create = db.transaction(() => {
@@ -305,31 +255,26 @@ export function registerSimHandlers(): void {
         const shuffled = [...playing].sort(() => Math.random() - 0.5);
         const pairs = Math.floor(shuffled.length / 2);
         for (let i = 0; i < pairs; i++) {
-          const home = shuffled[i * 2];
-          const away = shuffled[i * 2 + 1];
-          insertGame.run(season, week, home, away);
+          insertGame.run(season, week, shuffled[i * 2], shuffled[i * 2 + 1]);
         }
       }
     });
-
     create();
     return { season, created: true, alreadyExists: false };
   });
 
   ipcMain.handle('get-current-week', () => {
     const season = getCurrentSeason();
-    const total = (db.prepare('SELECT COUNT(*) as count FROM games WHERE season = ? AND is_playoff = 0').get(season) as any).count;
-    if (total === 0) return { hasSchedule: false, currentWeek: null };
-    const row = db.prepare(`SELECT MIN(week) as week FROM games WHERE season = ? AND is_simulated = 0 AND is_playoff = 0`).get(season) as any;
-    return { hasSchedule: true, currentWeek: row?.week ?? null };
+    if (gameRepo.countBySeason(season) === 0) return { hasSchedule: false, currentWeek: null };
+    return { hasSchedule: true, currentWeek: gameRepo.getCurrentWeek(season) };
   });
 
   ipcMain.handle('get-week-matchups', (_event: any, week: number) => {
     const season = getCurrentSeason();
     return db.prepare(`
       SELECT g.id, g.week, g.home_score, g.away_score, g.is_simulated,
-             ht.id as home_team_id, ht.city || ' ' || ht.name AS home_team,
-             at.id as away_team_id, at.city || ' ' || at.name AS away_team
+        ht.id as home_team_id, ht.city || ' ' || ht.name AS home_team,
+        at.id as away_team_id, at.city || ' ' || at.name AS away_team
       FROM games g JOIN teams ht ON g.home_team_id = ht.id JOIN teams at ON g.away_team_id = at.id
       WHERE g.season = ? AND g.week = ? AND g.is_playoff = 0 ORDER BY g.id
     `).all(season, week);
@@ -337,16 +282,11 @@ export function registerSimHandlers(): void {
 
   ipcMain.handle('simulate-week', (_event: any, week: number) => {
     const season = getCurrentSeason();
-    const games = db.prepare(`
-      SELECT id, home_team_id, away_team_id FROM games
-      WHERE season = ? AND week = ? AND is_simulated = 0 AND is_playoff = 0
-    `).all(season, week) as any[];
+    const games = gameRepo.getPendingByWeek(season, week);
     if (games.length === 0) return { week, season, gamesSimulated: 0 };
 
-    db.prepare(`UPDATE players SET weeks_out = MAX(0, weeks_out - 1) WHERE weeks_out > 0`).run();
-    db.prepare(`UPDATE players SET injury_status = 'healthy', injury_type = NULL WHERE weeks_out = 0 AND injury_status != 'healthy'`).run();
+    playerRepo.advanceInjuryTimers();
 
-    const updateGame = db.prepare('UPDATE games SET home_score = ?, away_score = ?, home_q1 = ?, home_q2 = ?, home_q3 = ?, home_q4 = ?, away_q1 = ?, away_q2 = ?, away_q3 = ?, away_q4 = ?, weather = ?, is_simulated = 1 WHERE id = ?');
     const insertStat = db.prepare(`
       INSERT INTO stats (game_id, player_id, team_id, pass_attempts, completions, pass_yards, pass_tds,
         interceptions, rush_attempts, rush_yards, rush_tds, targets, receptions, rec_yards, rec_tds,
@@ -359,13 +299,12 @@ export function registerSimHandlers(): void {
     `);
 
     const allStats: any[] = [];
-    const userTeamRow = db.prepare("SELECT value FROM settings WHERE key = 'user_team_id'").get() as any;
-    const userTeamId = userTeamRow ? parseInt(userTeamRow.value) : -1;
+    const userTeamId = settingsRepo.getUserTeamId() ?? -1;
 
     const runWeek = db.transaction(() => {
       for (const game of games) {
         const result = simulateGame(game.home_team_id, game.away_team_id, game.week ?? 1, userTeamId, getDifficultyFactor());
-        updateGame.run(result.homeScore, result.awayScore, result.homeQuarters[0], result.homeQuarters[1], result.homeQuarters[2], result.homeQuarters[3], result.awayQuarters[0], result.awayQuarters[1], result.awayQuarters[2], result.awayQuarters[3], result.weather ?? 'clear', game.id);
+        gameRepo.updateResult(game.id, result.homeScore, result.awayScore, result.homeQuarters, result.awayQuarters, result.weather ?? 'clear');
         for (const stat of [...result.homePlayerStats, ...result.awayPlayerStats]) {
           insertStat.run({ game_id: game.id, ...stat });
           allStats.push(stat);
@@ -385,7 +324,6 @@ export function registerSimHandlers(): void {
     if (!game) return { success: false, reason: 'Game not found.' };
     if (game.is_simulated) return { success: false, reason: 'Game already simulated.' };
 
-    const updateGame = db.prepare('UPDATE games SET home_score = ?, away_score = ?, home_q1 = ?, home_q2 = ?, home_q3 = ?, home_q4 = ?, away_q1 = ?, away_q2 = ?, away_q3 = ?, away_q4 = ?, weather = ?, is_simulated = 1 WHERE id = ?');
     const insertStat = db.prepare(`
       INSERT INTO stats (game_id, player_id, team_id, pass_attempts, completions, pass_yards, pass_tds,
         interceptions, rush_attempts, rush_yards, rush_tds, targets, receptions, rec_yards, rec_tds,
@@ -399,17 +337,11 @@ export function registerSimHandlers(): void {
 
     let gameResult: any;
     const allStats: any[] = [];
-    const userTeamRow = db.prepare("SELECT value FROM settings WHERE key = 'user_team_id'").get() as any;
-    const userTeamId = userTeamRow ? parseInt(userTeamRow.value) : -1;
+    const userTeamId = settingsRepo.getUserTeamId() ?? -1;
 
     const runGame = db.transaction(() => {
       gameResult = simulateGame(game.home_team_id, game.away_team_id, game.week ?? 1, userTeamId, getDifficultyFactor());
-      updateGame.run(
-        gameResult.homeScore, gameResult.awayScore,
-        gameResult.homeQuarters[0], gameResult.homeQuarters[1], gameResult.homeQuarters[2], gameResult.homeQuarters[3],
-        gameResult.awayQuarters[0], gameResult.awayQuarters[1], gameResult.awayQuarters[2], gameResult.awayQuarters[3],
-        gameResult.weather ?? 'clear', game.id
-      );
+      gameRepo.updateResult(game.id, gameResult.homeScore, gameResult.awayScore, gameResult.homeQuarters, gameResult.awayQuarters, gameResult.weather ?? 'clear');
       for (const stat of [...gameResult.homePlayerStats, ...gameResult.awayPlayerStats]) {
         insertStat.run({ game_id: game.id, ...stat });
         allStats.push(stat);
@@ -417,36 +349,27 @@ export function registerSimHandlers(): void {
     });
     runGame();
 
-    const remaining = (db.prepare(
-      `SELECT COUNT(*) as cnt FROM games WHERE season = ? AND week = ? AND is_simulated = 0 AND is_playoff = 0`
-    ).get(game.season, game.week) as any).cnt;
-    const weekComplete = remaining === 0;
-
+    const weekComplete = gameRepo.countPendingInWeek(game.season, game.week) === 0;
     const newlyInjured = rollInjuries(allStats);
     const rosterResult = processRosterAdjustments(newlyInjured, userTeamId);
 
     if (weekComplete) {
-      db.prepare(`UPDATE players SET weeks_out = MAX(0, weeks_out - 1) WHERE weeks_out > 0`).run();
-      db.prepare(`UPDATE players SET injury_status = 'healthy', injury_type = NULL WHERE weeks_out = 0 AND injury_status != 'healthy'`).run();
+      playerRepo.advanceInjuryTimers();
       processWaivers(userTeamId, game.week);
     }
 
     return {
-      success: true,
-      gameId,
-      weekComplete,
-      homeScore: gameResult.homeScore,
-      awayScore: gameResult.awayScore,
-      callups: rosterResult.callups,
-      userPSOpenSpots: rosterResult.userPSOpenSpots,
+      success: true, gameId, weekComplete,
+      homeScore: gameResult.homeScore, awayScore: gameResult.awayScore,
+      callups: rosterResult.callups, userPSOpenSpots: rosterResult.userPSOpenSpots,
     };
   });
 
   ipcMain.handle('get-injury-report', (_event: any, teamId: number) => {
     return db.prepare(`
       SELECT p.id, p.first_name, p.last_name, p.position, p.position_label,
-             p.overall_rating, p.age, p.dev_trait,
-             p.injury_status, p.weeks_out, p.injury_type
+        p.overall_rating, p.age, p.dev_trait,
+        p.injury_status, p.weeks_out, p.injury_type
       FROM players p
       WHERE p.team_id = ? AND p.injury_status != 'healthy'
       ORDER BY CASE p.injury_status WHEN 'ir' THEN 1 WHEN 'out' THEN 2 ELSE 3 END, p.overall_rating DESC
@@ -456,18 +379,18 @@ export function registerSimHandlers(): void {
   ipcMain.handle('get-game-box-score', (_event: any, gameId: number) => {
     const game = db.prepare(`
       SELECT g.id, g.week, g.home_score, g.away_score,
-             g.home_q1, g.home_q2, g.home_q3, g.home_q4,
-             g.away_q1, g.away_q2, g.away_q3, g.away_q4,
-             ht.id as home_team_id, ht.city || ' ' || ht.name AS home_team,
-             at.id as away_team_id, at.city || ' ' || at.name AS away_team
+        g.home_q1, g.home_q2, g.home_q3, g.home_q4,
+        g.away_q1, g.away_q2, g.away_q3, g.away_q4,
+        ht.id as home_team_id, ht.city || ' ' || ht.name AS home_team,
+        at.id as away_team_id, at.city || ' ' || at.name AS away_team
       FROM games g JOIN teams ht ON g.home_team_id = ht.id JOIN teams at ON g.away_team_id = at.id WHERE g.id = ?
     `).get(gameId) as any;
     if (!game) return null;
     const players = db.prepare(`
       SELECT p.first_name || ' ' || p.last_name as player_name, p.position, s.team_id,
-             s.pass_attempts, s.completions, s.pass_yards, s.pass_tds, s.interceptions,
-             s.rush_attempts, s.rush_yards, s.rush_tds, s.targets, s.receptions, s.rec_yards, s.rec_tds,
-             s.tackles, s.assisted_tackles, s.sacks, s.tfl, s.def_interceptions, s.pass_deflections
+        s.pass_attempts, s.completions, s.pass_yards, s.pass_tds, s.interceptions,
+        s.rush_attempts, s.rush_yards, s.rush_tds, s.targets, s.receptions, s.rec_yards, s.rec_tds,
+        s.tackles, s.assisted_tackles, s.sacks, s.tfl, s.def_interceptions, s.pass_deflections
       FROM stats s JOIN players p ON s.player_id = p.id
       WHERE s.game_id = ? AND (s.pass_yards > 0 OR s.rush_yards > 0 OR s.rec_yards > 0 OR s.tackles > 2 OR s.sacks > 0)
       ORDER BY s.team_id, s.pass_yards DESC, s.rush_yards DESC, s.rec_yards DESC
@@ -480,8 +403,7 @@ export function registerSimHandlers(): void {
     const getConferenceSeeds = (conference: string) => {
       const teams = db.prepare('SELECT id, city, name FROM teams WHERE conference = ?').all(conference) as any[];
       return teams.map((t: any) => {
-        const wins = (db.prepare(`SELECT COUNT(*) as count FROM games WHERE season = ? AND is_simulated = 1 AND is_playoff = 0 AND ((home_team_id = ? AND home_score > away_score) OR (away_team_id = ? AND away_score > home_score))`).get(season, t.id, t.id) as any).count;
-        const losses = (db.prepare(`SELECT COUNT(*) as count FROM games WHERE season = ? AND is_simulated = 1 AND is_playoff = 0 AND ((home_team_id = ? AND home_score < away_score) OR (away_team_id = ? AND away_score < home_score))`).get(season, t.id, t.id) as any).count;
+        const { wins, losses } = gameRepo.getTeamRecord(t.id, season);
         return { ...t, wins, losses, team_name: `${t.city} ${t.name}` };
       }).sort((a: any, b: any) => b.wins - a.wins).slice(0, 7);
     };
