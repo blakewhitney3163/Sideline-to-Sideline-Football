@@ -1,4 +1,4 @@
-const { db } = require('../database');
+import { db } from '../database';
 
 class PickRepository {
   getByTeam(teamId: number, fromSeason: number): any[] {
