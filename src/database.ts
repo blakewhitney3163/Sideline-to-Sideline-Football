@@ -241,12 +241,22 @@ db.exec(`
 // ─── Indexes ─────────────────────────────────────────────────────────────────
 
 db.exec(`
-  CREATE INDEX IF NOT EXISTS idx_stats_game_id    ON stats(game_id);
-  CREATE INDEX IF NOT EXISTS idx_stats_player_id  ON stats(player_id);
-  CREATE INDEX IF NOT EXISTS idx_stats_team_id    ON stats(team_id);
-  CREATE INDEX IF NOT EXISTS idx_stats_team_game  ON stats(team_id, game_id);
-  CREATE INDEX IF NOT EXISTS idx_games_season     ON games(season);
+  CREATE INDEX IF NOT EXISTS idx_stats_game_id ON stats(game_id);
+  CREATE INDEX IF NOT EXISTS idx_stats_player_id ON stats(player_id);
+  CREATE INDEX IF NOT EXISTS idx_stats_team_id ON stats(team_id);
+  CREATE INDEX IF NOT EXISTS idx_stats_team_game ON stats(team_id, game_id);
+  CREATE INDEX IF NOT EXISTS idx_games_season ON games(season);
   CREATE INDEX IF NOT EXISTS idx_games_season_sim ON games(season, is_simulated);
+  CREATE INDEX IF NOT EXISTS idx_games_season_week ON games(season, week, is_playoff);
+  CREATE INDEX IF NOT EXISTS idx_players_team_status ON players(team_id, roster_status);
+  CREATE INDEX IF NOT EXISTS idx_players_status ON players(roster_status);
+  CREATE INDEX IF NOT EXISTS idx_news_season_week ON news_events(season, week);
+  CREATE INDEX IF NOT EXISTS idx_career_stats_player ON career_stats_history(player_id);
+  CREATE INDEX IF NOT EXISTS idx_contracts_team ON contracts(team_id);
+  CREATE INDEX IF NOT EXISTS idx_contracts_player ON contracts(player_id);
+  CREATE INDEX IF NOT EXISTS idx_depth_team_group ON depth_chart(team_id, position_group);
+  CREATE INDEX IF NOT EXISTS idx_picks_owner_season ON pick_assets(owner_team_id, season);
+  CREATE INDEX IF NOT EXISTS idx_prospects_season ON draft_prospects(season);
 `);
 
 // ─── Player Column Migrations ─────────────────────────────────────────────────
@@ -514,13 +524,31 @@ if (!db.prepare("SELECT value FROM settings WHERE key = 'current_season'").get()
 // The version runner stamps new and existing DBs at CURRENT_SCHEMA_VERSION
 // so future migrations only run once per DB file.
 
-const CURRENT_SCHEMA_VERSION = 1;
+const CURRENT_SCHEMA_VERSION = 2; // was 1
 
-interface Migration {
-  version: number;
-  description: string;
-  up: () => void;
-}
+const MIGRATIONS: Migration[] = [
+  // Version 1 = baseline: all existing PRAGMA migrations above + indexes + player_milestones
+  {
+    version: 2,
+    description: 'Denormalize season/week/is_playoff onto stats for direct indexed access',
+    up: () => {
+      const cols = (db.prepare('PRAGMA table_info(stats)').all() as any[]).map((c: any) => c.name);
+      if (!cols.includes('season'))     db.prepare('ALTER TABLE stats ADD COLUMN season INTEGER').run();
+      if (!cols.includes('week'))       db.prepare('ALTER TABLE stats ADD COLUMN week INTEGER').run();
+      if (!cols.includes('is_playoff')) db.prepare('ALTER TABLE stats ADD COLUMN is_playoff INTEGER DEFAULT 0').run();
+      // Backfill existing rows
+      db.prepare(`
+        UPDATE stats
+        SET
+          season     = (SELECT season     FROM games WHERE games.id = stats.game_id),
+          week       = (SELECT week       FROM games WHERE games.id = stats.game_id),
+          is_playoff = (SELECT is_playoff FROM games WHERE games.id = stats.game_id)
+        WHERE season IS NULL
+      `).run();
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_stats_season_playoff ON stats(season, is_playoff);`);
+    },
+  },
+];
 
 const MIGRATIONS: Migration[] = [
   // Version 1 = baseline: all existing PRAGMA migrations above + indexes + player_milestones
