@@ -5,9 +5,6 @@ Repository: https://github.com/blakewhitney3163/NFLSimulator
 
 TIER 1 — Makes the sim feel alive (highest impact)
 ────────────────────────────────────────────────────────────────────────────────
-Game Simulation Improvements — more realistic box score detail, scoring
-  distribution, and play-by-play narrative hooks in the sim engine.
-
 Milestone Notifications — pop-ups when a player hits 10,000 career yards,
   breaks a franchise record, or posts a historic single-season stat line.
   Ties directly into the news feed.
