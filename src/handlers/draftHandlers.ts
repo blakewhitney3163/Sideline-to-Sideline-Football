@@ -17,6 +17,22 @@ function getTeamName(teamId: number): string {
   return t ? `${t.city} ${t.name}` : 'Unknown Team';
 }
 
+/** Returns all 32 teams sorted worst-to-best record for draft order (1 query). */
+function getDraftOrderTeamSlots(season: number): any[] {
+  return db.prepare(`
+    SELECT t.id as team_id,
+      COALESCE(SUM(CASE WHEN (g.home_team_id = t.id AND g.home_score > g.away_score)
+                          OR (g.away_team_id = t.id AND g.away_score > g.home_score) THEN 1 ELSE 0 END), 0) as wins,
+      COALESCE(SUM(CASE WHEN (g.home_team_id = t.id AND g.home_score < g.away_score)
+                          OR (g.away_team_id = t.id AND g.away_score < g.home_score) THEN 1 ELSE 0 END), 0) as losses
+    FROM teams t
+    LEFT JOIN games g ON (g.home_team_id = t.id OR g.away_team_id = t.id)
+      AND g.season = ? AND g.is_simulated = 1 AND g.is_playoff = 0
+    GROUP BY t.id
+    ORDER BY wins ASC, losses DESC, t.id ASC
+  `).all(season) as any[];
+}
+
 export function registerDraftHandlers(): void {
 
   ipcMain.handle('generate-draft-class', () => {
@@ -39,20 +55,20 @@ export function registerDraftHandlers(): void {
     const prospects: any[] = [];
     for (let i = 0; i < 280; i++) {
       let ovr: number;
-      if (i < 10)        ovr = Math.floor(Math.random() * 7) + 76;
-      else if (i < 32)   ovr = Math.floor(Math.random() * 7) + 71;
-      else if (i < 64)   ovr = Math.floor(Math.random() * 6) + 67;
-      else if (i < 96)   ovr = Math.floor(Math.random() * 6) + 64;
-      else if (i < 128)  ovr = Math.floor(Math.random() * 5) + 61;
-      else if (i < 160)  ovr = Math.floor(Math.random() * 5) + 59;
-      else if (i < 224)  ovr = Math.floor(Math.random() * 5) + 57;
-      else               ovr = Math.floor(Math.random() * 6) + 52;
+      if (i < 10)       ovr = Math.floor(Math.random() * 7) + 76;
+      else if (i < 32)  ovr = Math.floor(Math.random() * 7) + 71;
+      else if (i < 64)  ovr = Math.floor(Math.random() * 6) + 67;
+      else if (i < 96)  ovr = Math.floor(Math.random() * 6) + 64;
+      else if (i < 128) ovr = Math.floor(Math.random() * 5) + 61;
+      else if (i < 160) ovr = Math.floor(Math.random() * 5) + 59;
+      else if (i < 224) ovr = Math.floor(Math.random() * 5) + 57;
+      else              ovr = Math.floor(Math.random() * 6) + 52;
 
       prospects.push({
         season,
         first_name: FIRST[Math.floor(Math.random() * FIRST.length)],
-        last_name:  LAST[Math.floor(Math.random() * LAST.length)],
-        position:   POS_POOL[Math.floor(Math.random() * POS_POOL.length)],
+        last_name: LAST[Math.floor(Math.random() * LAST.length)],
+        position: POS_POOL[Math.floor(Math.random() * POS_POOL.length)],
         overall_rating: ovr,
         dev_trait: getDevTrait(ovr),
         age: Math.random() < 0.6 ? 21 : Math.random() < 0.6 ? 22 : 23,
@@ -69,37 +85,28 @@ export function registerDraftHandlers(): void {
 
   ipcMain.handle('get-draft-order', () => {
     const season = getCurrentSeason();
+    const slots = getDraftOrderTeamSlots(season);
     return db.prepare(`
       SELECT t.id, t.city, t.name, t.abbreviation,
-        COALESCE((
-          SELECT COUNT(*) FROM games g
-          WHERE g.season = ? AND g.is_simulated = 1 AND g.is_playoff = 0
-          AND ((g.home_team_id = t.id AND g.home_score > g.away_score)
-            OR (g.away_team_id = t.id AND g.away_score > g.home_score))
-        ), 0) as wins,
-        COALESCE((
-          SELECT COUNT(*) FROM games g
-          WHERE g.season = ? AND g.is_simulated = 1 AND g.is_playoff = 0
-          AND (g.home_team_id = t.id OR g.away_team_id = t.id)
-        ), 0) as losses
-      FROM teams t ORDER BY wins ASC, losses DESC, t.id ASC
-    `).all(season, season);
+        COALESCE(SUM(CASE WHEN (g.home_team_id = t.id AND g.home_score > g.away_score)
+                            OR (g.away_team_id = t.id AND g.away_score > g.home_score) THEN 1 ELSE 0 END), 0) as wins,
+        COALESCE(SUM(CASE WHEN (g.home_team_id = t.id AND g.home_score < g.away_score)
+                            OR (g.away_team_id = t.id AND g.away_score < g.home_score) THEN 1 ELSE 0 END), 0) as losses
+      FROM teams t
+      LEFT JOIN games g ON (g.home_team_id = t.id OR g.away_team_id = t.id)
+        AND g.season = ? AND g.is_simulated = 1 AND g.is_playoff = 0
+      GROUP BY t.id
+      ORDER BY wins ASC, losses DESC, t.id ASC
+    `).all(season);
   });
 
   ipcMain.handle('get-round-pick-order', (_event: any, { round }: { round: number }) => {
     const season = getCurrentSeason();
-    const teamSlots = db.prepare(`
-      SELECT t.id as team_id,
-        COALESCE((SELECT COUNT(*) FROM games g WHERE g.season = ? AND g.is_simulated = 1 AND g.is_playoff = 0
-          AND ((g.home_team_id = t.id AND g.home_score > g.away_score) OR (g.away_team_id = t.id AND g.away_score > g.home_score))), 0) as wins,
-        COALESCE((SELECT COUNT(*) FROM games g WHERE g.season = ? AND g.is_simulated = 1 AND g.is_playoff = 0
-          AND (g.home_team_id = t.id OR g.away_team_id = t.id)), 0) as losses
-      FROM teams t ORDER BY wins ASC, losses DESC, t.id ASC
-    `).all(season, season) as any[];
+    const teamSlots = getDraftOrderTeamSlots(season);
 
     const picks = db.prepare(`
       SELECT pa.id, pa.owner_team_id, pa.original_team_id, pa.is_used,
-             ow.city as owner_city, ow.name as owner_name
+        ow.city as owner_city, ow.name as owner_name
       FROM pick_assets pa
       JOIN teams ow ON ow.id = pa.owner_team_id
       WHERE pa.season = ? AND pa.round = ?
@@ -111,11 +118,11 @@ export function registerDraftHandlers(): void {
         slot: idx + 1,
         originalTeamId: ts.team_id,
         ownerTeamId: pick?.owner_team_id ?? ts.team_id,
-        ownerCity:   pick?.owner_city  ?? '',
-        ownerName:   pick?.owner_name  ?? '',
-        pickAssetId: pick?.id          ?? null,
-        isUsed:      pick?.is_used === 1,
-        isTraded:    pick ? pick.owner_team_id !== pick.original_team_id : false,
+        ownerCity: pick?.owner_city ?? '',
+        ownerName: pick?.owner_name ?? '',
+        pickAssetId: pick?.id ?? null,
+        isUsed: pick?.is_used === 1,
+        isTraded: pick ? pick.owner_team_id !== pick.original_team_id : false,
       };
     });
   });
@@ -143,9 +150,8 @@ export function registerDraftHandlers(): void {
     const usedPick = pickRepo.findUnusedForRound(teamId, round, getCurrentSeason());
     if (usedPick) pickRepo.markUsed(usedPick.id);
 
-    // News: log every user pick
-    const teamName  = getTeamName(teamId);
-    const devBadge  = prospect.dev_trait !== 'Normal' ? ` [${prospect.dev_trait}]` : '';
+    const teamName = getTeamName(teamId);
+    const devBadge = prospect.dev_trait !== 'Normal' ? ` [${prospect.dev_trait}]` : '';
     logNewsEvent({
       season: getCurrentSeason(),
       category: 'draft',
@@ -169,14 +175,7 @@ export function registerDraftHandlers(): void {
 
   ipcMain.handle('run-cpu-round', (_event: any, { round, userTeamId }: { round: number; userTeamId: number }) => {
     const season = getCurrentSeason();
-    const teamSlots = db.prepare(`
-      SELECT t.id as team_id,
-        COALESCE((SELECT COUNT(*) FROM games g WHERE g.season = ? AND g.is_simulated = 1 AND g.is_playoff = 0
-          AND ((g.home_team_id = t.id AND g.home_score > g.away_score) OR (g.away_team_id = t.id AND g.away_score > g.home_score))), 0) as wins,
-        COALESCE((SELECT COUNT(*) FROM games g WHERE g.season = ? AND g.is_simulated = 1 AND g.is_playoff = 0
-          AND (g.home_team_id = t.id OR g.away_team_id = t.id)), 0) as losses
-      FROM teams t ORDER BY wins ASC, losses DESC, t.id ASC
-    `).all(season, season) as any[];
+    const teamSlots = getDraftOrderTeamSlots(season);
 
     const roundPicks = db.prepare(`
       SELECT pa.id, pa.owner_team_id, pa.original_team_id
@@ -184,27 +183,41 @@ export function registerDraftHandlers(): void {
       WHERE pa.season = ? AND pa.round = ? AND pa.is_used = 0
     `).all(season, round) as any[];
 
+    // Batch all team position counts into 1 query instead of 1 per team
+    const teamIds = teamSlots.map((ts: any) => ts.team_id);
+    const ph = teamIds.map(() => '?').join(',');
+    const posRows = db.prepare(`
+      SELECT team_id, position, COUNT(*) as cnt
+      FROM players
+      WHERE team_id IN (${ph}) AND roster_status = 'active'
+      GROUP BY team_id, position
+    `).all(...teamIds) as any[];
+
+    const posByTeam = new Map<number, Record<string, number>>();
+    for (const row of posRows) {
+      if (!posByTeam.has(row.team_id)) posByTeam.set(row.team_id, {});
+      posByTeam.get(row.team_id)![row.position] = row.cnt;
+    }
+
     const THRESHOLDS: Record<string, number> = { QB: 2, RB: 3, WR: 5, TE: 2, OL: 5, DL: 4, LB: 4, CB: 4, S: 2, K: 1 };
     const results: any[] = [];
 
     const runPicks = db.transaction(() => {
       for (let i = 0; i < teamSlots.length; i++) {
-        const original  = teamSlots[i];
+        const original = teamSlots[i];
         const pickAsset = roundPicks.find((p: any) => p.original_team_id === original.team_id);
         const ownerTeamId = pickAsset?.owner_team_id ?? original.team_id;
 
         if (ownerTeamId === userTeamId) continue;
-        if (pickAsset?.is_used)          continue;
+        if (pickAsset?.is_used) continue;
 
-        const counts  = db.prepare(`SELECT position, COUNT(*) as cnt FROM players WHERE team_id = ? GROUP BY position`).all(ownerTeamId) as any[];
-        const byPos: Record<string, number> = {};
-        for (const r of counts) byPos[r.position] = r.cnt;
+        const byPos = posByTeam.get(ownerTeamId) ?? {};
         const needs = Object.keys(THRESHOLDS).filter(pos => (byPos[pos] ?? 0) < THRESHOLDS[pos]);
 
         let prospect: any = null;
         if (needs.length > 0) {
-          const ph = needs.map(() => '?').join(',');
-          prospect = db.prepare(`SELECT * FROM draft_prospects WHERE season = ? AND is_drafted = 0 AND position IN (${ph}) ORDER BY overall_rating DESC LIMIT 1`).get(season, ...needs);
+          const needsPh = needs.map(() => '?').join(',');
+          prospect = db.prepare(`SELECT * FROM draft_prospects WHERE season = ? AND is_drafted = 0 AND position IN (${needsPh}) ORDER BY overall_rating DESC LIMIT 1`).get(season, ...needs);
         }
         if (!prospect) prospect = db.prepare('SELECT * FROM draft_prospects WHERE season = ? AND is_drafted = 0 ORDER BY overall_rating DESC LIMIT 1').get(season);
         if (!prospect) continue;
@@ -225,7 +238,11 @@ export function registerDraftHandlers(): void {
         contractRepo.create(r.lastInsertRowid, ownerTeamId, 4, sal, sal * 4 * 0.5, 50);
         if (pickAsset) pickRepo.markUsed(pickAsset.id);
 
-        // News: log Round 1 picks + any Star/Superstar/X-Factor in later rounds
+        // Update the in-memory map so subsequent picks in this round see accurate counts
+        const teamPos = posByTeam.get(ownerTeamId) ?? {};
+        teamPos[prospect.position] = (teamPos[prospect.position] ?? 0) + 1;
+        posByTeam.set(ownerTeamId, teamPos);
+
         const isNotable = round === 1 || ['Star', 'Superstar', 'X-Factor'].includes(prospect.dev_trait);
         if (isNotable) {
           const teamName = getTeamName(ownerTeamId);
@@ -294,8 +311,8 @@ export function registerDraftHandlers(): void {
     const rows: OtcRow[] = [];
 
     if (isHtml) {
-      const rowRe   = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
-      const cellRe  = /<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi;
+      const rowRe = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+      const cellRe = /<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi;
       const stripTags = (s: string) => s.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').trim();
       let rowMatch: RegExpExecArray | null;
       while ((rowMatch = rowRe.exec(content)) !== null) {
@@ -322,34 +339,41 @@ export function registerDraftHandlers(): void {
       for (const line of content.split('\n')) {
         const parts = line.split(',');
         if (parts.length >= 4) {
-          const aav   = parseMoney(parts[3]);
+          const aav = parseMoney(parts[3]);
           const years = parseInt(parts[2]) || 0;
           if (aav > 0 && years > 0) rows.push({ name: parts[0].trim(), position: parts[1]?.trim() ?? '', aav: aav / 1_000_000, years, guaranteed: parseMoney(parts[4] ?? '0') / 1_000_000 });
         }
       }
     }
 
-    let matched = 0;
     const normalize = (s: string) => s.toLowerCase().replace(/\b(jr|sr|ii|iii|iv|v)\b\.?/g, '').replace(/[^a-z]/g, '');
 
+    // Fetch all active players once and build lookup maps — avoids a full-table scan per contract row
+    const allActivePlayers = db.prepare(`
+      SELECT p.id, p.first_name, p.last_name FROM players p
+      JOIN contracts c ON c.player_id = p.id
+      WHERE p.is_free_agent = 0 AND p.roster_status = 'active'
+    `).all() as any[];
+
+    const exactMap = new Map<string, any>();
+    const lastInitialMap = new Map<string, any>();
+    for (const p of allActivePlayers) {
+      const fn = normalize(p.first_name);
+      const ln = normalize(p.last_name);
+      exactMap.set(`${fn}:${ln}`, p);
+      const initKey = `${fn.charAt(0)}:${ln}`;
+      if (!lastInitialMap.has(initKey)) lastInitialMap.set(initKey, p);
+    }
+
+    let matched = 0;
     const updateContract = db.transaction(() => {
       for (const row of rows) {
         const nameParts = row.name.trim().split(/\s+/);
         if (nameParts.length < 2) continue;
         const first = normalize(nameParts[0]);
-        const last  = normalize(nameParts[nameParts.length - 1]);
+        const last = normalize(nameParts[nameParts.length - 1]);
 
-        const players = db.prepare(`
-          SELECT p.id, p.first_name, p.last_name FROM players p
-          JOIN contracts c ON c.player_id = p.id
-          WHERE p.is_free_agent = 0 AND p.roster_status = 'active'
-        `).all() as any[];
-
-        let player = players.find((p: any) => normalize(p.first_name) === first && normalize(p.last_name) === last);
-        if (!player) {
-          const firstInitial = first.charAt(0);
-          player = players.find((p: any) => normalize(p.last_name) === last && normalize(p.first_name).charAt(0) === firstInitial);
-        }
+        const player = exactMap.get(`${first}:${last}`) ?? lastInitialMap.get(`${first.charAt(0)}:${last}`);
         if (!player) continue;
 
         const gtdPct = row.guaranteed > 0 && row.aav > 0
