@@ -25,8 +25,8 @@ export interface Player {
   tackle_rating: number;
   coverage: number;
   pass_rush: number;
-  kick_power?: number;
-  kick_accuracy?: number;
+  kickpower?: number;
+  kickaccuracy?: number;
 }
 
 export interface PlayerStats {
