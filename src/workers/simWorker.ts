@@ -97,12 +97,14 @@ function logInjuryNews(season: number, newlyInjured: any[], userTeamId: number):
 
 const insertStat = db.prepare(`
   INSERT INTO stats
-  (game_id, player_id, team_id, pass_attempts, completions, pass_yards, pass_tds,
+  (game_id, season, week, is_playoff, player_id, team_id,
+   pass_attempts, completions, pass_yards, pass_tds,
    interceptions, rush_attempts, rush_yards, rush_tds, targets, receptions, rec_yards,
    rec_tds, tackles, assisted_tackles, sacks, tfl, forced_fumbles, fumble_recoveries,
    def_interceptions, pass_deflections, def_tds, fg_made, fg_att, xp_made, xp_att)
   VALUES
-  (@game_id, @player_id, @team_id, @pass_attempts, @completions, @pass_yards, @pass_tds,
+  (@game_id, @season, @week, @is_playoff, @player_id, @team_id,
+   @pass_attempts, @completions, @pass_yards, @pass_tds,
    @interceptions, @rush_attempts, @rush_yards, @rush_tds, @targets, @receptions, @rec_yards,
    @rec_tds, @tackles, @assisted_tackles, @sacks, @tfl, @forced_fumbles, @fumble_recoveries,
    @def_interceptions, @pass_deflections, @def_tds, @fg_made, @fg_att, @xp_made, @xp_att)
@@ -122,7 +124,7 @@ function runSimulateWeek(): object {
       gameRepo.updateResult(game.id, result.homeScore, result.awayScore, result.homeQuarters, result.awayQuarters, result.weather ?? 'clear');
       const gameStats = [...result.homePlayerStats, ...result.awayPlayerStats];
       for (const stat of gameStats) {
-        insertStat.run({ game_id: game.id, ...stat });
+        insertStat.run({ game_id: game.id, season, week: game.week ?? week, is_playoff: 0, ...stat });
         allStats.push(stat);
       }
       gameSummaries.push({
