@@ -3,6 +3,7 @@ import { playerRepo, contractRepo, pickRepo, gameRepo } from '../repositories';
 import { TRADE_DEADLINE_WEEK } from '../constants';
 import { TradeResult } from '../types';
 import { getCurrentSeason } from '../helpers/getCurrentSeason';
+import { logNewsEvent } from '../helpers/logNewsEvent';
 
 export function calcPlayerTradeValue(ovr: number, age: number, position: string, devTrait = 'Normal'): number {
   const ageFactor = age <= 23 ? 1.4 : age <= 26 ? 1.25 : age <= 29 ? 1.0 : age <= 32 ? 0.75 : age <= 35 ? 0.5 : 0.3;
@@ -204,4 +205,145 @@ export function getCpuTradeOffer(userTeamId: number): any | null {
     }
   }
   return null;
+}
+/**
+ * Simulate in-season CPU-vs-CPU trades.
+ * Buyer/Contender teams acquire from Seller/Rebuilding teams.
+ * Capped at 4 trades per call to avoid unrealistic volume.
+ * Call once per simulated week, after games are resolved.
+ */
+export function runCpuTrades(userTeamId: number): number {
+  const season      = getCurrentSeason();
+  const currentWeek = gameRepo.getCurrentWeek(season);
+  if (!currentWeek || currentWeek > TRADE_DEADLINE_WEEK) return 0;
+
+  // Avoid trading in Week 1 — teams haven't established identities yet
+  if (currentWeek < 2) return 0;
+
+  const allTeams = db.prepare('SELECT id, city, name FROM teams WHERE id != ?')
+    .all(userTeamId) as any[];
+
+  // Classify all CPU teams
+  const buyers:  any[] = [];
+  const sellers: any[] = [];
+
+  for (const team of allTeams) {
+    const { status } = getTeamTradeProfile(team.id);
+    if (status === 'Contender' || status === 'Buyer')       buyers.push({ ...team, status });
+    if (status === 'Seller'    || status === 'Rebuilding')  sellers.push({ ...team, status });
+  }
+
+  if (buyers.length === 0 || sellers.length === 0) return 0;
+
+  // Shuffle to avoid always picking the same teams
+  buyers.sort(() => Math.random() - 0.5);
+  sellers.sort(() => Math.random() - 0.5);
+
+  let tradesExecuted = 0;
+  const MAX_TRADES = 4;
+
+  for (const buyer of buyers) {
+    if (tradesExecuted >= MAX_TRADES) break;
+
+    const buyerNeeds = getTeamNeeds(buyer.id);
+    if (buyerNeeds.length === 0) continue;
+
+    // Focus on most critical need
+    const targetPos = buyerNeeds[0];
+
+    for (const seller of sellers) {
+      if (tradesExecuted >= MAX_TRADES) break;
+      if (seller.id === buyer.id) continue;
+
+      // Find a tradeable player from seller at the buyer's needed position
+      // Must be OVR 74+, age 26+, not X-Factor (cornerstones are untouchable)
+      const candidate = db.prepare(`
+        SELECT id, first_name, last_name, position, overall_rating, age, dev_trait
+        FROM players
+        WHERE team_id = ? AND position = ? AND overall_rating >= 74
+          AND age >= 26 AND dev_trait != 'X-Factor' AND roster_status = 'active'
+        ORDER BY overall_rating DESC
+        LIMIT 1
+      `).get(seller.id, targetPos) as any;
+
+      if (!candidate) continue;
+
+      const targetValue = calcPlayerTradeValue(
+        candidate.overall_rating, candidate.age, candidate.position, candidate.dev_trait
+      );
+
+      // Buyer offers their best tradeable player at a non-needed position
+      const buyerNeedSet = new Set(buyerNeeds);
+      const offerPlayer = db.prepare(`
+        SELECT id, first_name, last_name, position, overall_rating, age, dev_trait
+        FROM players
+        WHERE team_id = ? AND roster_status = 'active'
+          AND dev_trait != 'X-Factor' AND overall_rating >= 68
+        ORDER BY overall_rating DESC
+      `).all(buyer.id) as any[];
+
+      // Find best player NOT at a position the buyer critically needs
+      const offer = offerPlayer.find((p: any) => !buyerNeedSet.has(p.position));
+      if (!offer) continue;
+
+      const offerValue = calcPlayerTradeValue(
+        offer.overall_rating, offer.age, offer.position, offer.dev_trait
+      );
+
+      let totalOfferValue = offerValue;
+      let picksOffered: any[] = [];
+
+      // If offer is under-valued, sweeten with a draft pick
+      const gap = targetValue - offerValue;
+      if (gap > 8) {
+        const buyerPicks = pickRepo.getByTeam(buyer.id, season);
+        const sweetener = buyerPicks.find((pk: any) => {
+          const pv = calcPickTradeValue(pk.round, pk.season);
+          return pv >= gap * 0.5 && pv <= gap * 1.8;
+        });
+        if (sweetener) {
+          picksOffered.push(sweetener);
+          totalOfferValue += calcPickTradeValue(sweetener.round, sweetener.season);
+        }
+      }
+
+      // Deal only executes if values are within 22% of each other
+      const ratio = totalOfferValue / targetValue;
+      if (ratio < 0.78 || ratio > 1.30) continue;
+
+      // Add seller randomness — Rebuilding teams are slightly more willing
+      const acceptThreshold = seller.status === 'Rebuilding' ? 0.72 : 0.60;
+      if (Math.random() < acceptThreshold) continue; // seller passes on this deal
+
+      // Execute the trade
+      db.transaction(() => {
+        playerRepo.updateTeam(offer.id, seller.id);
+        contractRepo.updateTeam(offer.id, seller.id);
+        playerRepo.updateTeam(candidate.id, buyer.id);
+        contractRepo.updateTeam(candidate.id, buyer.id);
+        for (const pk of picksOffered) pickRepo.transfer(pk.id, seller.id);
+      })();
+
+      // Log to news feed
+      const pickStr = picksOffered.length > 0
+        ? ` + ${picksOffered.map((pk: any) => {
+            const rounds: Record<number,string> = {1:'1st',2:'2nd',3:'3rd',4:'4th',5:'5th',6:'6th',7:'7th'};
+            return `${pk.season} ${rounds[pk.round] ?? pk.round+'th'}-round pick`;
+          }).join(', ')}`
+        : '';
+
+      logNewsEvent({
+        eventType: 'trade',
+        category: 'transactions',
+        headline: `Trade: ${buyer.city} ${buyer.name} acquire ${candidate.first_name} ${candidate.last_name}`,
+        detail: `${buyer.city} ${buyer.name} receive: ${candidate.first_name} ${candidate.last_name} (${candidate.position}, OVR ${candidate.overall_rating}) | ${seller.city} ${seller.name} receive: ${offer.first_name} ${offer.last_name} (${offer.position}, OVR ${offer.overall_rating})${pickStr}`,
+        season,
+      });
+
+      tradesExecuted++;
+      break; // Move to next buyer after one successful trade
+    }
+  }
+
+  return tradesExecuted;
 }
