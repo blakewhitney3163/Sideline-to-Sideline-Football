@@ -3,6 +3,7 @@ const { db } = require('../database');
 import { getCurrentSeason } from '../helpers/getCurrentSeason';
 import { calcFairMarket } from './contractHandlers';
 import { HOF_MIN_GAMES, HOF_THRESHOLDS } from '../constants';
+import { AdvanceSeasonResult } from '../types';
 
 // ─── HOF Eligibility ──────────────────────────────────────────────────────────
 
@@ -204,7 +205,7 @@ export function registerSeasonHandlers(): void {
 
   ipcMain.handle('get-current-season', () => getCurrentSeason());
 
-  ipcMain.handle('advance-season', () => {
+  ipcMain.handle('advance-season', async (): Promise<AdvanceSeasonResult> => {
     const current = getCurrentSeason();
     const next = current + 1;
 
