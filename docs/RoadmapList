@@ -42,15 +42,12 @@ Historical Mode — load real NFL rosters from a specific year and simulate
 
 League Customization — expansion teams, relocation, custom team names.
 
-
 ================================================================================
 KNOWN BUGS
 ================================================================================
-OL ratings in Teams / Depth Chart — OL players do not display pass blocking
-  or run blocking ratings in the player card attribute section. The columns
-  exist in the DB; getRatingCols needs an OL case returning runblocking and
-  passblocking keys.
-
+[FIXED June 18, 2026] OL ratings in Teams / Depth Chart — getRatingCols now
+  returns PBK / RBK / STR / AWR for all OL positions. runblocking and
+  passblocking added to Player interface and get-roster SELECT.
 
 ================================================================================
 COMMERCIAL / SCALABILITY TRACK
@@ -60,10 +57,10 @@ Ordered by priority.
 
 BLOCKING — Must fix before distribution
 ────────────────────────────────────────────────────────────────────────────────
-DB Indexes — Add indexes on stats(game_id), stats(player_id), stats(team_id),
-  and stats(team_id, game_id). Currently absent. After 10+ seasons (~270,000+
-  stat rows) queries in Stats, Records, and season advance will visibly slow.
-  One migration, immediate protection.
+[FIXED June 18, 2026] DB Indexes — idx_stats_game_id, idx_stats_player_id,
+  idx_stats_team_id, idx_stats_team_game, idx_games_season, and
+  idx_games_season_sim added to database.ts via CREATE INDEX IF NOT EXISTS.
+  Safe on existing saves; idempotent on every subsequent launch.
 
 Migration Versioning — The current ALTER TABLE ADD COLUMN pattern works but
   is fragile. A schema change on a 5-season save can break it with no recovery
@@ -96,10 +93,10 @@ Fat IPC Handlers — Business logic is scattered across contractHandlers.ts,
   SeasonService, TradeService) is the right pattern — more logic should move
   there so handlers are thin IPC bridges only.
 
-JS → TS Conversion — generatePlayers.js, getStandings.js, seedTeams.js, and
-  simulatePlayoffs.js are still plain JavaScript. No type safety, no IDE
-  completion. Must be converted before bringing in contributors or the
-  codebase becomes inconsistent.
+[FIXED June 18, 2026] JS → TS Conversion — generatePlayers.js, getStandings.js,
+  seedTeams.js, and simulatePlayoffs.js converted to TypeScript with proper
+  imports, typed interfaces, exported functions, and no auto-execution on
+  import. Old .js files deleted.
 
 Automated Tests — Zero test coverage. The simulation engine, CPU GM logic,
   and trade evaluator are exactly the kind of business logic that needs
