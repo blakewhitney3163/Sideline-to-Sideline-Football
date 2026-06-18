@@ -44,6 +44,17 @@ function SeasonStatsRow({ s, position }: { s: CareerSeasonStats; position: strin
       </tr>
     );
   }
+  if (position === 'K') {
+    const fgPct = (s.fg_att ?? 0) > 0 ? `${Math.round(((s.fg_made ?? 0) / s.fg_att) * 100)}%` : '—';
+    return (
+      <tr>
+        <td>{s.season}</td><td>{s.games}</td>
+        <td>{s.fg_made ?? 0}/{s.fg_att ?? 0}</td>
+        <td>{fgPct}</td>
+        <td>{s.xp_made ?? 0}/{s.xp_att ?? 0}</td>
+      </tr>
+    );
+  }
   return (
     <tr>
       <td>{s.season}</td><td>{s.games}</td>
@@ -167,6 +178,14 @@ export default function PlayerProfile({ player, playerStats, careerStats, statsV
                     <StatBox label="INT" value={playerStats.def_interceptions} />
                     <StatBox label="PD" value={playerStats.pass_deflections} />
                     <StatBox label="FF" value={playerStats.forced_fumbles} />
+                  </>}
+                  {pos === 'K' && <>
+                    <StatBox label="G" value={playerStats.games} />
+                    <StatBox label="FGM" value={playerStats.fg_made ?? 0} />
+                    <StatBox label="FGA" value={playerStats.fg_att ?? 0} />
+                    <StatBox label="FG%" value={(playerStats.fg_att ?? 0) > 0 ? `${Math.round(((playerStats.fg_made ?? 0) / playerStats.fg_att) * 100)}%` : '—'} />
+                    <StatBox label="XPM" value={playerStats.xp_made ?? 0} />
+                    <StatBox label="XPA" value={playerStats.xp_att ?? 0} />
                   </>}
                 </div>
               )}
