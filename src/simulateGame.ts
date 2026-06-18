@@ -222,10 +222,11 @@ function generatePlayerStats(
   const tes = getHealthyByGroup(teamId, 'TE', 2);
   const qb  = qbs[0] ?? null;
 
-  const defStatDefaults = {
+    const defStatDefaults = {
     tackles: 0, assisted_tackles: 0, sacks: 0, tfl: 0,
     forced_fumbles: 0, fumble_recoveries: 0,
     def_interceptions: 0, pass_deflections: 0, def_tds: 0,
+    fg_made: 0, fg_att: 0, xp_made: 0, xp_att: 0,
   };
 
   // ── QB ────────────────────────────────────────────────────────────────────
@@ -475,6 +476,37 @@ function generateDefensiveStats(
   return stats;
 }
 
+// ─── Kicker Stats ─────────────────────────────────────────────────────────────
+
+function generateKickerStats(
+  teamId: number,
+  events: ScoringEvents,
+  offensiveTDs: number
+): GamePlayerStat | null {
+  const ks = getHealthyByGroup(teamId, 'K', 1);
+  if (!ks.length) return null;
+  const k = ks[0];
+
+  const fg_made = events.fgs;
+  // Occasionally there was a missed attempt not captured in scoring events
+  const fg_att = fg_made + (Math.random() < 0.18 ? 1 : 0);
+  const xp_att = offensiveTDs;
+  const xp_made = xp_att > 0 && Math.random() < 0.02 ? xp_att - 1 : xp_att;
+
+  if (fg_att === 0 && xp_att === 0) return null;
+
+  return {
+    player_id: k.id, team_id: teamId,
+    pass_attempts: 0, completions: 0, pass_yards: 0, pass_tds: 0, interceptions: 0,
+    rush_attempts: 0, rush_yards: 0, rush_tds: 0,
+    targets: 0, receptions: 0, rec_yards: 0, rec_tds: 0,
+    tackles: 0, assisted_tackles: 0, sacks: 0, tfl: 0,
+    forced_fumbles: 0, fumble_recoveries: 0,
+    def_interceptions: 0, pass_deflections: 0, def_tds: 0,
+    fg_made, fg_att, xp_made, xp_att,
+  };
+}
+
 // ─── Quarter Distribution ─────────────────────────────────────────────────────
 
 function distributeToQuarters(total: number): number[] {
@@ -562,12 +594,15 @@ export function simulateGame(
     else awayScore += 3;
   }
 
+    const homeKickerStat = generateKickerStats(homeTeamId, homeEvents, homeEvents.tds);
+  const awayKickerStat = generateKickerStats(awayTeamId, awayEvents, awayEvents.tds);
+
   return {
     homeScore, awayScore,
     homeQuarters: distributeToQuarters(homeScore),
     awayQuarters: distributeToQuarters(awayScore),
     weather,
-    homePlayerStats: [...homeOffStats, ...homeDefStats],
-    awayPlayerStats: [...awayOffStats, ...awayDefStats],
+    homePlayerStats: [...homeOffStats, ...homeDefStats, ...(homeKickerStat ? [homeKickerStat] : [])],
+    awayPlayerStats: [...awayOffStats, ...awayDefStats, ...(awayKickerStat ? [awayKickerStat] : [])],
   };
 }
