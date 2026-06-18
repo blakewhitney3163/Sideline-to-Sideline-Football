@@ -226,6 +226,14 @@ db.exec(`
     player_id INTEGER,
     created_at INTEGER DEFAULT (strftime('%s', 'now'))
   );
+   CREATE TABLE IF NOT EXISTS player_milestones (
+   player_id INTEGER NOT NULL,
+   milestone_key TEXT NOT NULL,
+   achieved_season INTEGER NOT NULL,
+   achieved_week INTEGER NOT NULL,
+   PRIMARY KEY (player_id, milestone_key),
+   FOREIGN KEY (player_id) REFERENCES players(id)
+ );
 `);
 
 // ─── Indexes ─────────────────────────────────────────────────────────────────
