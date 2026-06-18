@@ -7,6 +7,7 @@ import { MAX_ACTIVE_ROSTER } from '../constants';
 import { settingsRepo, playerRepo, contractRepo, gameRepo } from '../repositories';
 import { rollInjuries, processWaivers, processRosterAdjustments } from '../services/SimulationService';
 import { logNewsEvent } from '../helpers/logNewsEvent';
+import { runCpuTrades } from '../services/TradeService';
 
 interface GameSummary {
   week: number;
@@ -296,6 +297,7 @@ export function registerSimHandlers(): void {
 
     const newlyInjured = rollInjuries(allStats);
     logInjuryNews(season, newlyInjured, userTeamId);
+    runCpuTrades(userTeamId);
 
     const rosterResult = processRosterAdjustments(newlyInjured, userTeamId);
     processWaivers(userTeamId, week);
