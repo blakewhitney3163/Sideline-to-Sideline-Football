@@ -29,7 +29,10 @@ export function getRatingCols(pos: string): RatingCol[] {
     return [{ label: 'SPD', key: 'speed' }, { label: 'TKL', key: 'tackle_rating' }, { label: 'COV', key: 'coverage' }, { label: 'AWR', key: 'awareness' }];
   if (['CB', 'FS', 'SS', 'S'].includes(pos))
     return [{ label: 'SPD', key: 'speed' }, { label: 'COV', key: 'coverage' }, { label: 'TKL', key: 'tackle_rating' }, { label: 'AWR', key: 'awareness' }];
+  if (pos === 'K')
+    return [{ label: 'KPW', key: 'kick_power' }, { label: 'KAC', key: 'kick_accuracy' }, { label: 'AWR', key: 'awareness' }];
   return [{ label: 'SPD', key: 'speed' }, { label: 'STR', key: 'strength' }, { label: 'AWR', key: 'awareness' }];
+}
 }
 
 export function getOvrColor(ovr: number): string {
@@ -52,6 +55,7 @@ export const CAREER_HEADERS: Record<string, string[]> = {
   WR:  ['Season', 'G', 'YDS', 'TD', 'REC/TGT', 'CTH%'],
   TE:  ['Season', 'G', 'YDS', 'TD', 'REC/TGT', 'CTH%'],
   DEF: ['Season', 'G', 'TOT TKL', 'SACKS', 'TFL', 'INT', 'PD'],
+  K:   ['Season', 'G', 'FGM/FGA', 'FG%', 'XPM/XPA'],
 };
 
 export function getCareerHeaders(pos: string): string[] {
@@ -60,7 +64,7 @@ export function getCareerHeaders(pos: string): string[] {
 }
 
 export function showStats(pos: string): boolean {
-  return OFF_POSITIONS.includes(pos) || DEF_POSITIONS.includes(pos);
+  return OFF_POSITIONS.includes(pos) || DEF_POSITIONS.includes(pos) || pos === 'K';
 }
 
 export function getAvailablePositions(players: Player[]): string[] {
