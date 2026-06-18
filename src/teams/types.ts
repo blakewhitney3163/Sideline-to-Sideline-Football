@@ -27,6 +27,8 @@ export interface Player {
   pass_rush: number;
   kickpower?: number;
   kickaccuracy?: number;
+  runblocking?: number;
+  passblocking?: number;
 }
 
 export interface PlayerStats {
