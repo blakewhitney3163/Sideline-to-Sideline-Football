@@ -2,6 +2,7 @@ import { ipcMain } from 'electron';
 const { db } = require('../database');
 import { getCurrentSeason } from '../helpers/getCurrentSeason';
 import { TRADE_DEADLINE_WEEK } from '../constants';
+import { TradeResult } from '../types';
 
 // ─── Trade Value Helpers ──────────────────────────────────────────────────────
 
@@ -133,9 +134,9 @@ export function registerTradeHandlers(): void {
   });
 
   ipcMain.handle('propose-trade', (_event: any, { myPlayerIds, theirPlayerIds, theirTeamId, myPickIds = [], theirPickIds = [] }: {
-    myPlayerIds: number[]; theirPlayerIds: number[]; theirTeamId: number;
-    myPickIds?: number[]; theirPickIds?: number[];
-  }) => {
+  myPlayerIds: number[]; theirPlayerIds: number[]; theirTeamId: number;
+  myPickIds?: number[]; theirPickIds?: number[];
+}): Promise<TradeResult> => {
     const _season = getCurrentSeason();
     const _totalGames = (db.prepare('SELECT COUNT(*) as count FROM games WHERE season = ? AND is_playoff = 0').get(_season) as any).count;
     if (_totalGames > 0) {
