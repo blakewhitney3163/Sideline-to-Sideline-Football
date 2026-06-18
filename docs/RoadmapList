@@ -1,36 +1,46 @@
-Game simulation improvements — more realistic play-by-play or box score detail
-Player editor
-Team editor
-Schemes
-playoff UI update
-Tier 1 — Makes the sim feel alive (highest impact)
+NFL SIMULATOR — ROADMAP
+Last Updated: June 18, 2026
+Repository: https://github.com/blakewhitney3163/NFLSimulator
+================================================================================
 
-CPU GM Intelligence — CPU teams should autonomously sign free agents, re-sign their own players, and make trades in the offseason. Right now the CPU is passive. This is the single biggest gap vs OOTP.
+TIER 1 — Makes the sim feel alive (highest impact)
+────────────────────────────────────────────────────────────────────────────────
+Game Simulation Improvements — more realistic box score detail, scoring
+  distribution, and play-by-play narrative hooks in the sim engine.
 
-Player Progression & Regression — Each offseason, players should develop (young players improve, older ones decline). Dev trait should influence the curve. Without this, rosters feel static after year 2.
+Milestone Notifications — pop-ups when a player hits 10,000 career yards,
+  breaks a franchise record, or posts a historic single-season stat line.
+  Ties directly into the news feed.
 
-News Feed / Game Narrative — A live ticker of events: "Patrick Mahomes signed a 4-year extension", "Josh Allen injured, out 3 weeks", "rookie breaks reception record". OOTP's news feed makes it feel like a living league.
+TIER 2 — Adds strategic depth
+────────────────────────────────────────────────────────────────────────────────
+Contract Negotiation Depth — multi-year offer counters, holdout mechanic,
+  dead cap penalties on early releases. Contracts feel too simple today.
 
-Free Agency Bidding — Multiple CPU teams competing for the same free agent with real offers. Right now free agency is one-sided.
+Coaching Staff System — OC/DC coordinators with ratings that affect team
+  performance. Hiring and firing adds another management layer.
 
-Tier 2 — Adds strategic depth
+Draft Combine / Deeper Scouting — measurables (40 time, bench press) that
+  hint at potential. Ties into the existing 25-scout scouting system.
 
-Contract Negotiation — Multi-year offers, restructures, dead cap. Right now contracts are too simple.
+Practice Squad Development — PS players develop week to week and become
+  genuine roster contributors rather than static depth fillers.
 
-Coaching Staff System — OC/DC coordinators with ratings that affect team performance. Hiring/firing adds another management layer.
+Schemes — offensive and defensive scheme selection that shapes team identity
+  and influences sim output (run-heavy, pass-heavy, zone vs man, etc.).
 
-Draft Combine / Deeper Scouting — Measurables (40 time, bench press) that hint at potential. Ties into the existing scouting system.
+TIER 3 — Polish & replayability
+────────────────────────────────────────────────────────────────────────────────
+Player Editor — manually edit player ratings, position, age, dev trait.
 
-Practice Squad Development — PS players developing into roster contributors over time.
+Team Editor — edit team name, city, colors, conference/division.
 
-Tier 3 — Polish & replayability
+Playoff UI Update — bracket-style visual for the playoff tree with game
+  scores, seeds, and champion display.
 
-Multiple Save Files — Essential for a long franchise game.
+Multiple Save Files — essential for a long franchise game.
 
-Historical Mode — Load real NFL rosters from a specific year and simulate forward.
+Historical Mode — load real NFL rosters from a specific year and simulate
+  forward from that point.
 
-League Customization — Expansion teams, relocation, custom team names.
-
-Milestone Notifications — Pop-ups when a player hits 10,000 career yards, breaks a franchise record, etc.
-
-What I'd start with: CPU GM intelligence + player progression. Those two together make year 3, 4, 5 of a franchise feel meaningfully different from year 1 — which is the core of what makes OOTP addictive. Want to dig into either of those?
+League Customization — expansion teams, relocation, custom team names.
