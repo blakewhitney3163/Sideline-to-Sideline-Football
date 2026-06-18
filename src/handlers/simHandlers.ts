@@ -4,6 +4,7 @@ const { simulateGame } = require('../simulateGame');
 import { getCurrentSeason } from '../helpers/getCurrentSeason';
 import { getDifficultyFactor } from './settingsHandlers';
 import { POSITION_TO_GROUP, WAIVER_POS_MAX, SOFT_CAP_M, MAX_ACTIVE_ROSTER, MAX_PRACTICE_SQUAD, PS_MINIMUM_SALARY } from '../constants';
+import { InjuredPlayer, Callup } from '../types';
 
 // ─── Injury Helpers ───────────────────────────────────────────────────────────
 
@@ -13,8 +14,8 @@ const POS_INJURY_RISK: Record<string, number> = {
   OL: 0.020, DL: 0.025, LB: 0.035, CB: 0.035, S: 0.025, K: 0.008,
 };
 
-function rollInjuries(playerStats: any[]): { player_id: number; team_id: number; position: string; injury_status: string }[] {
-  const newlyInjured: { player_id: number; team_id: number; position: string; injury_status: string }[] = [];
+function rollInjuries(playerStats: any[]): InjuredPlayer[] {
+  const newlyInjured: InjuredPlayer[] = [];
   for (const stat of playerStats) {
     const player = db.prepare('SELECT position, injury_status, team_id FROM players WHERE id = ?').get(stat.player_id) as any;
     if (!player || player.injury_status !== 'healthy') continue;
@@ -126,10 +127,10 @@ function processWaivers(userTeamId: number, week: number): void {
 }
 
 function processRosterAdjustments(
-  newlyInjured: { player_id: number; team_id: number; position: string; injury_status: string }[],
+  newlyInjured: InjuredPlayer[],
   userTeamId: number
-): { callups: { name: string; position: string; teamName: string; isUserTeam: boolean }[]; userPSOpenSpots: number } {
-  const callups: any[] = [];
+): { callups: Callup[]; userPSOpenSpots: number } {
+  const callups: Callup[] = [];
 
   for (const injured of newlyInjured.filter(p => p.injury_status === 'out' || p.injury_status === 'ir')) {
     const group = getPosGroup(injured.position);
