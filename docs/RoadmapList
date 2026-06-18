@@ -44,6 +44,15 @@ League Customization — expansion teams, relocation, custom team names.
 
 
 ================================================================================
+KNOWN BUGS
+================================================================================
+OL ratings in Teams / Depth Chart — OL players do not display pass blocking
+  or run blocking ratings in the player card attribute section. The columns
+  exist in the DB; getRatingCols needs an OL case returning runblocking and
+  passblocking keys.
+
+
+================================================================================
 COMMERCIAL / SCALABILITY TRACK
 ================================================================================
 Items required before the game could be sold or distributed publicly.
@@ -124,6 +133,3 @@ In-Game Narrative / Play-by-Play — Text play-by-play during simulation.
 Franchise Tag + Tender System — Standard NFL roster mechanic missing today.
 
 League Expansion / Relocation — Add teams, move teams, custom identities.
-
-Bug Fix:
-on the team/depth chart views, OL doesn't show pass/run block ratings 
