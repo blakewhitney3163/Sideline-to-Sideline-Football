@@ -51,6 +51,13 @@ export interface DefIntLeader extends BasePlayer {
   tackles: number;
 }
 
+export interface KickerLeader extends BasePlayer {
+  fg_made: number;
+  fg_att: number;
+  xp_made: number;
+  xp_att: number;
+}
+
 export interface StatsData {
   passing: PassingLeader[];
   rushing: RushingLeader[];
@@ -58,6 +65,7 @@ export interface StatsData {
   tackles: TacklesLeader[];
   sacks: SacksLeader[];
   defInterceptions: DefIntLeader[];
+  kickers: KickerLeader[];
 }
 
 export interface SeasonStats {
@@ -102,5 +110,5 @@ export interface TeamEntry {
   name: string;
 }
 
-export type StatCategory = 'passing' | 'rushing' | 'receiving' | 'defense';
+export type StatCategory = 'passing' | 'rushing' | 'receiving' | 'defense' | 'special_teams';
 export type DefSubCat = 'tackles' | 'sacks' | 'interceptions';
