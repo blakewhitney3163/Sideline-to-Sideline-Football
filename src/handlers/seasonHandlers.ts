@@ -88,7 +88,11 @@ export function registerSeasonHandlers(): void {
         SUM(s.interceptions)                                         AS turnovers_given,
         SUM(s.def_interceptions + COALESCE(s.fumble_recoveries, 0)) AS turnovers_taken,
         SUM(COALESCE(s.sacks, 0))                                    AS sacks,
-        SUM(COALESCE(s.def_interceptions, 0))                        AS def_ints
+        SUM(COALESCE(s.def_interceptions, 0))                        AS def_ints,
+        SUM(COALESCE(s.fg_made, 0))                                  AS fg_made,
+        SUM(COALESCE(s.fg_att, 0))                                   AS fg_att,
+        SUM(COALESCE(s.xp_made, 0))                                  AS xp_made,
+        SUM(COALESCE(s.xp_att, 0))                                   AS xp_att
       FROM stats s
       JOIN games g ON s.game_id = g.id
       WHERE g.season = ? AND g.is_simulated = 1 AND g.is_playoff = 0
