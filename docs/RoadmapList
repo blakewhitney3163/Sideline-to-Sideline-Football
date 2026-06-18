@@ -5,9 +5,11 @@ Repository: https://github.com/blakewhitney3163/NFLSimulator
 
 TIER 1 — Makes the sim feel alive (highest impact)
 ────────────────────────────────────────────────────────────────────────────────
-Milestone Notifications — pop-ups when a player hits 10,000 career yards,
-  breaks a franchise record, or posts a historic single-season stat line.
-  Ties directly into the news feed.
+[DONE June 18, 2026] Milestone Notifications — career and single-season
+  milestones fire as news events when a player crosses a threshold for the
+  first time. Covers 9 career stat categories and 5 historic single-season
+  lines. Tracked in player_milestones table (deduped per player/threshold).
+  Wired into simulate-week and simulate-game via checkMilestones.ts.
 
 TIER 2 — Adds strategic depth
 ────────────────────────────────────────────────────────────────────────────────
