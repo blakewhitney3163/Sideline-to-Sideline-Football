@@ -315,6 +315,10 @@ const statMigrations: [string, string][] = [
   ['def_interceptions', 'INTEGER DEFAULT 0'],
   ['pass_deflections', 'INTEGER DEFAULT 0'],
   ['def_tds', 'INTEGER DEFAULT 0'],
+  ['fg_made', 'INTEGER DEFAULT 0'],
+  ['fg_att', 'INTEGER DEFAULT 0'],
+  ['xp_made', 'INTEGER DEFAULT 0'],
+  ['xp_att', 'INTEGER DEFAULT 0'],
 ];
 for (const [col, type] of statMigrations) {
   if (!statCols.find(c => c.name === col)) {
