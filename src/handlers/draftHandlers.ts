@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron';
-const { db } = require('../database');
+import { db } from '../database';
 const fs = require('fs');
 const pathModule = require('path');
 import { getCurrentSeason } from '../helpers/getCurrentSeason';
