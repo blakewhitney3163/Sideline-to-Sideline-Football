@@ -74,11 +74,46 @@ export function registerSeasonHandlers(): void {
   ipcMain.handle('get-team-season-stats', (_event: any, season?: number) => {
     const s = season ?? getCurrentSeason();
     const pointRows = db.prepare(`SELECT t.id, t.city, t.name, COUNT(g.id) as games, SUM(CASE WHEN g.home_team_id = t.id THEN g.home_score ELSE g.away_score END) as points_for, SUM(CASE WHEN g.home_team_id = t.id THEN g.away_score ELSE g.home_score END) as points_against, SUM(CASE WHEN (g.home_team_id = t.id AND g.home_score > g.away_score) OR (g.away_team_id = t.id AND g.away_score > g.home_score) THEN 1 ELSE 0 END) as wins, SUM(CASE WHEN (g.home_team_id = t.id AND g.home_score < g.away_score) OR (g.away_team_id = t.id AND g.away_score < g.home_score) THEN 1 ELSE 0 END) as losses FROM teams t JOIN games g ON (g.home_team_id = t.id OR g.away_team_id = t.id) WHERE g.season = ? AND g.is_simulated = 1 AND g.is_playoff = 0 GROUP BY t.id`).all(s) as any[];
-    const statRows = db.prepare(`SELECT s.team_id, SUM(s.pass_yards + s.rush_yards) as off_yards, SUM(s.interceptions) as turnovers_given, SUM(s.def_interceptions + COALESCE(s.fumble_recoveries, 0)) as turnovers_taken FROM stats s JOIN games g ON s.game_id = g.id WHERE g.season = ? AND g.is_simulated = 1 AND g.is_playoff = 0 GROUP BY s.team_id`).all(s) as any[];
+    const statRows = db.prepare(`
+      SELECT
+        s.team_id,
+        SUM(s.pass_yards)                                            AS pass_yards,
+        SUM(s.rush_yards)                                            AS rush_yards,
+        SUM(s.pass_yards + s.rush_yards)                             AS off_yards,
+        SUM(s.pass_tds)                                              AS pass_tds,
+        SUM(s.rush_tds)                                              AS rush_tds,
+        SUM(s.pass_attempts)                                         AS pass_attempts,
+        SUM(s.completions)                                           AS completions,
+        SUM(s.rush_attempts)                                         AS rush_attempts,
+        SUM(s.interceptions)                                         AS turnovers_given,
+        SUM(s.def_interceptions + COALESCE(s.fumble_recoveries, 0)) AS turnovers_taken,
+        SUM(COALESCE(s.sacks, 0))                                    AS sacks,
+        SUM(COALESCE(s.def_interceptions, 0))                        AS def_ints
+      FROM stats s
+      JOIN games g ON s.game_id = g.id
+      WHERE g.season = ? AND g.is_simulated = 1 AND g.is_playoff = 0
+      GROUP BY s.team_id
+    `).all(s) as any[];
     return pointRows.map((t: any) => {
       const st = statRows.find((r: any) => r.team_id === t.id) ?? {};
-      const g = Math.max(t.games, 1);
-      return { ...t, ppg: Math.round((t.points_for / g) * 10) / 10, papg: Math.round((t.points_against / g) * 10) / 10, ypg: Math.round((st.off_yards ?? 0) / g), to_diff: (st.turnovers_taken ?? 0) - (st.turnovers_given ?? 0), to_given: st.turnovers_given ?? 0, to_taken: st.turnovers_taken ?? 0 };
+      const g  = Math.max(t.games, 1);
+      return {
+        ...t,
+        ppg:          Math.round((t.points_for     / g) * 10) / 10,
+        papg:         Math.round((t.points_against / g) * 10) / 10,
+        ypg:          Math.round((st.off_yards    ?? 0) / g),
+        pass_ypg:     Math.round((st.pass_yards   ?? 0) / g),
+        rush_ypg:     Math.round((st.rush_yards   ?? 0) / g),
+        pass_tds:     st.pass_tds    ?? 0,
+        rush_tds:     st.rush_tds    ?? 0,
+        cmp_pct:      (st.pass_attempts ?? 0) > 0 ? Math.round(((st.completions ?? 0) / st.pass_attempts) * 100) : 0,
+        rush_att_pg:  Math.round(((st.rush_attempts ?? 0) / g) * 10) / 10,
+        sacks:        st.sacks       ?? 0,
+        def_ints:     st.def_ints    ?? 0,
+        to_diff:      (st.turnovers_taken ?? 0) - (st.turnovers_given ?? 0),
+        to_given:     st.turnovers_given  ?? 0,
+        to_taken:     st.turnovers_taken  ?? 0,
+      };
     }).sort((a: any, b: any) => b.ppg - a.ppg);
   });
 
