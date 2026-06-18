@@ -5,6 +5,7 @@ import { AdvanceSeasonResult } from '../types';
 import { calcFairMarket } from './ContractService';
 import { getCurrentSeason } from '../helpers/getCurrentSeason';
 import { logNewsEvent } from '../helpers/logNewsEvent';
+import { calcFairMarket, cpuRosterCuts, cpuResignAttempts } from './ContractService';
 
 function isHOFEligible(position: string, career: any): boolean {
   if ((career.games ?? 0) < HOF_MIN_GAMES) return false;
@@ -148,28 +149,9 @@ export async function advanceSeason(): Promise<AdvanceSeasonResult> {
     }
   })();
 
-  // CPU re-signs
-  const userTeamId = settingsRepo.getUserTeamId() ?? -1;
-  let cpuResigns = 0;
-  db.transaction(() => {
-    for (const p of db.prepare(`
-      SELECT p.id, p.overall_rating, p.age, p.position, p.dev_trait, c.team_id
-      FROM contracts c
-      JOIN players p ON c.player_id = p.id
-      WHERE c.years_remaining = 1 AND c.team_id != ? AND p.roster_status = 'active'
-    `).all(userTeamId) as any[]) {
-      const resignChance =
-        p.overall_rating >= 88 ? 0.90 : p.overall_rating >= 82 ? 0.80 :
-        p.overall_rating >= 75 ? 0.65 : p.overall_rating >= 70 ? 0.40 : 0.20;
-      if (Math.random() < resignChance) {
-        const fair = calcFairMarket(p.overall_rating, p.position, p.dev_trait);
-        const salary = Math.round(fair * (1.0 + Math.random() * 0.10) * 10) / 10;
-        const years = p.age <= 26 ? 3 : p.age <= 30 ? 2 : 1;
-        contractRepo.update(p.id, years, salary, Math.round(salary * years * 0.35 * 10) / 10, 35);
-        cpuResigns++;
-      }
-    }
-  })();
+  // CPU GM — cap cleanup then smart resign attempts (before contract years decrement)
+cpuRosterCuts(userTeamId);
+const { resigned: cpuResigns } = cpuResignAttempts(userTeamId);
 
   // Contract expiry
   contractRepo.decrementYears();
