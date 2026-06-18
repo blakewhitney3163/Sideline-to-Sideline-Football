@@ -10,12 +10,12 @@ declare const window: any;
 
 export default function DepthChart() {
   const { userTeam } = useGameStore();
-  const [chart, setChart]           = useState<Record<string, DepthPlayer[]>>({});
-  const [loading, setLoading]       = useState(true);
-  const [saving, setSaving]         = useState<string | null>(null);
-  const [resetting, setResetting]   = useState(false);
+  const [chart, setChart] = useState<Record<string, DepthPlayer[]>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [resetting, setResetting] = useState(false);
   const [activeGroup, setActiveGroup] = useState('QB');
-  const [toast, setToast]           = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => { if (userTeam) load(); }, [userTeam?.id]);
 
@@ -66,38 +66,39 @@ export default function DepthChart() {
 
   if (!userTeam) return null;
 
-  const players      = chart[activeGroup] ?? [];
+  const players = chart[activeGroup] ?? [];
   const injuredCount = Object.values(chart).flat().filter(p => p.injury_status !== 'healthy').length;
 
-  if (loading) return <div style={{ color: '#555', padding: 40 }}>Loading depth chart...</div>;
+  if (loading) return <div style={{ padding: 24, color: T.textDim }}>Loading depth chart...</div>;
 
   return (
-    <div style={{ padding: '20px 24px', maxWidth: 900, margin: '0 auto' }}>
+    <div style={{ padding: '20px 24px', maxWidth: 1100, margin: '0 auto' }}>
       {toast && (
-        <div style={{ position: 'fixed', top: 20, right: 24, background: '#0a2a0a', border: '1px solid #4caf50', borderRadius: 6, padding: '8px 16px', color: '#4caf50', fontSize: 12, zIndex: 1000 }}>
+        <div style={{ position: 'fixed', top: 24, left: '50%', transform: 'translateX(-50%)', background: T.bgGreen, color: '#4caf50', padding: '8px 20px', borderRadius: 6, fontSize: 12, zIndex: 999, border: '1px solid #2a4a2a' }}>
           {toast}
         </div>
       )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
         <div>
-          <h2 style={{ color: T.textPrimary, fontSize: 18, fontWeight: 700, margin: 0 }}>Depth Chart</h2>
-          <div style={{ color: T.textDim, fontSize: 12, marginTop: 2 }}>
+          <div style={{ fontSize: 20, fontWeight: 700, color: T.textPrimary }}>Depth Chart</div>
+          <div style={{ fontSize: 12, color: T.textDim, marginTop: 2 }}>
             {userTeam.city} {userTeam.name}
             {injuredCount > 0 && (
               <span style={{ color: '#FF8740', marginLeft: 8 }}>⚠ {injuredCount} injured</span>
             )}
           </div>
         </div>
-        <button onClick={handleReset} disabled={resetting} style={{
-          marginLeft: 'auto', padding: '6px 14px', fontSize: 11, cursor: resetting ? 'not-allowed' : 'pointer',
-          background: T.bgPage, border: `1px solid ${T.borderFaint}`, borderRadius: 4, color: T.textMuted, fontFamily: 'monospace',
-        }}>
+        <button
+          onClick={handleReset}
+          disabled={resetting}
+          style={{ marginLeft: 'auto', padding: '7px 16px', background: T.bgCard, border: `1px solid ${T.borderMid}`, borderRadius: 5, color: T.textMuted, fontSize: 12, cursor: resetting ? 'not-allowed' : 'pointer' }}
+        >
           {resetting ? 'Resetting...' : '↺ Reset to OVR Order'}
         </button>
       </div>
 
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 20 }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
         {POSITION_GROUPS.map(group => {
           const groupPlayers = chart[group] ?? [];
           if (groupPlayers.length === 0) return null;
@@ -118,16 +119,22 @@ export default function DepthChart() {
         })}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <span style={{ color: T.textDim, fontSize: 10, fontWeight: 700, letterSpacing: 1 }}>
+      <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ fontSize: 11, color: T.textDim, letterSpacing: 1 }}>
           {GROUP_LABELS[activeGroup]?.toUpperCase()} — {players.length} PLAYERS
-        </span>
-        {saving === activeGroup && <span style={{ color: T.textDim, fontSize: 11 }}>saving...</span>}
+        </div>
+        {saving === activeGroup && <span style={{ fontSize: 10, color: T.textDim }}>saving...</span>}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 24 }}>
-        <DepthChartList players={players} onMoveUp={handleMoveUp} onMoveDown={handleMoveDown} />
-        <StarterCard player={players[0] ?? null} />
+        <DepthChartList
+          players={players}
+          activeGroup={activeGroup}
+          saving={saving}
+          onMoveUp={handleMoveUp}
+          onMoveDown={handleMoveDown}
+        />
+        <StarterCard players={players} activeGroup={activeGroup} />
       </div>
     </div>
   );
