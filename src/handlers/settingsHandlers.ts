@@ -80,4 +80,42 @@ export function registerSettingsHandlers(): void {
     const cnt = (db.prepare('SELECT COUNT(*) as cnt FROM players').get() as any).cnt;
     return cnt > 0;
   });
+
+  ipcMain.handle('edit-player', (_event: any, payload: {
+    playerId: number;
+    overall_rating?: number;
+    age?: number;
+    dev_trait?: string;
+    speed?: number;
+    strength?: number;
+    awareness?: number;
+    throw_accuracy?: number;
+    throw_power?: number;
+    catching?: number;
+    route_running?: number;
+    tackle_rating?: number;
+    coverage?: number;
+    pass_rush?: number;
+    kickpower?: number;
+    kickaccuracy?: number;
+    runblocking?: number;
+    passblocking?: number;
+  }) => {
+    const { playerId, ...fields } = payload;
+    const ALLOWED = [
+      'overall_rating', 'age', 'dev_trait',
+      'speed', 'strength', 'awareness',
+      'throw_accuracy', 'throw_power',
+      'catching', 'route_running',
+      'tackle_rating', 'coverage', 'pass_rush',
+      'kickpower', 'kickaccuracy',
+      'runblocking', 'passblocking',
+    ];
+    const updates = Object.entries(fields).filter(([k, v]) => ALLOWED.includes(k) && v !== undefined);
+    if (updates.length === 0) return { success: false, reason: 'No valid fields.' };
+    const setClauses = updates.map(([k]) => `${k} = ?`).join(', ');
+    const values = [...updates.map(([, v]) => v), playerId];
+    db.prepare(`UPDATE players SET ${setClauses} WHERE id = ?`).run(...values);
+    return { success: true };
+  });
 }
