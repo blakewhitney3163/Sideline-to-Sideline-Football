@@ -1,11 +1,14 @@
 import { workerData, parentPort } from 'worker_threads';
-import { db } from '../database';
+import { openDatabase, db } from '../database';
 import { simulateGame } from '../simulateGame';
 import { playerRepo, gameRepo } from '../repositories';
 import { rollInjuries, processWaivers, processRosterAdjustments } from '../services/SimulationService';
 import { logNewsEvent } from '../helpers/logNewsEvent';
 import { runCpuTrades } from '../services/TradeService';
 import { checkMilestones } from '../helpers/checkMilestones';
+
+// Must happen before any db.prepare() calls
+openDatabase(workerData.dbPath);
 
 interface GameSummary {
   week: number;
@@ -26,16 +29,16 @@ function logGameNews(season: number, game: GameSummary, userTeamId: number): voi
   const awayTeamName = getTeamName(game.awayTeamId);
   const margin = Math.abs(game.homeScore - game.awayScore);
   const winnerName = game.homeScore > game.awayScore ? homeTeamName : awayTeamName;
-  const loserName  = game.homeScore > game.awayScore ? awayTeamName : homeTeamName;
+  const loserName = game.homeScore > game.awayScore ? awayTeamName : homeTeamName;
   const winnerScore = Math.max(game.homeScore, game.awayScore);
-  const loserScore  = Math.min(game.homeScore, game.awayScore);
+  const loserScore = Math.min(game.homeScore, game.awayScore);
   const involvesUser = game.homeTeamId === userTeamId || game.awayTeamId === userTeamId;
 
   if (involvesUser) {
-    const isHome   = game.homeTeamId === userTeamId;
+    const isHome = game.homeTeamId === userTeamId;
     const userScore = isHome ? game.homeScore : game.awayScore;
-    const oppScore  = isHome ? game.awayScore : game.homeScore;
-    const oppName   = isHome ? awayTeamName : homeTeamName;
+    const oppScore = isHome ? game.awayScore : game.homeScore;
+    const oppName = isHome ? awayTeamName : homeTeamName;
     logNewsEvent({
       season, category: 'game',
       title: `Week ${game.week}: ${winnerName} ${winnerScore}, ${loserName} ${loserScore}`,
@@ -64,7 +67,7 @@ function logGameNews(season: number, game: GameSummary, userTeamId: number): voi
     if (isQBStar) {
       const parts: string[] = [];
       if (stat.pass_yards) parts.push(`${stat.pass_yards} pass yds`);
-      if (stat.pass_tds)   parts.push(`${stat.pass_tds} TD`);
+      if (stat.pass_tds) parts.push(`${stat.pass_tds} TD`);
       if (stat.interceptions) parts.push(`${stat.interceptions} INT`);
       logNewsEvent({ season, category: 'game', title: `${p.first_name} ${p.last_name} — standout QB performance`, body: `Week ${game.week} | ${parts.join(', ')} | ${teamName}` });
     } else if (isRBStar) {
@@ -74,8 +77,8 @@ function logGameNews(season: number, game: GameSummary, userTeamId: number): voi
     } else if (isWRStar) {
       const parts: string[] = [];
       if (stat.receptions) parts.push(`${stat.receptions} rec`);
-      if (stat.rec_yards)  parts.push(`${stat.rec_yards} yds`);
-      if (stat.rec_tds)    parts.push(`${stat.rec_tds} TD`);
+      if (stat.rec_yards) parts.push(`${stat.rec_yards} yds`);
+      if (stat.rec_tds) parts.push(`${stat.rec_tds} TD`);
       logNewsEvent({ season, category: 'game', title: `${p.first_name} ${p.last_name} — standout receiving performance`, body: `Week ${game.week} | ${parts.join(', ')} | ${teamName}` });
     }
   }
@@ -95,27 +98,27 @@ function logInjuryNews(season: number, newlyInjured: any[], userTeamId: number):
   }
 }
 
-const insertStat = db.prepare(`
-  INSERT INTO stats
-  (game_id, season, week, is_playoff, player_id, team_id,
-   pass_attempts, completions, pass_yards, pass_tds,
-   interceptions, rush_attempts, rush_yards, rush_tds, targets, receptions, rec_yards,
-   rec_tds, tackles, assisted_tackles, sacks, tfl, forced_fumbles, fumble_recoveries,
-   def_interceptions, pass_deflections, def_tds, fg_made, fg_att, xp_made, xp_att)
-  VALUES
-  (@game_id, @season, @week, @is_playoff, @player_id, @team_id,
-   @pass_attempts, @completions, @pass_yards, @pass_tds,
-   @interceptions, @rush_attempts, @rush_yards, @rush_tds, @targets, @receptions, @rec_yards,
-   @rec_tds, @tackles, @assisted_tackles, @sacks, @tfl, @forced_fumbles, @fumble_recoveries,
-   @def_interceptions, @pass_deflections, @def_tds, @fg_made, @fg_att, @xp_made, @xp_att)
-`);
-
 function runSimulateWeek(): object {
   const { week, season, games, userTeamId, difficultyFactor } = workerData;
 
+  const insertStat = db.prepare(`
+    INSERT INTO stats
+    (game_id, season, week, is_playoff, player_id, team_id,
+     pass_attempts, completions, pass_yards, pass_tds,
+     interceptions, rush_attempts, rush_yards, rush_tds, targets, receptions, rec_yards,
+     rec_tds, tackles, assisted_tackles, sacks, tfl, forced_fumbles, fumble_recoveries,
+     def_interceptions, pass_deflections, def_tds, fg_made, fg_att, xp_made, xp_att)
+    VALUES
+    (@game_id, @season, @week, @is_playoff, @player_id, @team_id,
+     @pass_attempts, @completions, @pass_yards, @pass_tds,
+     @interceptions, @rush_attempts, @rush_yards, @rush_tds, @targets, @receptions, @rec_yards,
+     @rec_tds, @tackles, @assisted_tackles, @sacks, @tfl, @forced_fumbles, @fumble_recoveries,
+     @def_interceptions, @pass_deflections, @def_tds, @fg_made, @fg_att, @xp_made, @xp_att)
+  `);
+
   playerRepo.advanceInjuryTimers();
 
-  const allStats: any[]          = [];
+  const allStats: any[] = [];
   const gameSummaries: GameSummary[] = [];
 
   db.transaction(() => {
@@ -153,7 +156,7 @@ function runSimulateWeek(): object {
   return {
     week, season,
     gamesSimulated: games.length,
-    callups:        rosterResult.callups,
+    callups: rosterResult.callups,
     userPSOpenSpots: rosterResult.userPSOpenSpots,
   };
 }
