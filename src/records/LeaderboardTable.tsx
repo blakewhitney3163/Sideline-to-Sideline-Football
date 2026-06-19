@@ -114,7 +114,7 @@ export default function LeaderboardTable({ rows, cols, mode, sortKey, sortDir, o
 
       <div style={{ color: '#444', fontSize: 11, marginTop: 8 }}>
         {sortedRows.filter(r => !r.is_historical).length} in-game player{sortedRows.filter(r => !r.is_historical).length !== 1 ? 's' : ''} ·{' '}
-        {mode === 'alltime' ? 'career totals' : 'single-season bests'} · gold rows are real NFL benchmarks
+        {mode === 'alltime' ? 'career totals' : 'single-season bests'} · gold rows mark imported historical benchmarks
       </div>
     </>
   );
