@@ -19,9 +19,10 @@ const NewsFeed   = lazy(() => import('./newsCenter/NewsFeed'));
 const Import     = lazy(() => import('./Import'));
 const TeamSelection = lazy(() => import('./TeamSelection'));
 const SavePicker    = lazy(() => import('./SavePicker'));
+const MeetTheTeam = lazy(() => import('./MeetTheTeam'));
 
 type Tab    = 'home' | 'standings' | 'teams' | 'schedule' | 'stats' | 'playoffs' | 'trades' | 'franchise' | 'draft' | 'depth' | 'records' | 'news' | 'import';
-type Screen = 'main-menu' | 'loading' | 'custom-setup' | 'save-picker' | 'team-select' | 'setup' | 'game';
+type Screen = 'main-menu' | 'loading' | 'custom-setup' | 'save-picker' | 'team-select' | 'setup' | 'meet-team' | 'game';
 
 interface SetupStep   { label: string; done: boolean; }
 type     ImportStatus = 'idle' | 'running' | 'done' | 'error';
@@ -87,13 +88,13 @@ export default function App() {
   };
 
   const runSetup = async () => {
-    markStep('Finalizing dynasty setup...', false);
-    await window.api.balanceRosters();
-    await new Promise(r => setTimeout(r, 800));
-    markStep('Finalizing dynasty setup...', true);
-    setSetupComplete(true);
-    setTimeout(() => setScreen('game'), 1200);
-  };
+  markStep('Finalizing dynasty setup...', false);
+  await window.api.balanceRosters();
+  await new Promise(r => setTimeout(r, 800));
+  markStep('Finalizing dynasty setup...', true);
+  setSetupComplete(true);
+  setTimeout(() => setScreen('meet-team'), 1200);  // ← was 'game'
+};
 
   const handleDifficultyChange = async (level: 'easy' | 'normal' | 'hard') => {
     setDifficulty(level);
