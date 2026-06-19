@@ -10,13 +10,14 @@ CORE INFRASTRUCTURE
   teams, players, games, stats, contracts, settings, champions,
   draft_prospects, depth_chart, career_stats_history, hall_of_fame,
   historical_records, news_events, pick_assets, team_trade_overrides,
-  player_milestones, dead_cap_entries, coaching_staff
-- Schema version: v6. Migration runner upgrades existing saves on launch.
+  player_milestones, dead_cap_entries, coaching_staff, team_schemes
+- Schema version: v7. Migration runner upgrades existing saves on launch.
   v2: stats denormalization (season/week/is_playoff)
   v3: franchise_tagged column on players
   v4: dead_cap_entries table
   v5: coaching_staff table
   v6: combine measurables on draft_prospects (five REAL columns)
+  v7: team_schemes table (offense_scheme, defense_scheme per team)
 - Auto-migrated columns on launch:
   players: position_label, dev_trait, roster_status, injury_status,
            weeks_out, injury_type, waived_by_team_id, waiver_placed_week,
@@ -129,7 +130,7 @@ DEPTH CHART TAB
 - Dev trait badges per player
 - Depth chart drives target distribution in game simulation
 
-FRANCHISE TAB (5 sub-tabs)
+FRANCHISE TAB (6 sub-tabs)
 ────────────────────────────────────────────────────────────────────────────────
 Roster Tab:
   - Full active roster with salary, years remaining, OVR, age, dev trait
@@ -178,6 +179,18 @@ Coaching Staff Tab:
     primary rating, experience, asking salary, and Hire button
   - Hiring auto-releases any existing coach in that role first
   - Pool replenishes automatically (min 3 per role) when panel is opened
+
+Schemes Tab:
+  - Side-by-side OFFENSIVE SCHEME and DEFENSIVE SCHEME panels
+  - 5 offensive schemes: West Coast, Air Raid, Power Run, Spread, Run & Gun
+  - 5 defensive schemes: 4-3, 3-4, Zone Cover 2, Man Press, Blitz Heavy
+  - Each scheme card shows name, tagline, key positions, description, and
+    live fit rating (color-coded: gold/green ≥1.5 Great Fit, orange 0–1.5
+    Decent Fit, red <0 Poor Fit)
+  - Fit rating = actual roster-based OVR bonus applied per game
+  - Clicking a card immediately updates the team's scheme via setTeamScheme
+  - ACTIVE badge on currently selected scheme
+  - How-it-works explainer at bottom
 
 Cap Summary (displayed above all tabs):
   - Total cap, used cap, available cap, guaranteed-on-books
@@ -266,6 +279,18 @@ GAME SIMULATION ENGINE
   DC defense_rating: defenseRating += (dc_rating − 70) × 0.15
   HC overall_rating: both sides += (hc_rating − 70) × 0.05
   A 90-rated OC = +3.0 to offense; a 55-rated DC = −2.25 to defense
+- Scheme modifier (applied in getTeamRatings via getSchemeModifiers()):
+  Each team's offense/defense rating adjusted based on roster fit to scheme:
+  West Coast: ((QB throw_acc + TE OVR avg) / 2 − 70) × 0.08
+  Air Raid:   (top-3 WR OVR avg − 70) × 0.14
+  Power Run:  ((top-2 RB avg + top-5 OL avg) / 2 − 70) × 0.12
+  Spread:     ((QB throw_acc + QB speed) / 2 − 70) × 0.10
+  Run & Gun:  (all offensive positions OVR avg − 70) × 0.07
+  4-3:        (top-4 DL OVR avg − 70) × 0.12
+  3-4:        (top-4 LB OVR avg − 70) × 0.13
+  Zone Cover 2: (CB+S coverage avg − 70) × 0.11
+  Man Press:  (top-2 CB OVR avg − 70) × 0.11
+  Blitz Heavy: (DL+LB pass_rush avg − 70) × 0.15
 - Game script: trailing teams pass more; leading teams run more; desperation
   INTs increase when down 14+
 - Overtime: TD wins outright; FG gives opponent a chance; no ties
@@ -273,6 +298,29 @@ GAME SIMULATION ENGINE
 - Home field advantage: +0.5 scoring drives home; away QB accuracy penalty
 - Depth chart integration: healthy players by position group; cascades
   to backups; targets distributed proportionally
+
+SCHEMES SYSTEM
+────────────────────────────────────────────────────────────────────────────────
+- team_schemes table: team_id (PK), offense_scheme TEXT, defense_scheme TEXT
+- 5 offensive schemes with key position and fit formula:
+  West Coast  — QB throw_accuracy + TE OVR
+  Air Raid    — Top 3 WR OVR
+  Power Run   — Top 2 RB OVR + Top 5 OL OVR
+  Spread      — QB throw_accuracy + QB speed
+  Run & Gun   — All offensive position OVR average
+- 5 defensive schemes with key position and fit formula:
+  4-3          — Top 4 DL OVR
+  3-4          — Top 4 LB OVR
+  Zone Cover 2 — CB + S coverage rating
+  Man Press    — Top 2 CB OVR
+  Blitz Heavy  — DL + LB pass_rush rating
+- schemeHandlers.ts: get-team-scheme, get-scheme-options, set-team-scheme
+- get-scheme-options returns all 10 options with live fit values computed
+  from current roster — powers the Schemes tab UI
+- seedTeamSchemes(): seeds all 32 teams with random schemes at first launch
+- getSchemeModifiers() in simulateGame.ts reads team_schemes per game,
+  computes fit bonus/penalty, applies to offenseRating and defenseRating
+  inside getTeamRatings() with a try/catch guard for schema compatibility
 
 COACHING STAFF SYSTEM
 ────────────────────────────────────────────────────────────────────────────────
@@ -336,6 +384,7 @@ CPU GM INTELLIGENCE
 - CPU resign attempts: offer premium by team type (78%–110% of market)
 - Competitive FA bidding engine: market-rate bids, cap-aware, need-weighted
 - CPU-vs-CPU in-season trades: Weeks 2–8, capped at 4/week, value-balanced
+- All 32 CPU teams have assigned schemes that affect their sim ratings
 
 BACKEND IPC HANDLERS (full list)
 ────────────────────────────────────────────────────────────────────────────────
@@ -368,3 +417,4 @@ edit-player apply-franchise-tag remove-franchise-tag
 accept-counter-offer get-dead-cap
 get-coaching-staff get-available-coaches hire-coach
 fire-coach
+get-team-scheme get-scheme-options set-team-scheme
