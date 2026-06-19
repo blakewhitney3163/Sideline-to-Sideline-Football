@@ -25,7 +25,7 @@ export function getTeamNeeds(teamId: number): string[] {
     WR: { min: 4, ideal: 5, topN: 3, minOvr: 70 }, TE: { min: 2, ideal: 3, topN: 1, minOvr: 68 },
     OL: { min: 6, ideal: 8, topN: 5, minOvr: 68 }, DL: { min: 4, ideal: 6, topN: 4, minOvr: 68 },
     LB: { min: 3, ideal: 5, topN: 3, minOvr: 68 }, CB: { min: 3, ideal: 5, topN: 2, minOvr: 68 },
-    S:  { min: 2, ideal: 3, topN: 2, minOvr: 68 }, K:  { min: 1, ideal: 1, topN: 1, minOvr: 60 },
+    S: { min: 2, ideal: 3, topN: 2, minOvr: 68 }, K: { min: 1, ideal: 1, topN: 1, minOvr: 60 },
   };
   const roster = playerRepo.getByTeam(teamId, 'active');
   const needs: string[] = [];
@@ -50,10 +50,10 @@ function getPlayerAvailabilityPremium(player: { age: number; position: string; d
 }
 
 const STATUS_META: Record<string, { description: string; acceptanceThreshold: number }> = {
-  Contender:  { description: 'Competing for a title — demands full value in any deal.', acceptanceThreshold: -3 },
-  Buyer:      { description: 'Looking to add a piece for a playoff push.', acceptanceThreshold: -8 },
-  Neutral:    { description: 'No strong inclination to buy or sell right now.', acceptanceThreshold: -8 },
-  Seller:     { description: 'Moving veterans for future assets — open to dealing.', acceptanceThreshold: -18 },
+  Contender:  { description: 'Competing for a title — demands full value in any deal.', acceptanceThreshold: -3  },
+  Buyer:      { description: 'Looking to add a piece for a playoff push.',              acceptanceThreshold: -8  },
+  Neutral:    { description: 'No strong inclination to buy or sell right now.',         acceptanceThreshold: -8  },
+  Seller:     { description: 'Moving veterans for future assets — open to dealing.',    acceptanceThreshold: -18 },
   Rebuilding: { description: 'Tearing it down. Will move anyone for the right offer.', acceptanceThreshold: -22 },
 };
 
@@ -75,16 +75,16 @@ export function getTeamTradeProfile(teamId: number): {
   const hasXFactor = roster.some((p: any) => (p.dev_trait === 'X-Factor' || p.dev_trait === 'Superstar') && p.age >= 27);
 
   function autoDetect(): string {
-    const winning = winPct >= 0.55;
-    const losing = winPct < 0.40;
+    const winning  = winPct >= 0.55;
+    const losing   = winPct < 0.40;
     const talented = avgOverall >= 78;
-    const old = avgAge >= 27.5;
-    const young = avgAge <= 25.5;
-    const winNow = old || (hasXFactor && topQBAge >= 28);
+    const old      = avgAge >= 27.5;
+    const young    = avgAge <= 25.5;
+    const winNow   = old || (hasXFactor && topQBAge >= 28);
     if (winning && talented && (winNow || eliteCount >= 4)) return 'Contender';
-    if (winning || (talented && !young && winNow)) return 'Buyer';
-    if (losing && talented && old) return 'Seller';
-    if (losing || (young && !talented)) return 'Rebuilding';
+    if (winning || (talented && !young && winNow))           return 'Buyer';
+    if (losing && talented && old)                           return 'Seller';
+    if (losing || (young && !talented))                      return 'Rebuilding';
     return 'Neutral';
   }
 
@@ -108,10 +108,10 @@ export function proposeTrade(params: {
       return { accepted: false, reason: 'The trade deadline has passed (after Week 8). Trades reopen in the offseason.' };
   }
 
-  const myPlayers = myPlayerIds.map(id => playerRepo.getById(id)).filter((p): p is NonNullable<typeof p> => p !== null && p.team_id === myTeamId);
+  const myPlayers    = myPlayerIds.map(id => playerRepo.getById(id)).filter((p): p is NonNullable<typeof p> => p !== null && p.team_id === myTeamId);
   const theirPlayers = theirPlayerIds.map(id => playerRepo.getById(id)).filter((p): p is NonNullable<typeof p> => p !== null && p.team_id === theirTeamId);
 
-  if (myPlayers.length === 0 && myPickIds.length === 0) return { accepted: false, reason: 'You must include at least one player or pick.' };
+  if (myPlayers.length === 0 && myPickIds.length === 0)       return { accepted: false, reason: 'You must include at least one player or pick.' };
   if (theirPlayers.length === 0 && theirPickIds.length === 0) return { accepted: false, reason: 'Select at least one player or pick to receive.' };
 
   const myValue =
@@ -121,19 +121,19 @@ export function proposeTrade(params: {
     theirPlayers.reduce((s, p) => s + calcPlayerTradeValue(p.overall_rating, p.age, p.position, p.dev_trait), 0) +
     theirPickIds.reduce((s, id) => { const pk = pickRepo.getById(id, theirTeamId); return s + (pk ? calcPickTradeValue(pk.round, pk.season) : 0); }, 0);
 
-  const valueDiff = myValue - theirValue;
-  const randomFactor = Math.floor(Math.random() * 11) - 5;
-  const profile = getTeamTradeProfile(theirTeamId);
+  const valueDiff          = myValue - theirValue;
+  const randomFactor       = Math.floor(Math.random() * 11) - 5;
+  const profile            = getTeamTradeProfile(theirTeamId);
   const availabilityPremium = theirPlayers.reduce((s, p) => s + getPlayerAvailabilityPremium(p), 0);
-  const needBonus = myPlayers.filter(p => getTeamNeeds(theirTeamId).includes(p.position)).length * 8;
-  const effectiveThreshold = profile.acceptanceThreshold + availabilityPremium - needBonus;
-  const accepted = (valueDiff + randomFactor) >= effectiveThreshold;
+  const needBonus           = myPlayers.filter(p => getTeamNeeds(theirTeamId).includes(p.position)).length * 8;
+  const effectiveThreshold  = profile.acceptanceThreshold + availabilityPremium - needBonus;
+  const accepted            = (valueDiff + randomFactor) >= effectiveThreshold;
 
   if (accepted) {
     db.transaction(() => {
-      for (const p of myPlayers) { playerRepo.updateTeam(p.id, theirTeamId); contractRepo.updateTeam(p.id, theirTeamId); }
-      for (const p of theirPlayers) { playerRepo.updateTeam(p.id, myTeamId); contractRepo.updateTeam(p.id, myTeamId); }
-      for (const id of myPickIds) pickRepo.transfer(id, theirTeamId);
+      for (const p of myPlayers)    { playerRepo.updateTeam(p.id, theirTeamId); contractRepo.updateTeam(p.id, theirTeamId); }
+      for (const p of theirPlayers) { playerRepo.updateTeam(p.id, myTeamId);    contractRepo.updateTeam(p.id, myTeamId); }
+      for (const id of myPickIds)    pickRepo.transfer(id, theirTeamId);
       for (const id of theirPickIds) pickRepo.transfer(id, myTeamId);
     })();
     return { accepted: true };
@@ -143,9 +143,9 @@ export function proposeTrade(params: {
   return {
     accepted: false,
     reason: availabilityPremium > 40 ? 'That player is a cornerstone of our franchise — not available at any price.' :
-      availabilityPremium > 0 ? `We're very protective of that player. Sweeten the offer significantly.` :
-      gap > 0 ? `Not enough value — add ~${gap} more trade value to make this work.` :
-      `We're not interested at this time.`,
+            availabilityPremium > 0  ? 'We\'re very protective of that player. Sweeten the offer significantly.' :
+            gap > 0                  ? `Not enough value — add ~${gap} more trade value to make this work.` :
+                                       'We\'re not interested at this time.',
   };
 }
 
@@ -156,6 +156,26 @@ export function getCpuTradeOffer(userTeamId: number): any | null {
 
   const cpuTeams = db.prepare(`SELECT id, city, name FROM teams WHERE id != ? ORDER BY RANDOM()`).all(userTeamId) as any[];
 
+  // Fetch user players once — reused across all loop iterations
+  const userPlayersAll = db.prepare(`
+    SELECT id, first_name, last_name, position, overall_rating, age, dev_trait
+    FROM players WHERE team_id = ? AND roster_status = 'active'
+    ORDER BY overall_rating DESC
+  `).all(userTeamId) as any[];
+
+  const stmtCpuPlayers = db.prepare(`
+    SELECT id, first_name, last_name, position, overall_rating, age, dev_trait
+    FROM players WHERE team_id = ? AND roster_status = 'active'
+    ORDER BY RANDOM()
+  `);
+  const stmtVeterans = db.prepare(`
+    SELECT id, first_name, last_name, position, overall_rating, age, dev_trait
+    FROM players WHERE team_id = ? AND roster_status = 'active'
+      AND overall_rating >= 76 AND dev_trait != 'X-Factor'
+      AND (age >= 28 OR dev_trait IN ('Star','Superstar'))
+    ORDER BY overall_rating DESC
+  `);
+
   for (const cpuTeam of cpuTeams.slice(0, 15)) {
     const { status } = getTeamTradeProfile(cpuTeam.id);
 
@@ -163,12 +183,11 @@ export function getCpuTradeOffer(userTeamId: number): any | null {
       const cpuNeeds = getTeamNeeds(cpuTeam.id);
       if (cpuNeeds.length === 0) continue;
 
-      const userPlayers = db.prepare(`SELECT id, first_name, last_name, position, overall_rating, age, dev_trait FROM players WHERE team_id = ? AND roster_status = 'active' ORDER BY overall_rating DESC`).all(userTeamId) as any[];
-      const wanted = userPlayers.find((p: any) => cpuNeeds.includes(p.position) && p.overall_rating >= 75 && p.dev_trait !== 'X-Factor');
+      const wanted = userPlayersAll.find((p: any) => cpuNeeds.includes(p.position) && p.overall_rating >= 75 && p.dev_trait !== 'X-Factor');
       if (!wanted) continue;
 
       const requestedValue = calcPlayerTradeValue(wanted.overall_rating, wanted.age, wanted.position, wanted.dev_trait);
-      const cpuPlayers = db.prepare(`SELECT id, first_name, last_name, position, overall_rating, age, dev_trait FROM players WHERE team_id = ? AND roster_status = 'active' ORDER BY RANDOM()`).all(cpuTeam.id) as any[];
+      const cpuPlayers = stmtCpuPlayers.all(cpuTeam.id) as any[];
       const offerPlayer = cpuPlayers.find((p: any) => {
         const v = calcPlayerTradeValue(p.overall_rating, p.age, p.position, p.dev_trait);
         return v >= requestedValue * 0.65 && v <= requestedValue * 1.05;
@@ -184,28 +203,39 @@ export function getCpuTradeOffer(userTeamId: number): any | null {
           return pv >= gap * 0.6 && pv <= gap * 1.6;
         }) ?? null;
       }
-      return { fromTeamId: cpuTeam.id, fromTeamName: `${cpuTeam.city} ${cpuTeam.name}`, requestedPlayer: wanted, requestedValue, offeredPlayer: offerPlayer, offeredPick, offerValue: offerValue + (offeredPick ? calcPickTradeValue(offeredPick.round, offeredPick.season) : 0) };
+      return {
+        fromTeamId: cpuTeam.id, fromTeamName: `${cpuTeam.city} ${cpuTeam.name}`,
+        requestedPlayer: wanted, requestedValue,
+        offeredPlayer: offerPlayer, offeredPick,
+        offerValue: offerValue + (offeredPick ? calcPickTradeValue(offeredPick.round, offeredPick.season) : 0),
+      };
     }
 
     if (status === 'Seller' || status === 'Rebuilding') {
-      const veterans = db.prepare(`SELECT id, first_name, last_name, position, overall_rating, age, dev_trait FROM players WHERE team_id = ? AND roster_status = 'active' AND overall_rating >= 76 AND dev_trait != 'X-Factor' AND (age >= 28 OR dev_trait IN ('Star','Superstar')) ORDER BY overall_rating DESC`).all(cpuTeam.id) as any[];
+      const veterans = stmtVeterans.all(cpuTeam.id) as any[];
       if (veterans.length === 0) continue;
 
       const offering = veterans[Math.floor(Math.random() * Math.min(4, veterans.length))];
       const offerValue = calcPlayerTradeValue(offering.overall_rating, offering.age, offering.position, offering.dev_trait);
-      const userPlayers = db.prepare(`SELECT id, first_name, last_name, position, overall_rating, age, dev_trait FROM players WHERE team_id = ? AND roster_status = 'active' AND age <= 26 AND overall_rating >= 68 ORDER BY CASE dev_trait WHEN 'X-Factor' THEN 4 WHEN 'Superstar' THEN 3 WHEN 'Star' THEN 2 ELSE 1 END DESC, overall_rating DESC`).all(userTeamId) as any[];
-      const target = userPlayers.find((p: any) => {
+      const target = userPlayersAll.find((p: any) => {
+        if (p.age > 26) return false;
         const v = calcPlayerTradeValue(p.overall_rating, p.age, p.position, p.dev_trait);
         return v >= offerValue * 0.5 && v <= offerValue * 0.85;
       });
       if (!target) continue;
 
       const bonusPick = pickRepo.getByTeam(cpuTeam.id, season).find((pk: any) => pk.round <= 4) ?? null;
-      return { fromTeamId: cpuTeam.id, fromTeamName: `${cpuTeam.city} ${cpuTeam.name}`, requestedPlayer: target, requestedValue: calcPlayerTradeValue(target.overall_rating, target.age, target.position, target.dev_trait), offeredPlayer: offering, offeredPick: bonusPick, offerValue: offerValue + (bonusPick ? calcPickTradeValue(bonusPick.round, bonusPick.season) : 0) };
+      return {
+        fromTeamId: cpuTeam.id, fromTeamName: `${cpuTeam.city} ${cpuTeam.name}`,
+        requestedPlayer: target, requestedValue: calcPlayerTradeValue(target.overall_rating, target.age, target.position, target.dev_trait),
+        offeredPlayer: offering, offeredPick: bonusPick,
+        offerValue: offerValue + (bonusPick ? calcPickTradeValue(bonusPick.round, bonusPick.season) : 0),
+      };
     }
   }
   return null;
 }
+
 /**
  * Simulate in-season CPU-vs-CPU trades.
  * Buyer/Contender teams acquire from Seller/Rebuilding teams.
@@ -213,31 +243,41 @@ export function getCpuTradeOffer(userTeamId: number): any | null {
  * Call once per simulated week, after games are resolved.
  */
 export function runCpuTrades(userTeamId: number): number {
-  const season      = getCurrentSeason();
+  const season = getCurrentSeason();
   const currentWeek = gameRepo.getCurrentWeek(season);
   if (!currentWeek || currentWeek > TRADE_DEADLINE_WEEK) return 0;
-
-  // Avoid trading in Week 1 — teams haven't established identities yet
   if (currentWeek < 2) return 0;
 
-  const allTeams = db.prepare('SELECT id, city, name FROM teams WHERE id != ?')
-    .all(userTeamId) as any[];
+  const allTeams = db.prepare('SELECT id, city, name FROM teams WHERE id != ?').all(userTeamId) as any[];
 
-  // Classify all CPU teams
-  const buyers:  any[] = [];
+  const buyers: any[] = [];
   const sellers: any[] = [];
-
   for (const team of allTeams) {
     const { status } = getTeamTradeProfile(team.id);
-    if (status === 'Contender' || status === 'Buyer')       buyers.push({ ...team, status });
-    if (status === 'Seller'    || status === 'Rebuilding')  sellers.push({ ...team, status });
+    if (status === 'Contender' || status === 'Buyer') buyers.push({ ...team, status });
+    if (status === 'Seller'    || status === 'Rebuilding') sellers.push({ ...team, status });
   }
 
   if (buyers.length === 0 || sellers.length === 0) return 0;
 
-  // Shuffle to avoid always picking the same teams
   buyers.sort(() => Math.random() - 0.5);
   sellers.sort(() => Math.random() - 0.5);
+
+  // Prepare once outside the nested loop
+  const stmtCandidate = db.prepare(`
+    SELECT id, first_name, last_name, position, overall_rating, age, dev_trait
+    FROM players
+    WHERE team_id = ? AND position = ? AND overall_rating >= 74
+      AND age >= 26 AND dev_trait != 'X-Factor' AND roster_status = 'active'
+    ORDER BY overall_rating DESC LIMIT 1
+  `);
+  const stmtBuyerPlayers = db.prepare(`
+    SELECT id, first_name, last_name, position, overall_rating, age, dev_trait
+    FROM players
+    WHERE team_id = ? AND roster_status = 'active'
+      AND dev_trait != 'X-Factor' AND overall_rating >= 68
+    ORDER BY overall_rating DESC
+  `);
 
   let tradesExecuted = 0;
   const MAX_TRADES = 4;
@@ -248,56 +288,27 @@ export function runCpuTrades(userTeamId: number): number {
     const buyerNeeds = getTeamNeeds(buyer.id);
     if (buyerNeeds.length === 0) continue;
 
-    // Focus on most critical need
     const targetPos = buyerNeeds[0];
 
     for (const seller of sellers) {
       if (tradesExecuted >= MAX_TRADES) break;
       if (seller.id === buyer.id) continue;
 
-      // Find a tradeable player from seller at the buyer's needed position
-      // Must be OVR 74+, age 26+, not X-Factor (cornerstones are untouchable)
-      const candidate = db.prepare(`
-        SELECT id, first_name, last_name, position, overall_rating, age, dev_trait
-        FROM players
-        WHERE team_id = ? AND position = ? AND overall_rating >= 74
-          AND age >= 26 AND dev_trait != 'X-Factor' AND roster_status = 'active'
-        ORDER BY overall_rating DESC
-        LIMIT 1
-      `).get(seller.id, targetPos) as any;
-
+      const candidate = stmtCandidate.get(seller.id, targetPos) as any;
       if (!candidate) continue;
 
-      const targetValue = calcPlayerTradeValue(
-        candidate.overall_rating, candidate.age, candidate.position, candidate.dev_trait
-      );
-
-      // Buyer offers their best tradeable player at a non-needed position
+      const targetValue  = calcPlayerTradeValue(candidate.overall_rating, candidate.age, candidate.position, candidate.dev_trait);
       const buyerNeedSet = new Set(buyerNeeds);
-      const offerPlayer = db.prepare(`
-        SELECT id, first_name, last_name, position, overall_rating, age, dev_trait
-        FROM players
-        WHERE team_id = ? AND roster_status = 'active'
-          AND dev_trait != 'X-Factor' AND overall_rating >= 68
-        ORDER BY overall_rating DESC
-      `).all(buyer.id) as any[];
-
-      // Find best player NOT at a position the buyer critically needs
-      const offer = offerPlayer.find((p: any) => !buyerNeedSet.has(p.position));
+      const offer        = (stmtBuyerPlayers.all(buyer.id) as any[]).find((p: any) => !buyerNeedSet.has(p.position));
       if (!offer) continue;
 
-      const offerValue = calcPlayerTradeValue(
-        offer.overall_rating, offer.age, offer.position, offer.dev_trait
-      );
-
-      let totalOfferValue = offerValue;
+      const offerValue      = calcPlayerTradeValue(offer.overall_rating, offer.age, offer.position, offer.dev_trait);
+      let totalOfferValue   = offerValue;
       let picksOffered: any[] = [];
 
-      // If offer is under-valued, sweeten with a draft pick
       const gap = targetValue - offerValue;
       if (gap > 8) {
-        const buyerPicks = pickRepo.getByTeam(buyer.id, season);
-        const sweetener = buyerPicks.find((pk: any) => {
+        const sweetener = pickRepo.getByTeam(buyer.id, season).find((pk: any) => {
           const pv = calcPickTradeValue(pk.round, pk.season);
           return pv >= gap * 0.5 && pv <= gap * 1.8;
         });
@@ -307,15 +318,12 @@ export function runCpuTrades(userTeamId: number): number {
         }
       }
 
-      // Deal only executes if values are within 22% of each other
       const ratio = totalOfferValue / targetValue;
       if (ratio < 0.78 || ratio > 1.30) continue;
 
-      // Add seller randomness — Rebuilding teams are slightly more willing
       const acceptThreshold = seller.status === 'Rebuilding' ? 0.72 : 0.60;
-      if (Math.random() < acceptThreshold) continue; // seller passes on this deal
+      if (Math.random() < acceptThreshold) continue;
 
-      // Execute the trade
       db.transaction(() => {
         playerRepo.updateTeam(offer.id, seller.id);
         contractRepo.updateTeam(offer.id, seller.id);
@@ -324,11 +332,10 @@ export function runCpuTrades(userTeamId: number): number {
         for (const pk of picksOffered) pickRepo.transfer(pk.id, seller.id);
       })();
 
-      // Log to news feed
       const pickStr = picksOffered.length > 0
         ? ` + ${picksOffered.map((pk: any) => {
-            const rounds: Record<number,string> = {1:'1st',2:'2nd',3:'3rd',4:'4th',5:'5th',6:'6th',7:'7th'};
-            return `${pk.season} ${rounds[pk.round] ?? pk.round+'th'}-round pick`;
+            const rounds: Record<number, string> = { 1:'1st', 2:'2nd', 3:'3rd', 4:'4th', 5:'5th', 6:'6th', 7:'7th' };
+            return `${pk.season} ${rounds[pk.round] ?? pk.round + 'th'}-round pick`;
           }).join(', ')}`
         : '';
 
@@ -341,7 +348,7 @@ export function runCpuTrades(userTeamId: number): number {
       });
 
       tradesExecuted++;
-      break; // Move to next buyer after one successful trade
+      break;
     }
   }
 
