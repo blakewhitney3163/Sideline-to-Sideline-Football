@@ -1,10 +1,15 @@
-export const POSITIONS = ['ALL', 'QB', 'RB', 'WR', 'TE', 'OL', 'DL', 'LB', 'CB', 'S', 'K'];
+export const POSITIONS = [
+  'ALL', 'QB', 'RB', 'WR', 'TE',
+  'LT', 'LG', 'C', 'RG', 'RT',
+  'DE', 'DT',
+  'MLB', 'OLB', 'CB', 'S', 'K',
+];
 
 export const TRAIT_META: Record<string, { color: string; short: string; bg: string }> = {
-  Normal: { color: '#444', short: '', bg: 'transparent' },
-  Star: { color: '#4FC3F7', short: 'S', bg: '#2d3f5a' },
+  Normal:    { color: '#444',    short: '',   bg: 'transparent' },
+  Star:      { color: '#4FC3F7', short: 'S',  bg: '#2d3f5a' },
   Superstar: { color: '#FF8740', short: 'SS', bg: '#4a3020' },
-  'X-Factor': { color: '#FFD700', short: 'XF', bg: '#4a4020' },
+  'X-Factor':{ color: '#FFD700', short: 'XF', bg: '#4a4020' },
 };
 
 export const MARKET_RATES: Record<string, [number, number][]> = {
@@ -42,7 +47,13 @@ export function fmtSalary(m: number): string {
 }
 
 export function interpolateMarket(pos: string, ovr: number): number {
-  const rates = MARKET_RATES[pos] ?? MARKET_RATES['LB'];
+  // Map granular positions to market rate group
+  const posGroup: Record<string, string> = {
+    LT: 'OL', LG: 'OL', C: 'OL', RG: 'OL', RT: 'OL',
+    DE: 'DL', DT: 'DL',
+    MLB: 'LB', OLB: 'LB',
+  };
+  const rates = MARKET_RATES[posGroup[pos] ?? pos] ?? MARKET_RATES['LB'];
   let base = rates[rates.length - 1][1];
   for (let i = 0; i < rates.length - 1; i++) {
     const [highOvr, highSal] = rates[i];
@@ -62,7 +73,8 @@ export function fairMarketValue(pos: string, ovr: number, devTrait = 'Normal'): 
 
 export function askingPrice(pos: string, ovr: number, devTrait: string, age: number): number {
   const mv = fairMarketValue(pos, ovr, devTrait);
-  const ageMul = age <= 28 ? 1.10 : age <= 32 ? 1.00 : 0.90;
+  // Slight premium for young players, modest discount for veterans
+  const ageMul = age <= 26 ? 1.04 : age <= 30 ? 1.00 : 0.92;
   return Math.round(mv * ageMul * 10) / 10;
 }
 
@@ -73,6 +85,6 @@ export function contractGrade(
   const fairValue = interpolateMarket(pos, ovr);
   const ratio = salary / Math.max(fairValue, 1);
   if (ratio < 0.70) return { label: 'TEAM DEAL', color: '#4caf50' };
-  if (ratio > 2.00) return { label: 'OVERPAID', color: '#e57373' };
+  if (ratio > 2.00) return { label: 'OVERPAID',  color: '#e57373' };
   return null;
 }
