@@ -7,6 +7,7 @@ class ContractRepository {
     return db.prepare(`
       SELECT p.id, p.first_name, p.last_name, p.position, p.position_label,
              p.overall_rating, p.age, p.dev_trait, p.roster_status,
+             COALESCE(p.morale, 75) as morale,
              c.annual_salary, c.years_remaining, c.years_total,
              c.guaranteed_amount, c.guaranteed_pct, c.id as contract_id
       FROM contracts c
