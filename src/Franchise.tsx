@@ -6,6 +6,7 @@ import ActiveRosterTab from './franchise/ActiveRosterTab';
 import PracticeSquadTab from './franchise/PracticeSquadTab';
 import FreeAgentsTab from './franchise/FreeAgentsTab';
 import OffseasonTab from './franchise/OffseasonTab';
+import CoachingTab from './franchise/CoachingTab';
 
 declare const window: any;
 interface CpuFaResult { totalSigned: number; teamsActive: number; }
@@ -19,7 +20,7 @@ export default function Franchise() {
   const [expiringPlayers, setExpiringPlayers] = useState<Contract[]>([]);
   const [cap, setCap] = useState<CapSummary | null>(null);
   const [rosterSpots, setRosterSpots] = useState<RosterSpots | null>(null);
-  const [activeTab, setActiveTab] = useState<'roster' | 'ps' | 'fa' | 'offseason'>('roster');
+  const [activeTab, setActiveTab] = useState<'roster' | 'ps' | 'fa' | 'offseason' | 'coaching'>('roster');
   const [working, setWorking] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [teamNeeds, setTeamNeeds] = useState<string[]>([]);
@@ -51,6 +52,7 @@ export default function Franchise() {
   const [cpuFaDone, setCpuFaDone] = useState(false);
     const [pendingCounters, setPendingCounters] = useState<Record<number, { salary: number; years: number }>>({});
   const [deadCap, setDeadCap] = useState<{ amount: number; entries: any[] } | null>(null);
+  const [staff, setStaff] = useState<Coach[]>([]);
 
     // Tag decisions
   const [tagWorking, setTagWorking] = useState(false);
@@ -70,16 +72,18 @@ export default function Franchise() {
   };
 
     const loadData = async () => {
-    const [c, s, ps, spots, dc] = await Promise.all([
-      window.api.getTeamContracts(userTeam.id),
-      window.api.getCapSummary(userTeam.id),
-      window.api.getPracticeSquad(userTeam.id),
-      window.api.getRosterSpots(userTeam.id),
-      window.api.getDeadCap(userTeam.id),
-    ]);
-    setContracts(c); setCap(s); setPracticeSquad(ps); setRosterSpots(spots);
-    setDeadCap(dc ?? null);
-  };
+  const [c, s, ps, spots, dc, staffData] = await Promise.all([
+    window.api.getTeamContracts(userTeam.id),
+    window.api.getCapSummary(userTeam.id),
+    window.api.getPracticeSquad(userTeam.id),
+    window.api.getRosterSpots(userTeam.id),
+    window.api.getDeadCap(userTeam.id),
+    window.api.getCoachingStaff(userTeam.id),
+  ]);
+  setContracts(c); setCap(s); setPracticeSquad(ps); setRosterSpots(spots);
+  setDeadCap(dc ?? null);
+  setStaff(staffData ?? []);
+};
 
   const loadFreeAgents = async () => {
     const fa = await window.api.getFreeAgents(faPos === 'ALL' ? undefined : faPos);
