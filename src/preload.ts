@@ -23,7 +23,7 @@ contextBridge.exposeInMainWorld('api', {
   getRoster: (teamId: number) =>
     ipcRenderer.invoke('get-roster', teamId),
 
-    listSaves: (): Promise<Array<{ name: string; teamName: string | null; season: number | null; lastPlayed: string | null }>> =>
+  listSaves: (): Promise<Array<{ name: string; teamName: string | null; season: number | null; lastPlayed: string | null }>> =>
     ipcRenderer.invoke('list-saves'),
 
   openSave: (name: string): Promise<{ ok: boolean; meta: { name: string; teamName: string | null; season: number | null } }> =>
@@ -32,7 +32,7 @@ contextBridge.exposeInMainWorld('api', {
   deleteSave: (name: string): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke('delete-save', name),
 
-    getWaiverWire: () =>
+  getWaiverWire: () =>
     ipcRenderer.invoke('get-waiver-wire'),
 
   claimWaiver: (playerId: number) =>
@@ -45,16 +45,16 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.invoke('get-dashboard', season),
 
   getTradeablePicks: (teamId: number) =>
-  ipcRenderer.invoke('get-tradeable-picks', teamId),
+    ipcRenderer.invoke('get-tradeable-picks', teamId),
 
-getCpuTradeOffer: () =>
-  ipcRenderer.invoke('get-cpu-trade-offer'),
+  getCpuTradeOffer: () =>
+    ipcRenderer.invoke('get-cpu-trade-offer'),
 
   setTeamTradeStatus: (payload: { teamId: number; status: string | null }) =>
-  ipcRenderer.invoke('set-team-trade-status', payload),
+    ipcRenderer.invoke('set-team-trade-status', payload),
 
-acceptCpuTradeOffer: (payload: { myPlayerId: number; theirPlayerId: number; theirTeamId: number; theirPickId: number | null }) =>
-  ipcRenderer.invoke('accept-cpu-trade-offer', payload),
+  acceptCpuTradeOffer: (payload: { myPlayerId: number; theirPlayerId: number; theirTeamId: number; theirPickId: number | null }) =>
+    ipcRenderer.invoke('accept-cpu-trade-offer', payload),
 
   getStats: (season: number) =>
     ipcRenderer.invoke('get-stats', season),
@@ -113,7 +113,6 @@ acceptCpuTradeOffer: (payload: { myPlayerId: number; theirPlayerId: number; thei
   proposeTrade: (payload: { myPlayerIds: number[]; theirPlayerIds: number[]; theirTeamId: number }) =>
     ipcRenderer.invoke('propose-trade', payload),
 
-  // Contracts & Roster
   getTeamContracts: (teamId: number) =>
     ipcRenderer.invoke('get-team-contracts', teamId),
 
@@ -133,20 +132,20 @@ acceptCpuTradeOffer: (payload: { myPlayerId: number; theirPlayerId: number; thei
     ipcRenderer.invoke('extend-player', payload),
 
   restructurePlayer: (payload: { playerId: number; pct: number }) =>
-  ipcRenderer.invoke('restructure-player', payload),
+    ipcRenderer.invoke('restructure-player', payload),
 
-getNewsFeed: (opts?: { season?: number; category?: string; limit?: number }) =>
-  ipcRenderer.invoke('get-news-feed', opts),
+  getNewsFeed: (opts?: { season?: number; category?: string; limit?: number }) =>
+    ipcRenderer.invoke('get-news-feed', opts),
 
-getNewsSeasons: () =>
-  ipcRenderer.invoke('get-news-seasons'),
-  
+  getNewsSeasons: () =>
+    ipcRenderer.invoke('get-news-seasons'),
+
   releasePlayer: (playerId: number) =>
     ipcRenderer.invoke('release-player', playerId),
 
   promoteFromPs: (playerId: number) =>
     ipcRenderer.invoke('promote-from-ps', playerId),
-  
+
   signFreeAgentToPs: (playerId: number) =>
     ipcRenderer.invoke('sign-free-agent-to-ps', playerId),
 
@@ -160,10 +159,10 @@ getNewsSeasons: () =>
     ipcRenderer.invoke('get-expiring-contracts'),
 
   getHallOfFame: () =>
-  ipcRenderer.invoke('get-hall-of-fame'),
+    ipcRenderer.invoke('get-hall-of-fame'),
 
-getTeamSeasonStats: (season?: number) =>
-  ipcRenderer.invoke('get-team-season-stats', season),
+  getTeamSeasonStats: (season?: number) =>
+    ipcRenderer.invoke('get-team-season-stats', season),
 
   resignPlayer: (payload: { playerId: number; years: number; salary: number }) =>
     ipcRenderer.invoke('resign-player', payload),
@@ -171,7 +170,6 @@ getTeamSeasonStats: (season?: number) =>
   getOffseasonStatus: () =>
     ipcRenderer.invoke('get-offseason-status'),
 
-  // CPU Offseason AI
   cpuFaSigning: () =>
     ipcRenderer.invoke('cpu-fa-signing'),
 
@@ -194,18 +192,17 @@ getTeamSeasonStats: (season?: number) =>
     ipcRenderer.invoke('complete-draft'),
 
   getRoundPickOrder: (payload: { round: number }) =>
-  ipcRenderer.invoke('get-round-pick-order', payload),
+    ipcRenderer.invoke('get-round-pick-order', payload),
 
-scoutProspect: (prospectId: number) =>
-  ipcRenderer.invoke('scout-prospect', prospectId),
+  scoutProspect: (prospectId: number) =>
+    ipcRenderer.invoke('scout-prospect', prospectId),
 
-getScoutCount: () =>
-  ipcRenderer.invoke('get-scout-count'),
+  getScoutCount: () =>
+    ipcRenderer.invoke('get-scout-count'),
 
   getTeamStats: (teamId: number, season?: number) =>
-  ipcRenderer.invoke('get-team-stats', teamId, season),
+    ipcRenderer.invoke('get-team-stats', teamId, season),
 
-  // Depth Chart
   getDepthChart: (teamId: number) =>
     ipcRenderer.invoke('get-depth-chart', teamId),
 
@@ -215,7 +212,7 @@ getScoutCount: () =>
   resetDepthChart: (teamId: number) =>
     ipcRenderer.invoke('reset-depth-chart', teamId),
 
-   checkSetupDone: () =>
+  checkSetupDone: () =>
     ipcRenderer.invoke('check-setup-done'),
 
   resetSave: () =>
@@ -224,42 +221,40 @@ getScoutCount: () =>
   balanceRosters: () =>
     ipcRenderer.invoke('balance-rosters'),
 
-  // Injuries
   getInjuryReport: (teamId: number) =>
     ipcRenderer.invoke('get-injury-report', teamId),
 
-  // Historical Records
   getAlltimeLeaders: () =>
     ipcRenderer.invoke('get-alltime-leaders'),
 
   getSeasonRecords: () =>
     ipcRenderer.invoke('get-season-records'),
 
-   getSeasonAwards: (season: number) =>
+  getSeasonAwards: (season: number) =>
     ipcRenderer.invoke('get-season-awards', season),
-   
-   getTeamNeeds: (teamId: number) =>
+
+  getTeamNeeds: (teamId: number) =>
     ipcRenderer.invoke('get-team-needs', teamId),
 
-    applyFranchiseTag: (payload: { playerId: number; tagType: 'franchise' | 'transition' }) =>
+  applyFranchiseTag: (payload: { playerId: number; tagType: 'franchise' | 'transition' }) =>
     ipcRenderer.invoke('apply-franchise-tag', payload),
 
   removeFranchiseTag: (playerId: number) =>
     ipcRenderer.invoke('remove-franchise-tag', playerId),
 
-    acceptCounterOffer: (payload: { playerId: number; years: number; salary: number }) =>
+  acceptCounterOffer: (payload: { playerId: number; years: number; salary: number }) =>
     ipcRenderer.invoke('accept-counter-offer', payload),
 
   getDeadCap: (teamId: number) =>
     ipcRenderer.invoke('get-dead-cap', teamId),
 
-  // Custom Data Imports
   importCustomTeams: () =>
     ipcRenderer.invoke('import-custom-teams'),
 
   importCustomPlayers: () =>
     ipcRenderer.invoke('import-custom-players'),
-    editPlayer: (payload: {
+
+  editPlayer: (payload: {
     playerId: number;
     overall_rating?: number;
     age?: number;
@@ -272,7 +267,6 @@ getScoutCount: () =>
     runblocking?: number; passblocking?: number;
   }) => ipcRenderer.invoke('edit-player', payload),
 
-    // Coaching Staff
   getCoachingStaff: (teamId: number) =>
     ipcRenderer.invoke('get-coaching-staff', teamId),
 
@@ -284,5 +278,15 @@ getScoutCount: () =>
 
   fireCoach: (coachId: number) =>
     ipcRenderer.invoke('fire-coach', coachId),
+
+  // Schemes
+  getTeamScheme: (teamId: number) =>
+    ipcRenderer.invoke('get-team-scheme', teamId),
+
+  getSchemeOptions: (teamId: number) =>
+    ipcRenderer.invoke('get-scheme-options', teamId),
+
+  setTeamScheme: (payload: { teamId: number; offenseScheme?: string; defenseScheme?: string }) =>
+    ipcRenderer.invoke('set-team-scheme', payload),
 
 });
