@@ -58,7 +58,7 @@ export default function Records() {
     <div style={{ padding: '20px 24px', maxWidth: 1100, margin: '0 auto' }}>
       <div style={{ marginBottom: 20 }}>
         <div style={{ fontSize: 20, fontWeight: 700, color: '#e0e0e0' }}>Historical Records</div>
-        <div style={{ fontSize: 11, color: '#555', marginTop: 2 }}>In-game leaders · gold rows are real NFL records to beat</div>
+        <div style={{ fontSize: 11, color: '#555', marginTop: 2 }}>Dynasty records — set by your in-game players as history is made</div>
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
