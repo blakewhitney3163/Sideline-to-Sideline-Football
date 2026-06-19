@@ -25,6 +25,8 @@ interface Props {
   handleResign: () => void;
   handleLetWalk: (playerId: number) => void;
   handleCpuFa: () => void;
+  handleApplyTag: (playerId: number, tagType: 'franchise' | 'transition') => void;
+  handleRemoveTag: (playerId: number) => void;
   working: boolean;
 }
 
@@ -32,11 +34,14 @@ export default function OffseasonTab({
   expiringPlayers, cap, playerDecisions, setPlayerDecisions,
   resigningId, setResigningId, resignYears, setResignYears, resignSalary, setResignSalary,
   cpuFaResult, cpuFaDone, setCpuFaDone, setCpuFaResult,
-  handleResign, handleLetWalk, handleCpuFa, working,
+  handleResign, handleLetWalk, handleCpuFa, handleApplyTag, handleRemoveTag, working,
 }: Props) {
   const resignSalaryNum = parseFloat(resignSalary) || 0;
   const resignCapLeft = cap ? cap.available_cap - resignSalaryNum : 0;
   const pendingCount = Object.values(playerDecisions).filter(d => d === 'pending').length;
+
+  const franchiseTagUsed = expiringPlayers.some(p => p.franchise_tagged === 1);
+  const transitionTagUsed = expiringPlayers.some(p => p.franchise_tagged === 2);
 
   const openResign = (player: Contract) => {
     setResigningId(player.id);
@@ -45,26 +50,57 @@ export default function OffseasonTab({
     setResignSalary(ap.toFixed(1));
   };
 
+  const tagBadgeStyle = (color: string): React.CSSProperties => ({
+    display: 'inline-flex', alignItems: 'center', gap: 4,
+    padding: '2px 8px', borderRadius: 3, fontSize: 10, fontWeight: 'bold',
+    letterSpacing: 0.8, background: `${color}22`, border: `1px solid ${color}`, color,
+  });
+
   return (
     <div>
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ color: '#FF8740', fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>RE-SIGNING WINDOW</div>
-        <div style={{ color: '#555', fontSize: 12, marginBottom: 10 }}>
+
+      {/* ── Tag Usage Banner ─────────────────────────────────────────── */}
+      <div style={{
+        background: '#0d0d0d', border: '1px solid #1a1a1a', borderRadius: 6,
+        padding: '10px 16px', marginBottom: 16, display: 'flex', gap: 24, alignItems: 'center',
+      }}>
+        <span style={{ fontSize: 10, color: '#444', letterSpacing: 1, textTransform: 'uppercase' }}>Tag Designations</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 10, color: '#777' }}>Franchise Tag</span>
+          {franchiseTagUsed
+            ? <span style={tagBadgeStyle('#e6b84a')}>⬤ USED</span>
+            : <span style={{ ...tagBadgeStyle('#4caf50'), opacity: 0.8 }}>○ AVAILABLE</span>}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 10, color: '#777' }}>Transition Tag</span>
+          {transitionTagUsed
+            ? <span style={tagBadgeStyle('#9b59b6')}>⬤ USED</span>
+            : <span style={{ ...tagBadgeStyle('#4caf50'), opacity: 0.8 }}>○ AVAILABLE</span>}
+        </div>
+        <span style={{ fontSize: 9, color: '#333', marginLeft: 'auto', maxWidth: 260 }}>
+          FT locks a player at ~135% of fair market · TT locks at ~110% · Each can be used once per offseason
+        </span>
+      </div>
+
+      {/* ── Re-Signing Window ─────────────────────────────────────────── */}
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ fontSize: 11, color: '#555', letterSpacing: 1, marginBottom: 4 }}>RE-SIGNING WINDOW</div>
+        <div style={{ fontSize: 12, color: '#444', marginBottom: 10 }}>
           {expiringPlayers.length === 0
             ? 'No players entering the final year of their contract.'
             : `${expiringPlayers.length} player${expiringPlayers.length !== 1 ? 's' : ''} in the final year of their contract. Make your decisions before advancing the season.`}
         </div>
         {expiringPlayers.length > 0 && (
-          <div style={{ display: 'flex', gap: 16, marginBottom: 12, fontSize: 11 }}>
-            <span style={{ color: '#4caf50' }}>✓ {Object.values(playerDecisions).filter(d => d === 'resigned').length} re-signed</span>
-            <span style={{ color: '#e57373' }}>→ {Object.values(playerDecisions).filter(d => d === 'walking').length} letting walk</span>
-            <span style={{ color: '#FF8740' }}>⏳ {pendingCount} pending decision</span>
+          <div style={{ display: 'flex', gap: 16, fontSize: 10, color: '#555', marginBottom: 12 }}>
+            <span>✓ {Object.values(playerDecisions).filter(d => d === 'resigned').length} re-signed</span>
+            <span>→ {Object.values(playerDecisions).filter(d => d === 'walking').length} letting walk</span>
+            <span>⏳ {pendingCount} pending decision</span>
           </div>
         )}
       </div>
 
       {expiringPlayers.length === 0 ? (
-        <div style={{ color: '#333', padding: '16px 0', fontSize: 13 }}>
+        <div style={{ padding: 24, textAlign: 'center', color: '#333', fontSize: 13 }}>
           No expiring contracts — you're good to advance the season.
         </div>
       ) : expiringPlayers.map(player => {
@@ -73,38 +109,81 @@ export default function OffseasonTab({
         const traj = trajectory(player.age);
         const ap = askingPrice(player.position, player.overall_rating, player.dev_trait, player.age);
         const isResigning = resigningId === player.id;
+        const tagged = player.franchise_tagged ?? 0;
+        const isFranchiseTagged = tagged === 1;
+        const isTransitionTagged = tagged === 2;
+        const isTagged = tagged > 0;
 
         const decisionColor = decision === 'resigned' ? '#4caf50' : decision === 'walking' ? '#e57373' : '#FF8740';
-        const decisionLabel = decision === 'resigned' ? 'RE-SIGNED' : decision === 'walking' ? 'LETTING WALK' : 'PENDING';
+        const decisionLabel = isTagged
+          ? (isFranchiseTagged ? 'FRANCHISE TAGGED' : 'TRANSITION TAGGED')
+          : (decision === 'resigned' ? 'RE-SIGNED' : decision === 'walking' ? 'LETTING WALK' : 'PENDING');
+
+        const tagColor = isFranchiseTagged ? '#e6b84a' : '#9b59b6';
+        const effectiveDecisionColor = isTagged ? tagColor : decisionColor;
 
         return (
-          <div key={player.id} style={{ borderBottom: '1px solid #0d0d0d' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', flexWrap: 'wrap' }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ color: '#ddd', fontWeight: 600, fontSize: 13 }}>{player.first_name} {player.last_name}</span>
-                  {trait.short && <span style={{ background: trait.color, color: '#000', fontSize: 8, fontWeight: 700, padding: '1px 4px', borderRadius: 3 }}>{trait.short}</span>}
+          <div key={player.id} style={{
+            background: '#0f0f0f', border: `1px solid ${isTagged ? tagColor + '44' : '#1a1a1a'}`,
+            borderRadius: 6, marginBottom: 8, overflow: 'hidden',
+          }}>
+            <div style={{ padding: '10px 14px', display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+
+              {/* Name + trait */}
+              <div style={{ minWidth: 140 }}>
+                <div style={{ fontSize: 13, color: '#ccc', fontWeight: 'bold' }}>
+                  {player.first_name} {player.last_name}
+                  {trait.short && <span style={{ marginLeft: 5, fontSize: 9, color: trait.color }}>{trait.short}</span>}
                 </div>
-                <span style={{ color: '#444', fontSize: 11 }}>{player.position_label || player.position}</span>
+                <div style={{ fontSize: 10, color: '#555' }}>{player.position_label || player.position}</div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 60 }}>
-                <span style={{ color: traj.color, fontSize: 12 }}>{player.age} {traj.label}</span>
-                <span style={{ color: ratingColor(player.overall_rating), fontWeight: 700, fontSize: 14 }}>{player.overall_rating}</span>
+
+              {/* Stats */}
+              <div style={{ display: 'flex', gap: 10, fontSize: 11 }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ color: '#555', fontSize: 9 }}>AGE</div>
+                  <div style={{ color: '#aaa' }}>{player.age} {traj.label}</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ color: '#555', fontSize: 9 }}>OVR</div>
+                  <div style={{ color: ratingColor(player.overall_rating), fontWeight: 'bold' }}>{player.overall_rating}</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ color: '#555', fontSize: 9 }}>TRAIT</div>
+                  <div style={{ color: trait.color ?? '#aaa', fontSize: 10 }}>
+                    {player.dev_trait === 'Normal' ? '—' : player.dev_trait}
+                  </div>
+                </div>
               </div>
-              <div style={{ width: 70, color: trait.color, fontSize: 11, textAlign: 'center', fontWeight: player.dev_trait !== 'Normal' ? 700 : 'normal' }}>
-                {player.dev_trait === 'Normal' ? '—' : player.dev_trait}
+
+              {/* Salaries */}
+              <div style={{ display: 'flex', gap: 10, fontSize: 11 }}>
+                <div>
+                  <div style={{ color: '#555', fontSize: 9 }}>Current</div>
+                  <div style={{ color: '#aaa' }}>{fmtSalary(player.annual_salary)}/yr</div>
+                </div>
+                <div>
+                  <div style={{ color: '#555', fontSize: 9 }}>Asking ~</div>
+                  <div style={{ color: '#aaa' }}>{fmtSalary(ap)}/yr</div>
+                </div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', width: 100 }}>
-                <span style={{ color: '#444', fontSize: 10 }}>Current</span>
-                <span style={{ color: '#888', fontSize: 12 }}>{fmtSalary(player.annual_salary)}/yr</span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', width: 100 }}>
-                <span style={{ color: '#444', fontSize: 10 }}>Asking ~</span>
-                <span style={{ color: '#FF8740', fontSize: 12 }}>{fmtSalary(ap)}/yr</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ color: decisionColor, fontSize: 10, fontWeight: 700 }}>{decisionLabel}</span>
-                {decision === 'pending' && (
+
+              {/* Decision / Action buttons */}
+              <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 10, color: effectiveDecisionColor, fontWeight: 'bold' }}>
+                  {decisionLabel}
+                </span>
+
+                {/* TAGGED — show Remove Tag button */}
+                {isTagged && (
+                  <button onClick={() => handleRemoveTag(player.id)} disabled={working} style={{
+                    padding: '3px 9px', fontSize: 10, cursor: 'pointer', borderRadius: 3,
+                    background: '#1a0a0a', border: `1px solid ${tagColor}55`, color: tagColor,
+                  }}>Remove Tag</button>
+                )}
+
+                {/* PENDING — show Re-Sign, Let Walk, and Tag buttons */}
+                {!isTagged && decision === 'pending' && (
                   <>
                     <button onClick={() => isResigning ? setResigningId(null) : openResign(player)} style={{
                       padding: '3px 9px', fontSize: 10, cursor: 'pointer', borderRadius: 3,
@@ -112,13 +191,32 @@ export default function OffseasonTab({
                       border: `1px solid ${isResigning ? '#4caf50' : '#2a2a2a'}`,
                       color: isResigning ? '#4caf50' : '#555',
                     }}>{isResigning ? 'Cancel' : 'Re-Sign'}</button>
+
                     <button onClick={() => handleLetWalk(player.id)} style={{
                       padding: '3px 9px', fontSize: 10, cursor: 'pointer', borderRadius: 3,
                       background: '#141414', border: '1px solid #2a2a2a', color: '#555',
                     }}>Let Walk</button>
+
+                    {!franchiseTagUsed && (
+                      <button onClick={() => handleApplyTag(player.id, 'franchise')} disabled={working} style={{
+                        padding: '3px 9px', fontSize: 10, cursor: 'pointer', borderRadius: 3,
+                        background: '#1a1400', border: '1px solid #e6b84a55', color: '#e6b84a',
+                        fontWeight: 'bold',
+                      }}>🏷 FT</button>
+                    )}
+
+                    {!transitionTagUsed && (
+                      <button onClick={() => handleApplyTag(player.id, 'transition')} disabled={working} style={{
+                        padding: '3px 9px', fontSize: 10, cursor: 'pointer', borderRadius: 3,
+                        background: '#12001a', border: '1px solid #9b59b655', color: '#9b59b6',
+                        fontWeight: 'bold',
+                      }}>🏷 TT</button>
+                    )}
                   </>
                 )}
-                {decision === 'walking' && (
+
+                {/* WALKING — Undo */}
+                {!isTagged && decision === 'walking' && (
                   <button onClick={() => setPlayerDecisions(prev => ({ ...prev, [player.id]: 'pending' }))} style={{
                     padding: '3px 9px', fontSize: 10, cursor: 'pointer', borderRadius: 3,
                     background: '#141414', border: '1px solid #2a2a2a', color: '#555',
@@ -127,38 +225,50 @@ export default function OffseasonTab({
               </div>
             </div>
 
-            {isResigning && decision === 'pending' && (
-              <div style={{ background: '#0a180a', border: '1px solid #1a3a1a', borderRadius: 6, margin: '0 12px 10px', padding: '12px 16px' }}>
-                <div style={{ color: '#4caf50', fontSize: 11, fontWeight: 700, marginBottom: 10 }}>
+            {/* Re-sign form (only when expanded and not tagged) */}
+            {isResigning && decision === 'pending' && !isTagged && (
+              <div style={{ borderTop: '1px solid #1a1a1a', padding: '12px 14px', background: '#080808' }}>
+                <div style={{ fontSize: 11, color: '#555', marginBottom: 10, letterSpacing: 0.5 }}>
                   RE-SIGN OFFER — {player.first_name} {player.last_name}
                 </div>
-                <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                   <div>
-                    <div style={{ color: '#333', fontSize: 10, marginBottom: 6 }}>YEARS</div>
+                    <div style={{ fontSize: 9, color: '#444', marginBottom: 4 }}>YEARS</div>
                     <div style={{ display: 'flex', gap: 4 }}>
-                      {[1,2,3,4,5].map(y => (
-                        <button key={y} onClick={() => setResignYears(y)} style={{ width: 32, height: 32, background: resignYears === y ? '#4caf50' : '#141414', border: `1px solid ${resignYears === y ? '#4caf50' : '#2a2a2a'}`, borderRadius: 4, color: resignYears === y ? '#000' : '#555', fontWeight: 'bold', fontSize: 12, cursor: 'pointer' }}>{y}</button>
+                      {[1, 2, 3, 4, 5].map(y => (
+                        <button key={y} onClick={() => setResignYears(y)} style={{
+                          width: 32, height: 32, background: resignYears === y ? '#4caf50' : '#141414',
+                          border: `1px solid ${resignYears === y ? '#4caf50' : '#2a2a2a'}`,
+                          borderRadius: 4, color: resignYears === y ? '#000' : '#555',
+                          fontWeight: 'bold', fontSize: 12, cursor: 'pointer',
+                        }}>{y}</button>
                       ))}
                     </div>
                   </div>
                   <div>
-                    <div style={{ color: '#333', fontSize: 10, marginBottom: 6 }}>ANNUAL SALARY (M)</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ color: '#555', fontSize: 13 }}>$</span>
+                    <div style={{ fontSize: 9, color: '#444', marginBottom: 4 }}>ANNUAL SALARY (M)</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ color: '#555', fontSize: 12 }}>$</span>
                       <input type="number" value={resignSalary} onChange={e => setResignSalary(e.target.value)} min="0.9" step="0.5"
                         style={{ background: '#141414', border: '1px solid #2a2a2a', borderRadius: 4, color: '#ccc', padding: '6px 10px', fontSize: 13, width: 80 }} />
-                      <span style={{ color: '#555', fontSize: 13 }}>M</span>
+                      <span style={{ color: '#555', fontSize: 12 }}>M</span>
                     </div>
-                    <div style={{ color: '#333', fontSize: 10, marginTop: 4 }}>Asking: ~{fmtSalary(ap)}/yr</div>
+                    <div style={{ fontSize: 9, color: '#444', marginTop: 3 }}>Asking: ~{fmtSalary(ap)}/yr</div>
                   </div>
                   <div>
-                    <div style={{ color: '#333', fontSize: 10, marginBottom: 6 }}>CAP AFTER SIGNING</div>
-                    <div style={{ color: resignCapLeft < 0 ? '#e57373' : '#4caf50', fontSize: 13 }}>{fmtSalary(resignCapLeft)} remaining</div>
+                    <div style={{ fontSize: 9, color: '#444', marginBottom: 4 }}>CAP AFTER SIGNING</div>
+                    <div style={{ fontSize: 13, color: resignCapLeft < 0 ? '#e57373' : '#4caf50' }}>
+                      {fmtSalary(resignCapLeft)} remaining
+                    </div>
                   </div>
+                  <button onClick={handleResign} disabled={working || resignCapLeft < 0} style={{
+                    padding: '8px 18px', fontSize: 11, fontWeight: 'bold', cursor: 'pointer',
+                    background: resignCapLeft < 0 ? '#1a1a1a' : '#4caf50', color: resignCapLeft < 0 ? '#333' : '#000',
+                    border: 'none', borderRadius: 4, letterSpacing: 0.5,
+                  }}>
+                    {working ? '...' : resignCapLeft < 0 ? 'OVER CAP' : 'Confirm Re-Sign'}
+                  </button>
                 </div>
-                <button onClick={handleResign} disabled={working || resignCapLeft < 0} style={{ marginTop: 10, padding: '6px 16px', background: resignCapLeft < 0 ? '#1a1a1a' : '#0a1a0a', border: `1px solid ${resignCapLeft < 0 ? '#2a2a2a' : '#4caf50'}`, borderRadius: 4, color: resignCapLeft < 0 ? '#333' : '#4caf50', fontSize: 12, cursor: resignCapLeft < 0 ? 'not-allowed' : 'pointer' }}>
-                  {working ? '...' : resignCapLeft < 0 ? 'OVER CAP' : 'Confirm Re-Sign'}
-                </button>
               </div>
             )}
           </div>
@@ -166,52 +276,44 @@ export default function OffseasonTab({
       })}
 
       {expiringPlayers.length > 0 && (
-        <div style={{ color: '#333', fontSize: 11, padding: '12px 0', borderBottom: '1px solid #1a1a1a', marginBottom: 24 }}>
+        <div style={{ fontSize: 10, color: '#333', marginTop: 8, marginBottom: 24 }}>
           Once you've made your decisions, advance the season from the main menu. Players marked "Letting Walk" will automatically become free agents when the season advances.
         </div>
       )}
 
-      <div style={{ background: '#0d0d14', border: '1px solid #1a1a2a', borderRadius: 8, padding: '16px 20px' }}>
-        <div style={{ color: '#4FC3F7', fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>
-          CPU FREE AGENCY
-        </div>
-        <div style={{ color: '#444', fontSize: 12, marginBottom: 14, lineHeight: 1.5 }}>
+      {/* ── CPU Free Agency ────────────────────────────────────────────── */}
+      <div style={{ background: '#0d0d0d', border: '1px solid #1a1a1a', borderRadius: 6, padding: '14px 16px' }}>
+        <div style={{ fontSize: 11, color: '#555', letterSpacing: 1, marginBottom: 6 }}>CPU FREE AGENCY</div>
+        <div style={{ fontSize: 12, color: '#444', marginBottom: 4 }}>
           Run CPU free agency to let the other 31 teams fill their roster gaps.
-          CPU teams also automatically re-sign their own key players when you advance the season.
-          <br />
-          <span style={{ color: '#333' }}>Best done after you've finished your own FA signings.</span>
+        </div>
+        <div style={{ fontSize: 11, color: '#333', marginBottom: 12 }}>
+          CPU teams also automatically re-sign their own key players when you advance the season.{' '}
+          Best done after you've finished your own FA signings.
         </div>
 
         {cpuFaDone && cpuFaResult ? (
-          <div style={{ background: '#080e18', border: '1px solid #1a3a5a', borderRadius: 6, padding: '12px 16px', marginBottom: 14 }}>
-            <div style={{ color: '#4FC3F7', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
-              ✓ CPU Free Agency Complete
+          <div>
+            <div style={{ fontSize: 12, color: '#4caf50', marginBottom: 4 }}>✓ CPU Free Agency Complete</div>
+            <div style={{ fontSize: 11, color: '#555', marginBottom: 8 }}>
+              {cpuFaResult.totalSigned} players signed across {cpuFaResult.teamsActive} teams.
             </div>
-            <div style={{ color: '#888', fontSize: 12 }}>
-              <span style={{ color: '#fff', fontWeight: 600 }}>{cpuFaResult.totalSigned}</span> players signed across{' '}
-              <span style={{ color: '#fff', fontWeight: 600 }}>{cpuFaResult.teamsActive}</span> teams.
-            </div>
-            <button
-              onClick={() => { setCpuFaDone(false); setCpuFaResult(null); }}
-              style={{ marginTop: 10, padding: '4px 12px', background: 'transparent', border: '1px solid #2a2a3a', borderRadius: 4, color: '#444', fontSize: 11, cursor: 'pointer' }}>
-              Run Again
-            </button>
+            <button onClick={() => { setCpuFaDone(false); setCpuFaResult(null); }} style={{
+              padding: '4px 12px', background: 'transparent', border: '1px solid #2a2a3a',
+              borderRadius: 4, color: '#444', fontSize: 11, cursor: 'pointer',
+            }}>Run Again</button>
           </div>
         ) : (
-          <button
-            onClick={handleCpuFa}
-            disabled={working}
-            style={{
-              padding: '8px 20px', fontSize: 12, fontWeight: 700, letterSpacing: 0.5,
-              cursor: working ? 'not-allowed' : 'pointer', borderRadius: 5,
-              background: working ? '#141420' : '#0a1020',
-              border: `1px solid ${working ? '#2a2a3a' : '#4FC3F7'}`,
-              color: working ? '#333' : '#4FC3F7',
-            }}>
+          <button onClick={handleCpuFa} disabled={working} style={{
+            padding: '8px 18px', fontSize: 11, fontWeight: 'bold', cursor: working ? 'not-allowed' : 'pointer',
+            background: working ? '#141414' : '#FF8740', color: working ? '#555' : '#000',
+            border: 'none', borderRadius: 4, letterSpacing: 0.5,
+          }}>
             {working ? 'Running...' : 'RUN CPU FREE AGENCY'}
           </button>
         )}
       </div>
+
     </div>
   );
 }
