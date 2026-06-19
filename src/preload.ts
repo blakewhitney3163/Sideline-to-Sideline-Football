@@ -113,9 +113,6 @@ acceptCpuTradeOffer: (payload: { myPlayerId: number; theirPlayerId: number; thei
   proposeTrade: (payload: { myPlayerIds: number[]; theirPlayerIds: number[]; theirTeamId: number }) =>
     ipcRenderer.invoke('propose-trade', payload),
 
-  seedDevTraits: () =>
-    ipcRenderer.invoke('seed-dev-traits'),
-
   // Contracts & Roster
   getTeamContracts: (teamId: number) =>
     ipcRenderer.invoke('get-team-contracts', teamId),
@@ -156,8 +153,8 @@ getNewsSeasons: () =>
   signFreeAgent: (payload: { playerId: number; years: number; salary: number }) =>
     ipcRenderer.invoke('sign-free-agent', payload),
 
-  importOtcContracts: (filePath?: string) =>
-    ipcRenderer.invoke('import-otc-contracts', filePath),
+  importHistoricalRecords: (recordType: 'alltime' | 'season') =>
+  ipcRenderer.invoke('import-historical-records', recordType),
 
   getExpiringContracts: () =>
     ipcRenderer.invoke('get-expiring-contracts'),
@@ -217,9 +214,6 @@ getScoutCount: () =>
 
   resetDepthChart: (teamId: number) =>
     ipcRenderer.invoke('reset-depth-chart', teamId),
-
-  importNflverseStats: () =>
-    ipcRenderer.invoke('import-nflverse-stats'),
 
    checkSetupDone: () =>
     ipcRenderer.invoke('check-setup-done'),
