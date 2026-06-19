@@ -246,22 +246,6 @@ export default function Franchise() {
         </div>
       )}
 
-      <div style={{ marginBottom: 16 }}>
-        <button
-          onClick={async () => {
-            const result = await window.api.importOtcContracts();
-            if (result.success) {
-              showToast(`OTC: ${result.matched}/${result.total} contracts updated`, 'success');
-              loadData();
-            } else {
-              showToast(result.reason ?? 'OTC import failed', 'error');
-            }
-          }}
-          style={{ padding: '5px 14px', fontSize: 11, letterSpacing: 1, cursor: 'pointer', borderRadius: 4, background: '#0a1a0a', border: '1px solid #4caf50', color: '#4caf50', fontWeight: 'bold' }}
-        >IMPORT OTC CONTRACTS</button>
-        <span style={{ color: '#333', fontSize: 10, marginLeft: 10 }}>otc-contracts.htm detected in repo root</span>
-      </div>
-
       <div style={{ display: 'flex', gap: 6, marginBottom: 20, flexWrap: 'wrap' }}>
         {([
           { key: 'roster',   label: `ACTIVE ROSTER (${contracts.length})`,                        warn: false },
