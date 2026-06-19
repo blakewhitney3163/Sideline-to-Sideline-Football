@@ -1,10 +1,7 @@
-import { ipcMain, app } from 'electron';
+import { ipcMain } from 'electron';
 import { db, generateContracts } from '../database';
-const { importFromMadden } = require('../importfromMadden');
 import { balanceRosters } from '../helpers/balanceRosters';
 import { settingsRepo } from '../repositories';
-
-// ─── Difficulty ───────────────────────────────────────────────────────────────
 
 const DIFFICULTY_FACTORS: Record<string, number> = { easy: 8, normal: 0, hard: -8 };
 
@@ -34,24 +31,44 @@ export function registerSettingsHandlers(): void {
   });
 
   ipcMain.handle('reset-dynasty', () => {
-  const pathModule = require('path');
-  const csvPath = pathModule.join(app.getAppPath(), 'src', 'madden-ratings.csv');
-  db.prepare('DELETE FROM stats').run();
-  db.prepare('DELETE FROM games').run();
-  db.prepare('DELETE FROM champions').run();
-  db.prepare('DELETE FROM contracts').run();
-  db.prepare('DELETE FROM depth_chart').run();
-  db.prepare('DELETE FROM draft_prospects').run();
-  db.prepare('DELETE FROM career_stats_history').run();
-  db.prepare('DELETE FROM player_milestones').run();   // ← add
-  db.prepare('DELETE FROM hall_of_fame').run();        // ← add
-  db.prepare('DELETE FROM news_events').run();
-  importFromMadden(csvPath);
-  db.prepare("UPDATE settings SET value = '2025' WHERE key = 'current_season'").run();
-  generateContracts();
-  balanceRosters();
-  return { success: true };
-});
+    const { generatePlayers } = require('../generatePlayers');
+    db.prepare('DELETE FROM stats').run();
+    db.prepare('DELETE FROM games').run();
+    db.prepare('DELETE FROM champions').run();
+    db.prepare('DELETE FROM contracts').run();
+    db.prepare('DELETE FROM depth_chart').run();
+    db.prepare('DELETE FROM draft_prospects').run();
+    db.prepare('DELETE FROM career_stats_history').run();
+    db.prepare('DELETE FROM player_milestones').run();
+    db.prepare('DELETE FROM hall_of_fame').run();
+    db.prepare('DELETE FROM news_events').run();
+    db.prepare('DELETE FROM players').run();
+    generatePlayers();
+    db.prepare("UPDATE settings SET value = '2025' WHERE key = 'current_season'").run();
+    generateContracts();
+    balanceRosters();
+    return { success: true };
+  });
+
+  ipcMain.handle('reset-save', () => {
+    const { generatePlayers } = require('../generatePlayers');
+    db.prepare("DELETE FROM settings WHERE key = 'user_team_id'").run();
+    db.prepare('DELETE FROM stats').run();
+    db.prepare('DELETE FROM games').run();
+    db.prepare('DELETE FROM champions').run();
+    db.prepare('DELETE FROM contracts').run();
+    db.prepare('DELETE FROM depth_chart').run();
+    db.prepare('DELETE FROM draft_prospects').run();
+    db.prepare('DELETE FROM career_stats_history').run();
+    db.prepare('DELETE FROM player_milestones').run();
+    db.prepare('DELETE FROM hall_of_fame').run();
+    db.prepare('DELETE FROM news_events').run();
+    db.prepare('DELETE FROM players').run();
+    generatePlayers();
+    db.prepare("UPDATE settings SET value = '2025' WHERE key = 'current_season'").run();
+    generateContracts();
+    return { success: true };
+  });
 
   ipcMain.handle('balance-rosters', () => {
     balanceRosters();
@@ -60,27 +77,7 @@ export function registerSettingsHandlers(): void {
   });
 
   ipcMain.handle('check-setup-done', () => {
-    const cnt = (db.prepare('SELECT COUNT(*) as cnt FROM career_stats_history').get() as any).cnt;
+    const cnt = (db.prepare('SELECT COUNT(*) as cnt FROM players').get() as any).cnt;
     return cnt > 0;
   });
-
-  ipcMain.handle('reset-save', () => {
-  const pathModule = require('path');
-  const csvPath = pathModule.join(app.getAppPath(), 'src', 'madden-ratings.csv');
-  db.prepare("DELETE FROM settings WHERE key = 'user_team_id'").run();
-  db.prepare('DELETE FROM stats').run();
-  db.prepare('DELETE FROM games').run();
-  db.prepare('DELETE FROM champions').run();
-  db.prepare('DELETE FROM contracts').run();
-  db.prepare('DELETE FROM depth_chart').run();
-  db.prepare('DELETE FROM draft_prospects').run();
-  db.prepare('DELETE FROM career_stats_history').run();
-  db.prepare('DELETE FROM player_milestones').run();   // ← add
-  db.prepare('DELETE FROM hall_of_fame').run();        // ← add
-  db.prepare('DELETE FROM news_events').run();
-  importFromMadden(csvPath);
-  db.prepare("UPDATE settings SET value = '2025' WHERE key = 'current_season'").run();
-  generateContracts();
-  return { success: true };
-});
 }
