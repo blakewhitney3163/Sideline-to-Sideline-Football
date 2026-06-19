@@ -12,6 +12,7 @@ import { registerSeasonHandlers } from './handlers/seasonHandlers';
 import { registerNewsHandlers } from './handlers/newsHandlers';
 import { getCurrentSeason } from './helpers/getCurrentSeason';
 import { balanceRosters } from './helpers/balanceRosters';
+import { registerImportHandlers } from './handlers/importHandlers';
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
@@ -122,6 +123,7 @@ registerDraftHandlers();
 registerStatsHandlers();
 registerSeasonHandlers();
 registerNewsHandlers();
+registerImportHandlers();
 
 // ─── App Lifecycle ────────────────────────────────────────────────────────────
 
