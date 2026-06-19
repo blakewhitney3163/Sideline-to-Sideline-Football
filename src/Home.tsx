@@ -12,6 +12,8 @@ import PlayoffSeedingsView  from './home/PlayoffSeedingsView';
 import PlayoffResultsView   from './home/PlayoffResultsView';
 import SeasonAwardsView     from './home/SeasonAwardsView';
 import { useGameStore } from './store/gameStore';
+import TradeOfferCard from './home/TradeOfferCard';
+import { CpuOffer } from './trades/types';
 
 declare const window: any;
 
@@ -50,6 +52,11 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
   const [statLeaders,         setStatLeaders]         = useState<any>(null);
   const [psAlert,             setPSAlert]             = useState<string | null>(null);
   const [seasonAwards,        setSeasonAwards]        = useState<any>(null);
+  const [cpuOffer, setCpuOffer] = useState<CpuOffer | null>(null);
+  const [offerHandled, setOfferHandled] = useState(false);
+  const [offerWorking, setOfferWorking] = useState(false);
+  const [userTradeStatus, setUserTradeStatus] = useState<any>(null);
+  const [settingStatus, setSettingStatus] = useState(false);
 
   useEffect(() => {
     if (!userTeam) return;
@@ -60,15 +67,17 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
       setPlayoffResults(null); setUserRecord(null); setInjuryReport([]);
       setSeasonAwards(null);
 
-      const [status, dashboard, champs, standings, offseason, injuries, leaders] = await Promise.all([
-        window.api.getCurrentWeek(),
-        window.api.getDashboard(currentSeason),
-        window.api.getChampions(),
-        window.api.getStandings(currentSeason),
-        window.api.getOffseasonStatus(),
-        window.api.getInjuryReport(userTeam.id),
-        window.api.getStats(currentSeason),
-      ]);
+        const [status, dashboard, champs, standings, offseason, injuries, leaders, tradeOffer, tradeStatus] = await Promise.all([
+    window.api.getCurrentWeek(),
+    window.api.getDashboard(currentSeason),
+    window.api.getChampions(),
+    window.api.getStandings(currentSeason),
+    window.api.getOffseasonStatus(),
+    window.api.getInjuryReport(userTeam.id),
+    window.api.getStats(currentSeason),
+    window.api.getCpuTradeOffer(),
+    window.api.getTeamStatus(userTeam.id),
+  ]);
       if (cancelled) return;
 
       const seasonDone    = status.hasSchedule && status.currentWeek === null;
@@ -84,6 +93,9 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
       setDraftGenerated(offseason.draftGenerated ?? false);
       setInjuryReport(injuries ?? []);
       setStatLeaders(leaders);
+      setCpuOffer(tradeOffer ?? null);
+      setOfferHandled(false);
+      setUserTradeStatus(tradeStatus ?? null);
 
       if (offseason.playoffsComplete) setPlayoffsComplete(true);
 
@@ -222,6 +234,36 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
     onSeasonAdvance(result.nextSeason);
   };
 
+    const handleAcceptOffer = async () => {
+    if (!cpuOffer || offerWorking) return;
+    setOfferWorking(true);
+    const res = await window.api.acceptCpuTradeOffer({
+      myPlayerId: cpuOffer.requestedPlayer.id,
+      theirPlayerId: cpuOffer.offeredPlayer.id,
+      theirTeamId: cpuOffer.fromTeamId,
+      theirPickId: cpuOffer.offeredPick?.id ?? null,
+    });
+    if (res.success) {
+      setCpuOffer(null);
+      setOfferHandled(true);
+    }
+    setOfferWorking(false);
+  };
+
+  const handleDeclineOffer = () => {
+    setCpuOffer(null);
+    setOfferHandled(true);
+  };
+
+  const handleSetTradeStatus = async (status: string) => {
+    if (!userTeam || settingStatus) return;
+    setSettingStatus(true);
+    await window.api.setTeamTradeStatus({ teamId: userTeam.id, status: status === 'auto' ? null : status });
+    const updated = await window.api.getTeamStatus(userTeam.id);
+    setUserTradeStatus(updated);
+    setSettingStatus(false);
+  };
+
   const allWeeksDone      = hasSchedule && currentWeek === null;
   const currentChampion   = champions.find(c => c.season === currentSeason);
   const isPlayoffsComplete = !!currentChampion;
@@ -258,6 +300,18 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
           handleAdvance={handleAdvance}
         />
 
+  {/* Incoming trade offer */}
+  {cpuOffer && !offerHandled && (
+    <TradeOfferCard
+      offer={cpuOffer}
+      currentSeason={currentSeason}
+      working={offerWorking}
+      onAccept={handleAcceptOffer}
+      onDecline={handleDeclineOffer}
+      onViewDetails={() => onNavigate('trades')}
+    />
+  )}
+        
         {allWeeksDone && isPlayoffsComplete && (
           <OffseasonChecklist
             pendingResigns={pendingResigns}
@@ -299,13 +353,16 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
         )}
       </div>
 
-      <Sidebar
-        topAFC={topAFC}
-        topNFC={topNFC}
-        champions={champions}
-        injuryReport={injuryReport}
-        statLeaders={statLeaders}
-      />
+        <Sidebar
+    injuryReport={injuryReport}
+    topAFC={topAFC}
+    topNFC={topNFC}
+    champions={champions}
+    statLeaders={statLeaders}
+    userTradeStatus={userTradeStatus}
+    onSetTradeStatus={handleSetTradeStatus}
+    settingStatus={settingStatus}
+  />
     </div>
   );
 }
