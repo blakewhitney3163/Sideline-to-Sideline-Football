@@ -488,7 +488,7 @@ if (screen === 'meet-team') {
         <Suspense fallback={<TabFallback />}>
           {isMounted('home') && (
             <div style={tabStyle('home')}>
-              <Home onTabChange={tab => handleTabChange(tab as Tab)} onSeasonAdvance={handleSeasonAdvance} />
+              <Home onNavigate={tab => handleTabChange(tab as Tab)} onSeasonAdvance={handleSeasonAdvance} />
             </div>
           )}
           {isMounted('standings') && <div style={tabStyle('standings')}><Standings /></div>}
