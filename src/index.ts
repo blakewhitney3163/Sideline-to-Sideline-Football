@@ -20,7 +20,7 @@ declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 // Called after initDatabase() so the DB proxy is live.
 
 function bootstrapDatabase(isNew: boolean): void {
-  // Seed 32 teams + import Madden ratings on a brand-new save file
+  // Seed 32 teams on a brand-new save file
   const teamCount = (db.prepare('SELECT COUNT(*) as cnt FROM teams').get() as any).cnt;
   if (teamCount === 0) {
     const insertTeam = db.prepare(
@@ -70,7 +70,7 @@ function bootstrapDatabase(isNew: boolean): void {
 ];
 
 db.transaction(() => { for (const t of TEAMS) insertTeam.run(...t); })();
-    console.log('32 NFL teams seeded');
+    console.log('32 teams seeded');
 
     const { importFromMadden } = require('./importfromMadden');
     const csvPath = path.join(app.getAppPath(), 'src', 'madden-ratings.csv');
