@@ -393,6 +393,19 @@ export default function App() {
     );
   }
 
+  // ── Meet the Team ─────────────────────────────────────────────────────────
+if (screen === 'meet-team') {
+  return (
+    <Suspense fallback={<TabFallback />}>
+      <MeetTheTeam
+        team={userTeam!}
+        season={currentSeason}
+        onStart={() => setScreen('game')}
+      />
+    </Suspense>
+  );
+}
+
   // ── Loading guard ─────────────────────────────────────────────────────────
   if (!userTeam) {
     return (
