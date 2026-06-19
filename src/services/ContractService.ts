@@ -730,6 +730,34 @@ export function removeFranchiseTag(playerId: number): SuccessResult {
   return { success: true };
 }
 
+export function acceptCounterOffer(
+  playerId: number, years: number, salary: number
+): SuccessResult {
+  const player = playerRepo.getById(playerId);
+  if (!player) return { success: false, reason: 'Player not found.' };
+
+  // Counter offers come with higher guaranteed money (player demanded the deal)
+  const guaranteedPct = Math.round(45 + Math.random() * 20);
+  contractRepo.update(
+    playerId, years, salary,
+    Math.round(salary * years * (guaranteedPct / 100) * 10) / 10,
+    guaranteedPct
+  );
+
+  const teamId = (player as any).team_id;
+  if (teamId) {
+    const t = db.prepare('SELECT city, name FROM teams WHERE id = ?').get(teamId) as any;
+    logNewsEvent({
+      eventType: 'resign', category: 'transactions',
+      headline: `${t?.city} ${t?.name} Re-sign ${player.first_name} ${player.last_name}`,
+      detail: `${player.position} · ${years}-yr / $${salary}M per year (counter offer accepted).`,
+      teamId, playerId,
+    });
+  }
+
+  return { success: true };
+}
+
 export function getOffseasonStatus(teamId: number | null): {
   playoffsComplete: boolean; pendingResigns: number;
   draftGenerated: boolean; draftComplete: boolean;
