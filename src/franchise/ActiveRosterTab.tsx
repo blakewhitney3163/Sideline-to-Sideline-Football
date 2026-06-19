@@ -39,7 +39,7 @@ export default function ActiveRosterTab({
   handleExtend, handleRelease, working,
 }: Props) {
   const filtered = contracts
-    .filter(c => posFilter === 'ALL' || c.position === posFilter)
+    .filter(c => posFilter === 'ALL' || (c.position_label || c.position) === posFilter)
     .filter(c => {
       if (!rosterSearch.trim()) return true;
       const q = rosterSearch.toLowerCase();
