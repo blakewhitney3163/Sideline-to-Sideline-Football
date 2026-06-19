@@ -21,7 +21,7 @@ const CATEGORIES: { id: StatCategory; label: string }[] = [
 ];
 
 export default function Stats() {
-  const { currentSeason } = useGameStore();
+  const { currentSeason, simCount } = useGameStore();
   const [stats, setStats] = useState<StatsData | null>(null);
   const [category, setCategory] = useState<StatCategory>('passing');
   const [defSubCat, setDefSubCat] = useState<DefSubCat>('tackles');
@@ -45,7 +45,7 @@ export default function Stats() {
   }, []);
 
   useEffect(() => { setViewSeason(currentSeason); }, [currentSeason]);
-  useEffect(() => { window.api.getStats(viewSeason).then((data: StatsData) => setStats(data)); }, [viewSeason]);
+  useEffect(() => { window.api.getStats(viewSeason).then((data: StatsData) => setStats(data)); }, [viewSeason, simCount]);
 
   useEffect(() => {
     if (viewMode === 'teams') {
