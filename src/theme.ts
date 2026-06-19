@@ -1,35 +1,35 @@
 // Central color palette — import as: import { T } from './theme';
 export const T = {
   // Backgrounds
-  bgPage:   '#444',
-  bgPanel:  '#4e4e4e',
-  bgCard:   '#585858',
-  bgInput:  '#474747',
-  bgDeep:   '#333',
+  bgPage:   '#0f172a',   // slate-900 — deep navy
+  bgPanel:  '#1e293b',   // slate-800 — card surface
+  bgCard:   '#263548',   // slate-750 — slightly raised
+  bgInput:  '#1a2535',   // input fields
+  bgDeep:   '#0a1120',   // deepest recesses / sidebars
 
-  // Borders — these were broken (same value as bgPage)
-  borderFaint:  '#5a5a5a',
-  borderMid:    '#686868',
-  borderStrong: '#787878',
+  // Borders
+  borderFaint:  '#1e293b',   // barely visible separator
+  borderMid:    '#334155',   // standard card border (slate-700)
+  borderStrong: '#475569',   // emphasis border (slate-600)
 
   // Text
-  textPrimary:   '#f0f0f0',
-  textSecondary: '#b5b5b5',
-  textMuted:     '#999',
-  textDim:       '#777',
+  textPrimary:   '#f1f5f9',   // slate-100 — headings / key values
+  textSecondary: '#cbd5e1',   // slate-300 — body copy
+  textMuted:     '#94a3b8',   // slate-400 — labels / secondary info
+  textDim:       '#64748b',   // slate-500 — de-emphasized / placeholders
 
-  // Accents (unchanged)
-  gold:   '#FFD700',
-  green:  '#4caf50',
-  blue:   '#4FC3F7',
-  orange: '#FF8740',
-  red:    '#e57373',
+  // Accents
+  gold:   '#fbbf24',   // amber-400
+  green:  '#4ade80',   // green-400
+  blue:   '#60a5fa',   // blue-400
+  orange: '#fb923c',   // orange-400
+  red:    '#f87171',   // red-400
 
-  // Tinted backgrounds — lightened to work with charcoal base
-  bgGreen:    '#2d4a35',
-  bgBlue:     '#2d3f5a',
-  bgOrange:   '#4a3020',
-  bgGold:     '#4a4020',
-  bgRed:      '#4a2525',
-  bgSelected: '#2d4570',
+  // Tinted backgrounds (dark, for badges / highlights)
+  bgGreen:    '#052e16',   // very dark green
+  bgBlue:     '#172554',   // very dark blue
+  bgOrange:   '#431407',   // very dark orange
+  bgGold:     '#3d2800',   // very dark amber
+  bgRed:      '#450a0a',   // very dark red
+  bgSelected: '#1e3a5f',   // selected row / active item
 } as const;
