@@ -79,13 +79,17 @@ function getHealthyByGroup(teamId: number, positionGroup: string, limit: number)
 
 function getTeamRatings(teamId: number): TeamRatings {
   const players = db.prepare(`
-    SELECT position, overall_rating FROM players
+    SELECT position, overall_rating, COALESCE(morale, 75) as morale FROM players
     WHERE team_id = ? AND injury_status NOT IN ('out', 'ir')
-  `).all(teamId) as { position: string; overall_rating: number }[];
+  `).all(teamId) as { position: string; overall_rating: number; morale: number }[];
+
+  const effOvr = (p: { overall_rating: number; morale: number }) =>
+    p.overall_rating * (1 + (p.morale - 75) * 0.001);
+
   const offense = players.filter(p => ['QB','RB','WR','TE','OL'].includes(p.position));
   const defense = players.filter(p => ['DL','LB','CB','S'].includes(p.position));
-  const offenseRating = offense.reduce((s, p) => s + p.overall_rating, 0) / (offense.length || 1);
-  const defenseRating = defense.reduce((s, p) => s + p.overall_rating, 0) / (defense.length || 1);
+  const offenseRating = offense.reduce((s, p) => s + effOvr(p), 0) / (offense.length || 1);
+  const defenseRating = defense.reduce((s, p) => s + effOvr(p), 0) / (defense.length || 1);
   return { offenseRating, defenseRating };
 }
 
