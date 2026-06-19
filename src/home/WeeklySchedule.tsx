@@ -12,35 +12,38 @@ interface Props {
   simulatingGameId: number | null;
   userTeam: UserTeam;
   psAlert: string | null;
-  setPSAlert: (v: string | null) => void;
-  handleViewWeek: (week: number) => void;
-  handleSimulateGame: (gameId: number) => void;
-  handleBoxScore: (gameId: number) => void;
+  onDismissAlert: (v: string | null) => void;
+  onSimulateWeek?: () => void;
+  onViewWeek: (week: number) => void;
+  onSimulateGame: (gameId: number) => void;
+  onBoxScore: (gameId: number) => void;
 }
 
 export default function WeeklySchedule({
   viewWeek, matchups, boxScore, boxScoreLoading,
   simulating, simulatingGameId, userTeam,
-  psAlert, setPSAlert,
-  handleViewWeek, handleSimulateGame, handleBoxScore,
+  psAlert, onDismissAlert,
+  onViewWeek, onSimulateGame, onBoxScore,
 }: Props) {
   const weekIsPlayed = matchups.length > 0 && matchups.every(m => m.is_simulated === 1);
 
   return (
     <>
       {/* Week navigation */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
         <button
-          onClick={() => handleViewWeek(viewWeek - 1)}
+          onClick={() => onViewWeek(viewWeek - 1)}
           disabled={viewWeek <= 1}
           style={{
             padding: '4px 12px', background: T.bgPanel, border: `1px solid ${T.borderMid}`,
             borderRadius: 4, color: viewWeek <= 1 ? T.borderStrong : T.textMuted,
             cursor: viewWeek <= 1 ? 'not-allowed' : 'pointer', fontSize: 12,
           }}>←</button>
-        <span style={{ color: T.textPrimary, fontWeight: 700, fontSize: 13, letterSpacing: 1 }}>WEEK {viewWeek}</span>
+        <span style={{ color: '#ccc', fontSize: 13, fontWeight: 700, flex: 1, textAlign: 'center' }}>
+          WEEK {viewWeek}
+        </span>
         <button
-          onClick={() => handleViewWeek(viewWeek + 1)}
+          onClick={() => onViewWeek(viewWeek + 1)}
           disabled={viewWeek >= 18}
           style={{
             padding: '4px 12px', background: T.bgPanel, border: `1px solid ${T.borderMid}`,
@@ -48,7 +51,12 @@ export default function WeeklySchedule({
             cursor: viewWeek >= 18 ? 'not-allowed' : 'pointer', fontSize: 12,
           }}>→</button>
         {matchups.length > 0 && (
-          <span style={{ color: weekIsPlayed ? T.textMuted : '#FF8740', fontSize: 10, letterSpacing: 1, marginLeft: 4 }}>
+          <span style={{
+            fontSize: 10, padding: '2px 8px', borderRadius: 3, letterSpacing: 0.5,
+            background: weekIsPlayed ? '#0a1a0a' : '#1a1400',
+            color: weekIsPlayed ? '#4caf50' : '#FFD700',
+            border: `1px solid ${weekIsPlayed ? '#2a4a2a' : '#3a3000'}`,
+          }}>
             ● {weekIsPlayed ? 'FINAL' : 'UPCOMING'}
           </span>
         )}
@@ -57,12 +65,14 @@ export default function WeeklySchedule({
       {/* PS Alert */}
       {psAlert && (
         <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          background: '#1a1000', border: '1px solid #FF8740', borderRadius: 6,
-          padding: '8px 12px', marginBottom: 10, fontSize: 12, color: '#FF8740',
+          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
+          background: '#1a1400', border: '1px solid #3a3000', borderRadius: 5, marginBottom: 10,
         }}>
-          <span>⚠ {psAlert}</span>
-          <button onClick={() => setPSAlert(null)} style={{ background: 'none', border: 'none', color: T.textDim, cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>✕</button>
+          <span style={{ color: '#FFD700', fontSize: 12 }}>⚠ {psAlert}</span>
+          <button onClick={() => onDismissAlert(null)} style={{
+            background: 'none', border: 'none', color: T.textDim, cursor: 'pointer',
+            fontSize: 16, lineHeight: 1, marginLeft: 'auto',
+          }}>✕</button>
         </div>
       )}
 
@@ -77,35 +87,40 @@ export default function WeeklySchedule({
 
           return (
             <div key={game.id} style={{
-              background: T.bgCard, border: `1px solid ${isUserGame && !played ? '#1a3a1a' : T.borderFaint}`,
-              borderRadius: 6, overflow: 'hidden',
+              background: isUserGame ? '#0d1a0d' : T.bgPanel,
+              border: `1px solid ${isUserGame ? '#1a3a1a' : T.borderFaint}`,
+              borderRadius: 5, overflow: 'hidden',
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '10px 12px', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '6px 10px', gap: 8 }}>
                 {/* Teams */}
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    {homeWon && <span style={{ color: '#4caf50', fontSize: 10 }}>▸</span>}
-                    <span style={{ color: homeWon ? '#4caf50' : T.textPrimary, fontWeight: homeWon ? 700 : 400, fontSize: 13 }}>{game.home_team}</span>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    {homeWon && <span style={{ color: '#4caf50', fontSize: 9 }}>▸</span>}
+                    <span style={{ color: homeWon ? '#ccc' : '#888', fontSize: 12 }}>{game.home_team}</span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    {awayWon && <span style={{ color: '#4caf50', fontSize: 10 }}>▸</span>}
-                    <span style={{ color: awayWon ? '#4caf50' : T.textPrimary, fontWeight: awayWon ? 700 : 400, fontSize: 13 }}>{game.away_team}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    {awayWon && <span style={{ color: '#4caf50', fontSize: 9 }}>▸</span>}
+                    <span style={{ color: awayWon ? '#ccc' : '#888', fontSize: 12 }}>{game.away_team}</span>
                   </div>
                 </div>
 
                 {/* Score or controls */}
                 {played ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                    <span style={{ color: homeWon ? '#4caf50' : T.textMuted, fontWeight: 700, fontSize: 16, fontFamily: 'monospace' }}>{game.home_score}</span>
-                    <span style={{ color: awayWon ? '#4caf50' : T.textMuted, fontWeight: 700, fontSize: 16, fontFamily: 'monospace' }}>{game.away_score}</span>
+                  <div style={{ textAlign: 'right', fontFamily: 'monospace' }}>
+                    <div style={{ color: homeWon ? '#fff' : '#555', fontSize: 13, fontWeight: homeWon ? 700 : 400 }}>{game.home_score}</div>
+                    <div style={{ color: awayWon ? '#fff' : '#555', fontSize: 13, fontWeight: awayWon ? 700 : 400 }}>{game.away_score}</div>
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                    <span style={{ color: isUserGame ? '#4caf50' : T.textDim, fontSize: 9, letterSpacing: 0.5 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{
+                      fontSize: 9, color: isUserGame ? '#4caf50' : T.textDim,
+                      border: `1px solid ${isUserGame ? '#2a4a2a' : T.borderFaint}`,
+                      borderRadius: 3, padding: '1px 5px', letterSpacing: 0.5,
+                    }}>
                       {isUserGame ? '◆ YOUR GAME' : 'PREVIEW'}
                     </span>
                     <button
-                      onClick={e => { e.stopPropagation(); handleSimulateGame(game.id); }}
+                      onClick={(e) => { e.stopPropagation(); onSimulateGame(game.id); }}
                       disabled={simulatingGameId !== null || simulating}
                       style={{
                         padding: '2px 8px', fontSize: 9,
@@ -123,7 +138,7 @@ export default function WeeklySchedule({
 
               {played && (
                 <button
-                  onClick={() => handleBoxScore(game.id)}
+                  onClick={() => onBoxScore(game.id)}
                   style={{
                     width: '100%', padding: '3px 0',
                     background: expanded ? T.bgGreen : T.bgPage,
@@ -141,9 +156,9 @@ export default function WeeklySchedule({
 
       {/* Box score expansion */}
       {(boxScore || boxScoreLoading) && (
-        <div style={{ marginTop: 12 }}>
+        <div style={{ marginTop: 8 }}>
           {boxScoreLoading
-            ? <div style={{ color: T.textMuted, fontSize: 12 }}>Loading box score...</div>
+            ? <div style={{ color: T.textMuted, fontSize: 11, padding: 8 }}>Loading box score...</div>
             : boxScore ? <BoxScore data={boxScore} /> : null}
         </div>
       )}
