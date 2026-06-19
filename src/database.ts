@@ -52,10 +52,18 @@ export function initDatabase(dbPath: string): void {
       speed INTEGER NOT NULL,
       strength INTEGER NOT NULL,
       awareness INTEGER NOT NULL,
-      team_id INTEGER,
-      is_free_agent INTEGER DEFAULT 0,
-      FOREIGN KEY (team_id) REFERENCES teams(id)
-    );
+        team_id INTEGER,
+  is_free_agent INTEGER DEFAULT 0,
+  roster_status TEXT DEFAULT 'active',
+  franchise_tagged INTEGER DEFAULT 0,
+  dev_trait TEXT DEFAULT 'Normal',
+  position_label TEXT,
+  injury_status TEXT DEFAULT 'healthy',
+  weeks_out INTEGER DEFAULT 0,
+  injury_type TEXT,
+  morale INTEGER DEFAULT 75,
+  FOREIGN KEY (team_id) REFERENCES teams(id)
+);
     CREATE TABLE IF NOT EXISTS games (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       season INTEGER NOT NULL,
