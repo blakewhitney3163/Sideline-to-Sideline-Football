@@ -11,11 +11,12 @@ CORE INFRASTRUCTURE
   draft_prospects, depth_chart, career_stats_history, hall_of_fame,
   historical_records, news_events, pick_assets, team_trade_overrides,
   player_milestones, dead_cap_entries, coaching_staff
-- Schema version: v5. Migration runner upgrades existing saves on launch.
+- Schema version: v6. Migration runner upgrades existing saves on launch.
   v2: stats denormalization (season/week/is_playoff)
   v3: franchise_tagged column on players
   v4: dead_cap_entries table
   v5: coaching_staff table
+  v6: combine measurables on draft_prospects (five REAL columns)
 - Auto-migrated columns on launch:
   players: position_label, dev_trait, roster_status, injury_status,
            weeks_out, injury_type, waived_by_team_id, waiver_placed_week,
@@ -29,7 +30,9 @@ CORE INFRASTRUCTURE
          fg_made, fg_att, xp_made, xp_att
   games: home_q1–q4, away_q1–q4, weather
   contracts: guaranteed_amount, guaranteed_pct
-  draft_prospects: scouted
+  draft_prospects: scouted,
+                   forty_time, bench_press, vertical_jump,
+                   broad_jump, cone_time [migration v6]
 - DB indexes on stats(game_id), stats(player_id), stats(team_id),
   stats(team_id, game_id), games(season), games(season, is_simulated)
 - player_milestones table — deduplication store with PRIMARY KEY
@@ -202,6 +205,26 @@ DRAFT TAB
 - Draft grades per pick: A / B / C / D / F vs. draft slot value
 - Post-draft summary; all picks logged to news feed
 
+DRAFT COMBINE / DEEPER SCOUTING
+────────────────────────────────────────────────────────────────────────────────
+- Five physical measurables stored per prospect in draft_prospects (migration v6):
+  forty_time (REAL), bench_press (REAL), vertical_jump (REAL),
+  broad_jump (REAL), cone_time (REAL)
+- Generated at draft class creation in draftHandlers.ts (generateCombine()):
+  - Position-specific distributions: skill positions skew faster 40 times;
+    OL/DL skew higher bench press reps; all positions get realistic noise
+  - Example ranges: QB 4.45–4.90s, OL bench 15–34 reps, WR vert 32–44"
+- Displayed inline in ProspectBoard.tsx beneath each prospect's name:
+  color-coded badges visible to all users without spending a scout point
+  (combine stats are public information; hidden OVR still requires scouting)
+- Color thresholds in draftUtils.ts:
+  fortyColor: gold ≤4.38s / green ≤4.50s / orange ≤4.65s
+  benchColor: gold ≥28 reps / green ≥22 / orange ≥15
+  vertColor:  gold ≥40" / green ≥36" / orange ≥32"
+  coneColor:  gold ≤6.80s / green ≤7.10s / orange ≤7.40s
+- COMBINE_PRIMARY map in draftUtils.ts labels the most important measurable
+  per position for quick reference
+
 STATS TAB
 ────────────────────────────────────────────────────────────────────────────────
 Player Stats: Passing, Rushing, Receiving, Defense (Tackles / Sacks /
@@ -239,10 +262,10 @@ GAME SIMULATION ENGINE
   derived to always match the scoreboard
 - Morale modifier: effective OVR = rating × (1 + (morale − 75) × 0.001)
 - Coaching modifier (applied in getTeamRatings):
-    OC offense_rating: offenseRating += (oc_rating − 70) × 0.15
-    DC defense_rating: defenseRating += (dc_rating − 70) × 0.15
-    HC overall_rating: both sides += (hc_rating − 70) × 0.05
-    A 90-rated OC = +3.0 to offense; a 55-rated DC = −2.25 to defense
+  OC offense_rating: offenseRating += (oc_rating − 70) × 0.15
+  DC defense_rating: defenseRating += (dc_rating − 70) × 0.15
+  HC overall_rating: both sides += (hc_rating − 70) × 0.05
+  A 90-rated OC = +3.0 to offense; a 55-rated DC = −2.25 to defense
 - Game script: trailing teams pass more; leading teams run more; desperation
   INTs increase when down 14+
 - Overtime: TD wins outright; FG gives opponent a chance; no ties
@@ -316,32 +339,32 @@ CPU GM INTELLIGENCE
 
 BACKEND IPC HANDLERS (full list)
 ────────────────────────────────────────────────────────────────────────────────
-balance-rosters      get-waiver-wire       claim-waiver
-get-standings        get-teams             get-roster
-get-player-stats     get-player-career-stats get-schedule
-get-dashboard        get-stats             get-hall-of-fame
-get-team-season-stats simulate-playoffs   get-playoffs
-get-champions        get-seasons           get-current-season
-advance-season       generate-schedule     get-current-week
-get-week-matchups    simulate-week         get-injury-report
-get-game-box-score   reset-dynasty         get-playoff-seeds
-get-user-team        set-user-team         get-team-status
-set-team-trade-status propose-trade        get-tradeable-picks
-get-cpu-trade-offer  accept-cpu-trade-offer get-team-contracts
-get-practice-squad   get-cap-summary       get-roster-spots
-sign-free-agent-to-ps get-free-agents      extend-player
-restructure-player   release-player        get-team-stats
-promote-from-ps      sign-free-agent       get-expiring-contracts
-resign-player        get-offseason-status  cpu-fa-signing
-generate-draft-class get-draft-class       get-draft-order
-get-round-pick-order make-draft-pick       scout-prospect
-get-scout-count      run-cpu-round         complete-draft
-get-depth-chart      set-depth-chart-order reset-depth-chart
-get-alltime-leaders  get-season-records    get-season-awards
-get-team-needs       check-setup-done      reset-save
-get-news-feed        get-news-seasons      simulate-game
-list-saves           open-save             delete-save
-edit-player          apply-franchise-tag   remove-franchise-tag
+balance-rosters get-waiver-wire claim-waiver
+get-standings get-teams get-roster
+get-player-stats get-player-career-stats get-schedule
+get-dashboard get-stats get-hall-of-fame
+get-team-season-stats simulate-playoffs get-playoffs
+get-champions get-seasons get-current-season
+advance-season generate-schedule get-current-week
+get-week-matchups simulate-week get-injury-report
+get-game-box-score reset-dynasty get-playoff-seeds
+get-user-team set-user-team get-team-status
+set-team-trade-status propose-trade get-tradeable-picks
+get-cpu-trade-offer accept-cpu-trade-offer get-team-contracts
+get-practice-squad get-cap-summary get-roster-spots
+sign-free-agent-to-ps get-free-agents extend-player
+restructure-player release-player get-team-stats
+promote-from-ps sign-free-agent get-expiring-contracts
+resign-player get-offseason-status cpu-fa-signing
+generate-draft-class get-draft-class get-draft-order
+get-round-pick-order make-draft-pick scout-prospect
+get-scout-count run-cpu-round complete-draft
+get-depth-chart set-depth-chart-order reset-depth-chart
+get-alltime-leaders get-season-records get-season-awards
+get-team-needs check-setup-done reset-save
+get-news-feed get-news-seasons simulate-game
+list-saves open-save delete-save
+edit-player apply-franchise-tag remove-franchise-tag
 accept-counter-offer get-dead-cap
-get-coaching-staff   get-available-coaches hire-coach
+get-coaching-staff get-available-coaches hire-coach
 fire-coach
