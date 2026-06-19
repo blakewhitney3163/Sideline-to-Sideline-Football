@@ -191,7 +191,7 @@ export default function ProspectBoard({
 
                 {/* Name + combine stats */}
                 <div>
-                  <div style={{ fontSize: 12, color: T.textBase, fontWeight: 500 }}>
+                  <div style={{ fontSize: 12, color: T.textPrimary, fontWeight: 500 }}>
                     {p.first_name} {p.last_name}
                   </div>
                   <div style={{ fontSize: 9, color: T.textDim, marginTop: 1 }}>Age {p.age}</div>
