@@ -331,6 +331,7 @@ export default function Franchise() {
           { key: 'roster',   label: `ACTIVE ROSTER (${contracts.length})`,                        warn: false },
           { key: 'ps',       label: `PRACTICE SQUAD (${practiceSquad.length})`,                   warn: false },
           { key: 'fa',       label: 'FREE AGENTS',                                                 warn: false },
+      { key: 'coaching' as const, label: 'COACHING STAFF', warn: false },
           ...(playoffsComplete ? [{ key: 'offseason' as const, label: expiringCount > 0 ? `OFFSEASON ⚠ ${expiringCount}` : 'OFFSEASON', warn: expiringCount > 0 }] : []),
         ] as const).map(tab => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={{
@@ -407,6 +408,14 @@ export default function Franchise() {
       working={working || tagWorking}
     />
   )}
+      {activeTab === 'coaching' && (
+  <CoachingTab
+    teamId={userTeam.id}
+    staff={staff}
+    onRefresh={loadData}
+    showToast={showToast}
+  />
+)}
 
     </div>
   );
