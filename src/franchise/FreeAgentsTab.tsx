@@ -213,11 +213,21 @@ export default function FreeAgentsTab({
             <div>
               <div style={{ color: '#555', fontSize: 10, marginBottom: 6 }}>ANNUAL SALARY (M)</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ color: '#555' }}>$</span>
-                <input type="text" inputMode="decimal" value={signSalary}
-  onChange={e => setSignSalary(e.target.value)}
-  placeholder="0.0" ... />
-                <span style={{ color: '#555' }}>M</span>
+               <span style={{ color: '#aaa', fontSize: 13 }}>$</span>
+<input
+  type="text"
+  inputMode="decimal"
+  value={signSalary}
+  onChange={(e) => setSignSalary(e.target.value)}
+  placeholder="0.0"
+  style={{
+    width: 80, padding: '4px 8px',
+    background: '#0a0a0a', border: '1px solid #2a2a2a',
+    borderRadius: 4, color: '#fff', fontSize: 14,
+    fontFamily: 'monospace', textAlign: 'right',
+  }}
+/>
+<span style={{ color: '#aaa', fontSize: 13 }}>M</span>
               </div>
               <div style={{ color: '#4FC3F7', fontSize: 10, marginTop: 4 }}>Market: {fmtSalary(mv)}/yr</div>
             </div>
