@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron';
-import { db } from '../database';
+import { db, getDbPath } from '../database';
 import { simulateGame } from '../simulateGame';
 import { getCurrentSeason } from '../helpers/getCurrentSeason';
 import { getDifficultyFactor } from './settingsHandlers';
@@ -31,16 +31,16 @@ function logGameNews(season: number, game: GameSummary, userTeamId: number): voi
   const awayTeamName = getTeamName(game.awayTeamId);
   const margin = Math.abs(game.homeScore - game.awayScore);
   const winnerName = game.homeScore > game.awayScore ? homeTeamName : awayTeamName;
-  const loserName  = game.homeScore > game.awayScore ? awayTeamName : homeTeamName;
+  const loserName = game.homeScore > game.awayScore ? awayTeamName : homeTeamName;
   const winnerScore = Math.max(game.homeScore, game.awayScore);
-  const loserScore  = Math.min(game.homeScore, game.awayScore);
+  const loserScore = Math.min(game.homeScore, game.awayScore);
   const involvesUser = game.homeTeamId === userTeamId || game.awayTeamId === userTeamId;
 
   if (involvesUser) {
-    const isHome    = game.homeTeamId === userTeamId;
+    const isHome = game.homeTeamId === userTeamId;
     const userScore = isHome ? game.homeScore : game.awayScore;
-    const oppScore  = isHome ? game.awayScore : game.homeScore;
-    const oppName   = isHome ? awayTeamName : homeTeamName;
+    const oppScore = isHome ? game.awayScore : game.homeScore;
+    const oppName = isHome ? awayTeamName : homeTeamName;
     logNewsEvent({
       season, category: 'game',
       title: `Week ${game.week}: ${winnerName} ${winnerScore}, ${loserName} ${loserScore}`,
@@ -68,8 +68,8 @@ function logGameNews(season: number, game: GameSummary, userTeamId: number): voi
 
     if (isQBStar) {
       const parts: string[] = [];
-      if (stat.pass_yards)    parts.push(`${stat.pass_yards} pass yds`);
-      if (stat.pass_tds)      parts.push(`${stat.pass_tds} TD`);
+      if (stat.pass_yards) parts.push(`${stat.pass_yards} pass yds`);
+      if (stat.pass_tds) parts.push(`${stat.pass_tds} TD`);
       if (stat.interceptions) parts.push(`${stat.interceptions} INT`);
       logNewsEvent({ season, category: 'game', title: `${p.first_name} ${p.last_name} — standout QB performance`, body: `Week ${game.week} | ${parts.join(', ')} | ${teamName}` });
     } else if (isRBStar) {
@@ -79,8 +79,8 @@ function logGameNews(season: number, game: GameSummary, userTeamId: number): voi
     } else if (isWRStar) {
       const parts: string[] = [];
       if (stat.receptions) parts.push(`${stat.receptions} rec`);
-      if (stat.rec_yards)  parts.push(`${stat.rec_yards} yds`);
-      if (stat.rec_tds)    parts.push(`${stat.rec_tds} TD`);
+      if (stat.rec_yards) parts.push(`${stat.rec_yards} yds`);
+      if (stat.rec_tds) parts.push(`${stat.rec_tds} TD`);
       logNewsEvent({ season, category: 'game', title: `${p.first_name} ${p.last_name} — standout receiving performance`, body: `Week ${game.week} | ${parts.join(', ')} | ${teamName}` });
     }
   }
@@ -140,10 +140,10 @@ export function registerSimHandlers(): void {
     db.prepare(`DELETE FROM games WHERE season = ? AND is_playoff = 1`).run(s);
 
     const allRecords = gameRepo.getAllRecords(s);
-const seedTeams = (conf: string) =>
-  (db.prepare(`SELECT id, city, name FROM teams WHERE conference = ?`).all(conf) as any[])
-  .map((t: any) => ({ ...t, wins: allRecords[t.id]?.wins ?? 0 }))
-  .sort((a: any, b: any) => b.wins - a.wins).slice(0, 7);
+    const seedTeams = (conf: string) =>
+      (db.prepare(`SELECT id, city, name FROM teams WHERE conference = ?`).all(conf) as any[])
+        .map((t: any) => ({ ...t, wins: allRecords[t.id]?.wins ?? 0 }))
+        .sort((a: any, b: any) => b.wins - a.wins).slice(0, 7);
 
     const insertGame = db.prepare(`
       INSERT INTO games
@@ -162,9 +162,9 @@ const seedTeams = (conf: string) =>
         r.weather ?? 'clear'
       );
       const winner = r.homeScore > r.awayScore ? home : away;
-      const loser  = r.homeScore > r.awayScore ? away : home;
+      const loser = r.homeScore > r.awayScore ? away : home;
       const winnerScore = Math.max(r.homeScore, r.awayScore);
-      const loserScore  = Math.min(r.homeScore, r.awayScore);
+      const loserScore = Math.min(r.homeScore, r.awayScore);
       logNewsEvent({
         season: s, category: 'game',
         title: `${roundLabel}: ${winner.city} ${winner.name} ${winnerScore}, ${loser.city} ${loser.name} ${loserScore}`,
@@ -176,13 +176,13 @@ const seedTeams = (conf: string) =>
     const afcTeams = seedTeams('AFC');
     const nfcTeams = seedTeams('NFC');
 
-    const afcWC   = [simGame(afcTeams[1], afcTeams[6], 18, 'AFC Wild Card'), simGame(afcTeams[2], afcTeams[5], 18, 'AFC Wild Card'), simGame(afcTeams[3], afcTeams[4], 18, 'AFC Wild Card')];
-    const nfcWC   = [simGame(nfcTeams[1], nfcTeams[6], 18, 'NFC Wild Card'), simGame(nfcTeams[2], nfcTeams[5], 18, 'NFC Wild Card'), simGame(nfcTeams[3], nfcTeams[4], 18, 'NFC Wild Card')];
-    const afcDiv  = [simGame(afcTeams[0], afcWC[2].winner, 19, 'AFC Divisional'), simGame(afcWC[0].winner, afcWC[1].winner, 19, 'AFC Divisional')];
-    const nfcDiv  = [simGame(nfcTeams[0], nfcWC[2].winner, 19, 'NFC Divisional'), simGame(nfcWC[0].winner, nfcWC[1].winner, 19, 'NFC Divisional')];
-    const afcChamp  = simGame(afcDiv[0].winner,  afcDiv[1].winner,  20, 'AFC Championship');
-    const nfcChamp  = simGame(nfcDiv[0].winner,  nfcDiv[1].winner,  20, 'NFC Championship');
-        const gridironCup = simGame(afcChamp.winner, nfcChamp.winner, 21, 'Gridiron Cup');
+    const afcWC = [simGame(afcTeams[1], afcTeams[6], 18, 'AFC Wild Card'), simGame(afcTeams[2], afcTeams[5], 18, 'AFC Wild Card'), simGame(afcTeams[3], afcTeams[4], 18, 'AFC Wild Card')];
+    const nfcWC = [simGame(nfcTeams[1], nfcTeams[6], 18, 'NFC Wild Card'), simGame(nfcTeams[2], nfcTeams[5], 18, 'NFC Wild Card'), simGame(nfcTeams[3], nfcTeams[4], 18, 'NFC Wild Card')];
+    const afcDiv = [simGame(afcTeams[0], afcWC[2].winner, 19, 'AFC Divisional'), simGame(afcWC[0].winner, afcWC[1].winner, 19, 'AFC Divisional')];
+    const nfcDiv = [simGame(nfcTeams[0], nfcWC[2].winner, 19, 'NFC Divisional'), simGame(nfcWC[0].winner, nfcWC[1].winner, 19, 'NFC Divisional')];
+    const afcChamp = simGame(afcDiv[0].winner, afcDiv[1].winner, 20, 'AFC Championship');
+    const nfcChamp = simGame(nfcDiv[0].winner, nfcDiv[1].winner, 20, 'NFC Championship');
+    const gridironCup = simGame(afcChamp.winner, nfcChamp.winner, 21, 'Gridiron Cup');
 
     db.prepare('INSERT OR REPLACE INTO champions (season, team_id) VALUES (?, ?)').run(s, gridironCup.winner.id);
 
@@ -250,8 +250,9 @@ const seedTeams = (conf: string) =>
       week,
       season,
       games,
-      userTeamId:       settingsRepo.getUserTeamId() ?? -1,
+      userTeamId: settingsRepo.getUserTeamId() ?? -1,
       difficultyFactor: getDifficultyFactor(),
+      dbPath: getDbPath(),
     });
   });
 
@@ -260,7 +261,7 @@ const seedTeams = (conf: string) =>
     if (!game) return { success: false, reason: 'Game not found.' };
     if (game.is_simulated) return { success: false, reason: 'Game already simulated.' };
 
-        const insertStat = db.prepare(`
+    const insertStat = db.prepare(`
       INSERT INTO stats
       (game_id, season, week, is_playoff, player_id, team_id,
        pass_attempts, completions, pass_yards, pass_tds,
@@ -276,7 +277,7 @@ const seedTeams = (conf: string) =>
     `);
 
     let gameResult: any;
-    const allStats: any[]  = [];
+    const allStats: any[] = [];
     const userTeamId = settingsRepo.getUserTeamId() ?? -1;
 
     db.transaction(() => {
@@ -292,9 +293,9 @@ const seedTeams = (conf: string) =>
       week: game.week ?? 1,
       homeTeamId: game.home_team_id,
       awayTeamId: game.away_team_id,
-      homeScore:  gameResult.homeScore,
-      awayScore:  gameResult.awayScore,
-      stats:      allStats,
+      homeScore: gameResult.homeScore,
+      awayScore: gameResult.awayScore,
+      stats: allStats,
     }, userTeamId);
 
     const weekComplete = gameRepo.countPendingInWeek(game.season, game.week) === 0;
@@ -351,7 +352,7 @@ const seedTeams = (conf: string) =>
     return { game, players };
   });
 
-    ipcMain.handle('get-playoff-seeds', () => {
+  ipcMain.handle('get-playoff-seeds', () => {
     const season = getCurrentSeason();
     const records = gameRepo.getAllRecords(season);
     const getSeeds = (conference: string) =>
