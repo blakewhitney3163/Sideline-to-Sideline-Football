@@ -5,88 +5,102 @@ Repository: https://github.com/blakewhitney3163/Gridiron-Dynasty
 
 TIER 1 — Core experience improvements
 ────────────────────────────────────────────────────────────────────────────────
-Meet the Team Screen — when first starting a dynasty, surface a roster
- overview: best players, overall ratings, team needs. Designed to orient
- the user before their first week.
-
 Surface Trade Offers on Main Screen — incoming CPU trade proposals visible
- from the Home tab alongside news. Also expose a place for users to update
- their own team status (Buyer / Seller / etc.) directly from the home screen.
+  from the Home tab alongside news. Also expose a place for users to update
+  their own team status (Buyer / Seller / etc.) directly from the home screen.
 
 Cleaner Pick Selection in Trades — make the draft pick trading UI more
- discoverable. Current flow is functional but not obvious.
+  discoverable. Current flow is functional but not obvious.
 
 TIER 2 — Strategic depth
 ────────────────────────────────────────────────────────────────────────────────
 Contract Negotiation Depth — multi-year offer counters, holdout mechanic,
- dead cap penalties on early releases. Contracts feel functional but not
- deeply strategic today.
+  dead cap penalties on early releases. Contracts feel functional but not
+  deeply strategic today.
 
 Coaching Staff System — OC/DC coordinators with ratings that affect team
- performance. Hiring and firing adds another management layer.
+  performance. Hiring and firing adds another management layer.
 
 Draft Combine / Deeper Scouting — measurables (40 time, bench press) that
- hint at hidden potential. Ties into the existing 25-point scouting system.
+  hint at hidden potential. Ties into the existing 25-point scouting system.
 
 Schemes — offensive and defensive scheme selection that shapes team identity
- and influences sim output (run-heavy, pass-heavy, zone vs. man, etc.).
+  and influences sim output (run-heavy, pass-heavy, zone vs. man, etc.).
 
 TIER 3 — Polish & replayability
 ────────────────────────────────────────────────────────────────────────────────
-Player Editor — manually edit player ratings, position, age, dev trait.
-
 Team Editor — edit team name, city, colors, conference/division.
-
-Playoff UI Update — bracket-style visual for the playoff tree with game
- scores, seeds, and champion display.
 
 League Customization — expansion teams, relocation, custom team names.
 
 In-Game Narrative / Play-by-Play — text play-by-play during simulation.
- Stats-only output today limits immersion significantly.
-
-Franchise Tag + Tender System — standard franchise mechanic missing today.
+  Stats-only output today limits immersion significantly.
 
 ================================================================================
 COMPLETED ITEMS
 ================================================================================
 
+[DONE June 19, 2026] Meet the Team Screen — orientation screen shown after
+  team selection on new dynasties. Displays team grade, offense/defense OVR,
+  cap space, top 10 players with dev trait badges, team needs, roster
+  snapshot, and getting-started tips. Transitions to main game via
+  "BEGIN DYNASTY →" button. Implemented in MeetTheTeam.tsx, wired into
+  App.tsx as the 'meet-team' screen state after setup completes.
+
+[DONE June 19, 2026] Franchise Tag + Tender System — Franchise Tag (FT,
+  ~135% of fair market) and Transition Tag (TT, ~110%) designations in the
+  Offseason tab. One of each per team per offseason. Tag Usage banner shows
+  Available/Used status. Applying a tag auto-resolves the player's re-sign
+  decision. Remove Tag releases the player to FA. Backed by
+  franchise_tagged column on players table (migration v3), applyFranchiseTag
+  / removeFranchiseTag in ContractService, IPC handlers, and preload exposure.
+
 [DONE June 19, 2026] Player Morale System — morale column on players table
- (default 75, range 0–100). Updated seasonally based on win%, contract
- status, and playing time. Visible as a colored bar on each Franchise tab
- player card (green 80+, orange 60–79, red <60). Wired into the sim engine
- via applyMoraleModifier — every game's getTeamRatings call applies a
- per-player (morale − 75) × 0.001 multiplier before averaging team strength.
+  (default 75, range 0–100). Updated seasonally based on win%, contract
+  status, and playing time. Visible as a colored bar on each Franchise tab
+  player card (green 80+, orange 60–79, red <60). Wired into the sim engine
+  via applyMoraleModifier — every game's getTeamRatings call applies a
+  per-player (morale − 75) × 0.001 multiplier before averaging team strength.
 
 [DONE June 19, 2026] Morale Bar on Franchise Player Cards — colored progress
- bar with numeric morale value displayed under each player's name in the
- Active Roster tab.
+  bar with numeric morale value displayed under each player's name in the
+  Active Roster tab.
 
 [DONE June 18, 2026] Season Awards — MVP, Offensive Player of the Year,
- Defensive Player of the Year, Offensive Rookie of the Year, Defensive
- Rookie of the Year, and Coach of the Year computed at season end.
- Displayed in SeasonAwardsView.tsx panel on the Home tab after playoffs.
- MVP and DPOY winners also generate news feed events.
+  Defensive Player of the Year, Offensive Rookie of the Year, Defensive
+  Rookie of the Year, and Coach of the Year computed at season end.
+  Displayed in SeasonAwardsView.tsx panel on the Home tab after playoffs.
+  MVP and DPOY winners also generate news feed events.
 
 [DONE June 18, 2026] Practice Squad Accelerated Development — PS players
- aged 23 or younger receive OVR gains each season (up to +3 bonus on top
- of normal progression). Rewards intentional roster building through the
- practice squad.
+  aged 23 or younger receive OVR gains each season (up to +3 bonus on top
+  of normal progression). Rewards intentional roster building through the
+  practice squad.
 
 [DONE June 18, 2026] Contract Demand News Events — elite players (OVR 85+)
- entering their final contract year automatically generate a news event
- demanding a new deal, adding urgency to offseason planning.
+  entering their final contract year automatically generate a news event
+  demanding a new deal, adding urgency to offseason planning.
 
 [DONE June 18, 2026] Retirement + HOF News Events — retirements and Hall
- of Fame inductions now generate news feed events at season end, keeping
- the news center populated with meaningful long-form story beats.
+  of Fame inductions now generate news feed events at season end, keeping
+  the news center populated with meaningful long-form story beats.
 
 [DONE June 18, 2026] Multiple Save Files — save picker at launch, lazy DB
- init via Proxy pattern, full save create / load / delete UI.
+  init via Proxy pattern, full save create / load / delete UI.
 
 [DONE June 18, 2026] OL Ratings in Teams / Depth Chart — getRatingCols now
- returns PBK / RBK / STR / AWR for all OL positions. runblocking and
- passblocking added to Player interface and get-roster SELECT.
+  returns PBK / RBK / STR / AWR for all OL positions. runblocking and
+  passblocking added to Player interface and get-roster SELECT.
+
+[DONE] Player Editor — manually edit player ratings, position, age, dev
+  trait. Inline edit mode in PlayerProfile.tsx with position-specific
+  attribute sliders (range 40–99), backed by edit-player IPC handler with
+  column allowlist in settingsHandlers.ts.
+
+[DONE] Playoff UI Update — bracket-style visual for the playoff tree with
+  game scores, seeds, and champion display. Implemented in Playoffs.tsx with
+  layout constants, SVG connector lines, and full Wild Card through
+  Gridiron Cup bracket rendering.
 
 ================================================================================
 COMMERCIAL / SCALABILITY TRACK
@@ -96,30 +110,30 @@ Items required before the game could be sold or distributed publicly.
 BLOCKING — Must fix before distribution
 ────────────────────────────────────────────────────────────────────────────────
 Code Signing + Auto-Update — Electron apps without code signing trigger OS
- security warnings (macOS Gatekeeper, Windows SmartScreen). Needs
- electron-builder code signing and electron-updater before public distribution.
+  security warnings (macOS Gatekeeper, Windows SmartScreen). Needs
+  electron-builder code signing and electron-updater before public distribution.
 
 Windows Build Verification — better-sqlite3 is a native module that must be
- built per platform. Needs a GitHub Actions CI workflow that builds and
- tests on Windows before Steam submission.
+  built per platform. Needs a GitHub Actions CI workflow that builds and
+  tests on Windows before Steam submission.
 
 IMPORTANT — Fix before growing the codebase further
 ────────────────────────────────────────────────────────────────────────────────
 Reduce `any` in IPC Handlers — most handler callbacks use `any` extensively.
- Needs typed request/response interfaces as the feature set grows.
+  Needs typed request/response interfaces as the feature set grows.
 
 Realistic Schedule Generation — current schedule is random matchups. Needs
- division-based scheduling (home/away splits, divisional games weighted).
+  division-based scheduling (home/away splits, divisional games weighted).
 
 FUTURE DEPTH — Required to compete with OOTP-tier games
 ────────────────────────────────────────────────────────────────────────────────
 Sim Speed Control — fast / slow / pause controls while simulation runs in
- background. Standard expectation in the genre.
+  background. Standard expectation in the genre.
 
 Multi-Season Batch Simulation — "Sim 5 seasons" with a progress bar.
 
 Per-Team Franchise History — records, retired numbers, dynasty timeline per
- team. Partial today (champions only).
+  team. Partial today (champions only).
 
 League Expansion / Relocation — add teams, move teams, custom identities.
 
@@ -127,14 +141,14 @@ League Expansion / Relocation — add teams, move teams, custom identities.
 PREVIOUSLY COMPLETED (June 18, 2026 and earlier)
 ================================================================================
 [DONE] DB Indexes — idx_stats_game_id, idx_stats_player_id, idx_stats_team_id,
- idx_stats_team_game, idx_games_season, idx_games_season_sim added.
+  idx_stats_team_game, idx_games_season, idx_games_season_sim added.
 [DONE] Migration Versioning — schema_version tracked in settings; numbered
- migration runner upgrades existing saves on launch.
+  migration runner upgrades existing saves on launch.
 [DONE] Background Simulation — simulateGame runs in a worker thread.
 [DONE] Full IP Cleanup — all real NFL data removed. Fictional player generator.
- Championship renamed Gridiron Cup. App renamed Gridiron Dynasty.
+  Championship renamed Gridiron Cup. App renamed Gridiron Dynasty.
 [DONE] Automated Tests — Vitest suite covering sim helpers, game sim logic,
- season progression, trade value, contract acceptance, milestones, CPU GM,
- and team stats.
+  season progression, trade value, contract acceptance, milestones, CPU GM,
+  and team stats.
 [DONE] CSV Import System — custom roster, historical records, and player data
- import UI with column mapping and validation.
+  import UI with column mapping and validation.
