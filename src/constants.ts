@@ -37,8 +37,11 @@ export const POSITION_TO_GROUP: Record<string, string> = {
   DE: 'DE', LE: 'DE', RE: 'DE',
   DT: 'DT', IDL: 'DT',
   DL: 'DE', // fallback for unlabeled DL players
-  // LB / DB / K
-  MLB: 'LB', OLB: 'LB', LOLB: 'LB', ROLB: 'LB', WILL: 'LB', MIKE: 'LB', LB: 'LB',
+  // LB — split into MLB and OLB
+  MLB: 'MLB', MIKE: 'MLB', WILL: 'MLB',
+  OLB: 'OLB', LOLB: 'OLB', ROLB: 'OLB',
+  LB: 'MLB',  // fallback for unlabeled LB players
+  // DB / K
   CB: 'CB',
   FS: 'S', SS: 'S', S: 'S',
   K: 'K',
