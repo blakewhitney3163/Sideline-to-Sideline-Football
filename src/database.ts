@@ -1,9 +1,6 @@
 import Database from 'better-sqlite3';
 
 // ─── Lazy DB singleton ────────────────────────────────────────────────────────
-// All modules import `db` from here. The Proxy delegates every call to `_db`
-// once initDatabase() has been called. Zero changes needed in repos/services.
-
 let _db: Database.Database | null = null;
 
 export const db = new Proxy({} as Database.Database, {
@@ -22,10 +19,6 @@ export const db = new Proxy({} as Database.Database, {
 export function isDatabaseInitialized(): boolean {
   return _db !== null;
 }
-
-// ─── Init ─────────────────────────────────────────────────────────────────────
-// Called once from saveHandlers after the user picks or creates a save file.
-// Everything below is identical to the previous module-level setup — just gated.
 
 export function initDatabase(dbPath: string): void {
   _db = new Database(dbPath);
@@ -52,18 +45,18 @@ export function initDatabase(dbPath: string): void {
       speed INTEGER NOT NULL,
       strength INTEGER NOT NULL,
       awareness INTEGER NOT NULL,
-        team_id INTEGER,
-  is_free_agent INTEGER DEFAULT 0,
-  roster_status TEXT DEFAULT 'active',
-  franchise_tagged INTEGER DEFAULT 0,
-  dev_trait TEXT DEFAULT 'Normal',
-  position_label TEXT,
-  injury_status TEXT DEFAULT 'healthy',
-  weeks_out INTEGER DEFAULT 0,
-  injury_type TEXT,
-  morale INTEGER DEFAULT 75,
-  FOREIGN KEY (team_id) REFERENCES teams(id)
-);
+      team_id INTEGER,
+      is_free_agent INTEGER DEFAULT 0,
+      roster_status TEXT DEFAULT 'active',
+      franchise_tagged INTEGER DEFAULT 0,
+      dev_trait TEXT DEFAULT 'Normal',
+      position_label TEXT,
+      injury_status TEXT DEFAULT 'healthy',
+      weeks_out INTEGER DEFAULT 0,
+      injury_type TEXT,
+      morale INTEGER DEFAULT 75,
+      FOREIGN KEY (team_id) REFERENCES teams(id)
+    );
     CREATE TABLE IF NOT EXISTS games (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       season INTEGER NOT NULL,
@@ -74,6 +67,15 @@ export function initDatabase(dbPath: string): void {
       away_score INTEGER,
       is_playoff INTEGER DEFAULT 0,
       is_simulated INTEGER DEFAULT 0,
+      home_q1 INTEGER DEFAULT 0,
+      home_q2 INTEGER DEFAULT 0,
+      home_q3 INTEGER DEFAULT 0,
+      home_q4 INTEGER DEFAULT 0,
+      away_q1 INTEGER DEFAULT 0,
+      away_q2 INTEGER DEFAULT 0,
+      away_q3 INTEGER DEFAULT 0,
+      away_q4 INTEGER DEFAULT 0,
+      weather TEXT,
       FOREIGN KEY (home_team_id) REFERENCES teams(id),
       FOREIGN KEY (away_team_id) REFERENCES teams(id)
     );
@@ -82,6 +84,9 @@ export function initDatabase(dbPath: string): void {
       game_id INTEGER NOT NULL,
       player_id INTEGER NOT NULL,
       team_id INTEGER NOT NULL,
+      season INTEGER,
+      week INTEGER,
+      is_playoff INTEGER DEFAULT 0,
       pass_attempts INTEGER DEFAULT 0,
       completions INTEGER DEFAULT 0,
       pass_yards INTEGER DEFAULT 0,
@@ -93,34 +98,33 @@ export function initDatabase(dbPath: string): void {
       targets INTEGER DEFAULT 0,
       receptions INTEGER DEFAULT 0,
       rec_yards INTEGER DEFAULT 0,
-        rec_tds INTEGER DEFAULT 0,
-  tackles INTEGER DEFAULT 0,
-  assisted_tackles INTEGER DEFAULT 0,
-  sacks REAL DEFAULT 0,
-  tfl INTEGER DEFAULT 0,
-  forced_fumbles INTEGER DEFAULT 0,
-  fumble_recoveries INTEGER DEFAULT 0,
-  def_interceptions INTEGER DEFAULT 0,
-  pass_deflections INTEGER DEFAULT 0,
-  def_tds INTEGER DEFAULT 0,
-  fg_made INTEGER DEFAULT 0,
-  fg_att INTEGER DEFAULT 0,
-  xp_made INTEGER DEFAULT 0,
-  xp_att INTEGER DEFAULT 0,
-  season INTEGER,
-  week INTEGER,
-  is_playoff INTEGER DEFAULT 0,
-  FOREIGN KEY (game_id) REFERENCES games(id),
-  FOREIGN KEY (player_id) REFERENCES players(id),
-  FOREIGN KEY (team_id) REFERENCES teams(id)
-);
-CREATE TABLE IF NOT EXISTS contracts (
+      rec_tds INTEGER DEFAULT 0,
+      tackles INTEGER DEFAULT 0,
+      assisted_tackles INTEGER DEFAULT 0,
+      sacks REAL DEFAULT 0,
+      tfl INTEGER DEFAULT 0,
+      forced_fumbles INTEGER DEFAULT 0,
+      fumble_recoveries INTEGER DEFAULT 0,
+      def_interceptions INTEGER DEFAULT 0,
+      pass_deflections INTEGER DEFAULT 0,
+      def_tds INTEGER DEFAULT 0,
+      fg_made INTEGER DEFAULT 0,
+      fg_att INTEGER DEFAULT 0,
+      xp_made INTEGER DEFAULT 0,
+      xp_att INTEGER DEFAULT 0,
+      FOREIGN KEY (game_id) REFERENCES games(id),
+      FOREIGN KEY (player_id) REFERENCES players(id),
+      FOREIGN KEY (team_id) REFERENCES teams(id)
+    );
+    CREATE TABLE IF NOT EXISTS contracts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       player_id INTEGER NOT NULL,
       team_id INTEGER NOT NULL,
       years_total INTEGER NOT NULL,
       years_remaining INTEGER NOT NULL,
       annual_salary REAL NOT NULL,
+      guaranteed_amount REAL DEFAULT 0,
+      guaranteed_pct REAL DEFAULT 0,
       FOREIGN KEY (player_id) REFERENCES players(id),
       FOREIGN KEY (team_id) REFERENCES teams(id)
     );
@@ -146,11 +150,12 @@ CREATE TABLE IF NOT EXISTS contracts (
       draft_round INTEGER,
       draft_pick INTEGER,
       drafted_by_team_id INTEGER,
-          forty_time REAL,
-    bench_press INTEGER,
-    vertical_jump REAL,
-    broad_jump INTEGER,
-    cone_time REAL
+      forty_time REAL,
+      bench_press INTEGER,
+      vertical_jump REAL,
+      broad_jump INTEGER,
+      cone_time REAL,
+      scouted INTEGER DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS depth_chart (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -299,11 +304,11 @@ CREATE TABLE IF NOT EXISTS contracts (
       years_remaining INTEGER NOT NULL DEFAULT 2
     );
     CREATE TABLE IF NOT EXISTS team_schemes (
-  team_id INTEGER PRIMARY KEY,
-  offense_scheme TEXT NOT NULL DEFAULT 'West Coast',
-  defense_scheme TEXT NOT NULL DEFAULT '4-3',
-  FOREIGN KEY (team_id) REFERENCES teams(id)
-);
+      team_id INTEGER PRIMARY KEY,
+      offense_scheme TEXT NOT NULL DEFAULT 'West Coast',
+      defense_scheme TEXT NOT NULL DEFAULT '4-3',
+      FOREIGN KEY (team_id) REFERENCES teams(id)
+    );
   `);
 
   // ── Indexes ──────────────────────────────────────────────────────────────────
@@ -312,6 +317,7 @@ CREATE TABLE IF NOT EXISTS contracts (
     CREATE INDEX IF NOT EXISTS idx_stats_player_id ON stats(player_id);
     CREATE INDEX IF NOT EXISTS idx_stats_team_id ON stats(team_id);
     CREATE INDEX IF NOT EXISTS idx_stats_team_game ON stats(team_id, game_id);
+    CREATE INDEX IF NOT EXISTS idx_stats_season_playoff ON stats(season, is_playoff);
     CREATE INDEX IF NOT EXISTS idx_games_season ON games(season);
     CREATE INDEX IF NOT EXISTS idx_games_season_sim ON games(season, is_simulated);
     CREATE INDEX IF NOT EXISTS idx_games_season_week ON games(season, week, is_playoff);
@@ -322,15 +328,58 @@ CREATE TABLE IF NOT EXISTS contracts (
     CREATE INDEX IF NOT EXISTS idx_depth_team_group ON depth_chart(team_id, position_group);
     CREATE INDEX IF NOT EXISTS idx_picks_owner_season ON pick_assets(owner_team_id, season);
     CREATE INDEX IF NOT EXISTS idx_prospects_season ON draft_prospects(season);
+    CREATE INDEX IF NOT EXISTS idx_players_team_status ON players(team_id, roster_status);
+    CREATE INDEX IF NOT EXISTS idx_players_status ON players(roster_status);
   `);
 
-  // ── Player Column Migrations ─────────────────────────────────────────────────
-  const playerCols: any[] = _db.prepare('PRAGMA table_info(players)').all() as any[];
+  // ── Runtime Column Migrations (safe on any DB version) ───────────────────────
+  // Stats table
+  const statCols = (_db.prepare('PRAGMA table_info(stats)').all() as any[]).map((c: any) => c.name);
+  const statMigrations: [string, string][] = [
+    ['season', 'INTEGER'],
+    ['week', 'INTEGER'],
+    ['is_playoff', 'INTEGER DEFAULT 0'],
+    ['tackles', 'INTEGER DEFAULT 0'],
+    ['assisted_tackles', 'INTEGER DEFAULT 0'],
+    ['sacks', 'REAL DEFAULT 0'],
+    ['tfl', 'INTEGER DEFAULT 0'],
+    ['forced_fumbles', 'INTEGER DEFAULT 0'],
+    ['fumble_recoveries', 'INTEGER DEFAULT 0'],
+    ['def_interceptions', 'INTEGER DEFAULT 0'],
+    ['pass_deflections', 'INTEGER DEFAULT 0'],
+    ['def_tds', 'INTEGER DEFAULT 0'],
+    ['fg_made', 'INTEGER DEFAULT 0'],
+    ['fg_att', 'INTEGER DEFAULT 0'],
+    ['xp_made', 'INTEGER DEFAULT 0'],
+    ['xp_att', 'INTEGER DEFAULT 0'],
+  ];
+  for (const [col, type] of statMigrations) {
+    if (!statCols.includes(col))
+      _db.prepare(`ALTER TABLE stats ADD COLUMN ${col} ${type}`).run();
+  }
 
-  if (!playerCols.find(c => c.name === 'position_label'))
+  // Games table
+  const gameCols = (_db.prepare('PRAGMA table_info(games)').all() as any[]).map((c: any) => c.name);
+  const gameColMigrations: [string, string][] = [
+    ['home_q1', 'INTEGER DEFAULT 0'], ['home_q2', 'INTEGER DEFAULT 0'],
+    ['home_q3', 'INTEGER DEFAULT 0'], ['home_q4', 'INTEGER DEFAULT 0'],
+    ['away_q1', 'INTEGER DEFAULT 0'], ['away_q2', 'INTEGER DEFAULT 0'],
+    ['away_q3', 'INTEGER DEFAULT 0'], ['away_q4', 'INTEGER DEFAULT 0'],
+    ['weather', 'TEXT'],
+  ];
+  for (const [col, type] of gameColMigrations) {
+    if (!gameCols.includes(col))
+      _db.prepare(`ALTER TABLE games ADD COLUMN ${col} ${type}`).run();
+  }
+
+  // Players table
+  const playerCols: any[] = _db.prepare('PRAGMA table_info(players)').all() as any[];
+  const playerColNames = playerCols.map((c: any) => c.name);
+
+  if (!playerColNames.includes('position_label'))
     _db.prepare('ALTER TABLE players ADD COLUMN position_label TEXT').run();
 
-  if (!playerCols.find(c => c.name === 'dev_trait')) {
+  if (!playerColNames.includes('dev_trait')) {
     _db.prepare("ALTER TABLE players ADD COLUMN dev_trait TEXT DEFAULT 'Normal'").run();
     const allPlayers = _db.prepare('SELECT id, overall_rating FROM players').all() as any[];
     const assignTrait = _db.prepare('UPDATE players SET dev_trait = ? WHERE id = ?');
@@ -348,83 +397,55 @@ CREATE TABLE IF NOT EXISTS contracts (
     })();
   }
 
-    if (!playerCols.find(c => c.name === 'roster_status')) {
+  if (!playerColNames.includes('roster_status')) {
     _db.prepare("ALTER TABLE players ADD COLUMN roster_status TEXT DEFAULT 'active'").run();
     _db.prepare("UPDATE players SET roster_status = 'free_agent' WHERE is_free_agent = 1").run();
     _db.prepare("UPDATE players SET roster_status = 'active' WHERE is_free_agent = 0 AND team_id IS NOT NULL").run();
   }
-  _db.exec(`
-    CREATE INDEX IF NOT EXISTS idx_players_team_status ON players(team_id, roster_status);
-    CREATE INDEX IF NOT EXISTS idx_players_status ON players(roster_status);
-  `);
 
-  const basicPlayerCols = ['injury_status', 'weeks_out', 'injury_type', 'waived_by_team_id', 'waiver_placed_week', 'morale'];
-  const basicPlayerDefs: Record<string, string> = {
-    injury_status: "TEXT DEFAULT 'healthy'", weeks_out: 'INTEGER DEFAULT 0',
-    injury_type: 'TEXT', waived_by_team_id: 'INTEGER', waiver_placed_week: 'INTEGER',
-    morale: 'INTEGER DEFAULT 75',
-  };
-  const playerColNames = (playerCols.length ? playerCols : (_db.prepare('PRAGMA table_info(players)').all() as any[])).map((c: any) => c.name);
-  for (const col of basicPlayerCols) {
-    if (!playerColNames.includes(col))
-      _db.prepare(`ALTER TABLE players ADD COLUMN ${col} ${basicPlayerDefs[col]}`).run();
+  if (!playerColNames.includes('franchise_tagged'))
+    _db.prepare('ALTER TABLE players ADD COLUMN franchise_tagged INTEGER DEFAULT 0').run();
+
+  const basicPlayerExtras: [string, string][] = [
+    ['injury_status', "TEXT DEFAULT 'healthy'"],
+    ['weeks_out', 'INTEGER DEFAULT 0'],
+    ['injury_type', 'TEXT'],
+    ['waived_by_team_id', 'INTEGER'],
+    ['waiver_placed_week', 'INTEGER'],
+    ['morale', 'INTEGER DEFAULT 75'],
+  ];
+  const freshPlayerCols1 = (_db.prepare('PRAGMA table_info(players)').all() as any[]).map((c: any) => c.name);
+  for (const [col, def] of basicPlayerExtras) {
+    if (!freshPlayerCols1.includes(col))
+      _db.prepare(`ALTER TABLE players ADD COLUMN ${col} ${def}`).run();
   }
 
   const maddenCols = [
-    'agility','acceleration','stamina','toughness','injury','jumping','trucking',
-    'changeofdirection','playrecognition','throwpower','throwaccuracyshort',
-    'throwaccuracymid','throwaccuracydeep','playaction','throwonrun','carrying',
-    'ballcarriervision','stiffarm','spinmove','jukemove','catching',
-    'shortrouterunning','midrouterunning','deeprouterunning','spectacularcatch',
-    'catchintraffic','release','runblocking','passblocking','impactblocking',
-    'mancoverage','zonecoverage','tackle','hitpower','press','pursuit',
-    'kickaccuracy','kickpower','kick_return','jerseynumber','yearspro',
-    'throw_accuracy','throw_power','route_running','tackle_rating',
-    'coverage','pass_rush','kick_power','kick_accuracy',
+    'agility', 'acceleration', 'stamina', 'toughness', 'injury', 'jumping', 'trucking',
+    'changeofdirection', 'playrecognition', 'throwpower', 'throwaccuracyshort',
+    'throwaccuracymid', 'throwaccuracydeep', 'playaction', 'throwonrun', 'carrying',
+    'ballcarriervision', 'stiffarm', 'spinmove', 'jukemove', 'catching',
+    'shortrouterunning', 'midrouterunning', 'deeprouterunning', 'spectacularcatch',
+    'catchintraffic', 'release', 'runblocking', 'passblocking', 'impactblocking',
+    'mancoverage', 'zonecoverage', 'tackle', 'hitpower', 'press', 'pursuit',
+    'kickaccuracy', 'kickpower', 'kick_return', 'jerseynumber', 'yearspro',
+    'throw_accuracy', 'throw_power', 'route_running', 'tackle_rating',
+    'coverage', 'pass_rush', 'kick_power', 'kick_accuracy',
   ];
-  const freshPlayerCols = (_db.prepare('PRAGMA table_info(players)').all() as any[]).map((c: any) => c.name);
+  const freshPlayerCols2 = (_db.prepare('PRAGMA table_info(players)').all() as any[]).map((c: any) => c.name);
   for (const col of maddenCols) {
-    if (!freshPlayerCols.includes(col))
+    if (!freshPlayerCols2.includes(col))
       _db.prepare(`ALTER TABLE players ADD COLUMN ${col} INTEGER DEFAULT 0`).run();
   }
 
-  // ── Stats Column Migrations ──────────────────────────────────────────────────
-  const statCols = (_db.prepare('PRAGMA table_info(stats)').all() as any[]).map((c: any) => c.name);
-  const statMigrations: [string, string][] = [
-    ['tackles','INTEGER DEFAULT 0'],['assisted_tackles','INTEGER DEFAULT 0'],
-    ['sacks','REAL DEFAULT 0'],['tfl','INTEGER DEFAULT 0'],
-    ['forced_fumbles','INTEGER DEFAULT 0'],['fumble_recoveries','INTEGER DEFAULT 0'],
-    ['def_interceptions','INTEGER DEFAULT 0'],['pass_deflections','INTEGER DEFAULT 0'],
-    ['def_tds','INTEGER DEFAULT 0'],['fg_made','INTEGER DEFAULT 0'],
-    ['fg_att','INTEGER DEFAULT 0'],['xp_made','INTEGER DEFAULT 0'],['xp_att','INTEGER DEFAULT 0'],
-  ];
-  for (const [col, type] of statMigrations) {
-    if (!statCols.includes(col))
-      _db.prepare(`ALTER TABLE stats ADD COLUMN ${col} ${type}`).run();
-  }
-
-  // ── Games Column Migrations ──────────────────────────────────────────────────
-  const gameCols = (_db.prepare('PRAGMA table_info(games)').all() as any[]).map((c: any) => c.name);
-  const gameColMigrations: [string, string][] = [
-    ['home_q1','INTEGER DEFAULT 0'],['home_q2','INTEGER DEFAULT 0'],
-    ['home_q3','INTEGER DEFAULT 0'],['home_q4','INTEGER DEFAULT 0'],
-    ['away_q1','INTEGER DEFAULT 0'],['away_q2','INTEGER DEFAULT 0'],
-    ['away_q3','INTEGER DEFAULT 0'],['away_q4','INTEGER DEFAULT 0'],
-    ['weather','TEXT'],
-  ];
-  for (const [col, type] of gameColMigrations) {
-    if (!gameCols.includes(col))
-      _db.prepare(`ALTER TABLE games ADD COLUMN ${col} ${type}`).run();
-  }
-
-  // ── Contract Column Migrations ───────────────────────────────────────────────
+  // Contracts table
   const contractCols = (_db.prepare('PRAGMA table_info(contracts)').all() as any[]).map((c: any) => c.name);
   if (!contractCols.includes('guaranteed_amount'))
     _db.prepare('ALTER TABLE contracts ADD COLUMN guaranteed_amount REAL DEFAULT 0').run();
   if (!contractCols.includes('guaranteed_pct'))
     _db.prepare('ALTER TABLE contracts ADD COLUMN guaranteed_pct REAL DEFAULT 0').run();
 
-  // ── Draft Prospects Column Migrations ────────────────────────────────────────
+  // Draft prospects table
   const prospectCols = (_db.prepare('PRAGMA table_info(draft_prospects)').all() as any[]).map((c: any) => c.name);
   if (!prospectCols.includes('scouted'))
     _db.prepare('ALTER TABLE draft_prospects ADD COLUMN scouted INTEGER DEFAULT 0').run();
@@ -486,7 +507,7 @@ export function generateContracts(): void {
     for (const p of activePlayers) {
       const [minSal, maxSal] = SAL_RANGES[p.position] ?? [1.0, 15];
       const ovrFactor = Math.pow(Math.max(0, (p.overall_rating - 70)) / 29, 2.5);
-      let salary = Math.round((minSal + ovrFactor * (maxSal - minSal)) * (TRAIT_PREMIUM[p.dev_trait] ?? 1.0) * 10) / 10;
+      const salary = Math.round((minSal + ovrFactor * (maxSal - minSal)) * (TRAIT_PREMIUM[p.dev_trait] ?? 1.0) * 10) / 10;
       const yearsTotal =
         p.age <= 24 ? (Math.random() < 0.5 ? 5 : 4) :
         p.age <= 27 ? (Math.random() < 0.4 ? 5 : Math.random() < 0.6 ? 4 : 3) :
@@ -577,32 +598,32 @@ const MIGRATIONS: Migration[] = [
       `);
     },
   },
-    {
+  {
     version: 6,
     description: 'Add combine measurables to draft_prospects',
     up: () => {
       const cols = (db.prepare('PRAGMA table_info(draft_prospects)').all() as any[]).map((c: any) => c.name);
-      if (!cols.includes('forty_time'))    db.prepare('ALTER TABLE draft_prospects ADD COLUMN forty_time REAL').run();
-      if (!cols.includes('bench_press'))   db.prepare('ALTER TABLE draft_prospects ADD COLUMN bench_press INTEGER').run();
+      if (!cols.includes('forty_time')) db.prepare('ALTER TABLE draft_prospects ADD COLUMN forty_time REAL').run();
+      if (!cols.includes('bench_press')) db.prepare('ALTER TABLE draft_prospects ADD COLUMN bench_press INTEGER').run();
       if (!cols.includes('vertical_jump')) db.prepare('ALTER TABLE draft_prospects ADD COLUMN vertical_jump REAL').run();
-      if (!cols.includes('broad_jump'))    db.prepare('ALTER TABLE draft_prospects ADD COLUMN broad_jump INTEGER').run();
-      if (!cols.includes('cone_time'))     db.prepare('ALTER TABLE draft_prospects ADD COLUMN cone_time REAL').run();
+      if (!cols.includes('broad_jump')) db.prepare('ALTER TABLE draft_prospects ADD COLUMN broad_jump INTEGER').run();
+      if (!cols.includes('cone_time')) db.prepare('ALTER TABLE draft_prospects ADD COLUMN cone_time REAL').run();
     },
   },
   {
-  version: 7,
-  description: 'Add team_schemes table for Offensive and Defensive Schemes system',
-  up: () => {
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS team_schemes (
-        team_id INTEGER PRIMARY KEY,
-        offense_scheme TEXT NOT NULL DEFAULT 'West Coast',
-        defense_scheme TEXT NOT NULL DEFAULT '4-3',
-        FOREIGN KEY (team_id) REFERENCES teams(id)
-      )
-    `);
+    version: 7,
+    description: 'Add team_schemes table for Offensive and Defensive Schemes system',
+    up: () => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS team_schemes (
+          team_id INTEGER PRIMARY KEY,
+          offense_scheme TEXT NOT NULL DEFAULT 'West Coast',
+          defense_scheme TEXT NOT NULL DEFAULT '4-3',
+          FOREIGN KEY (team_id) REFERENCES teams(id)
+        )
+      `);
+    },
   },
-},
 ];
 
 function getSchemaVersion(): number {
