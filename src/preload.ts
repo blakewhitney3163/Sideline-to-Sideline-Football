@@ -247,6 +247,12 @@ getScoutCount: () =>
   removeFranchiseTag: (playerId: number) =>
     ipcRenderer.invoke('remove-franchise-tag', playerId),
 
+    acceptCounterOffer: (payload: { playerId: number; years: number; salary: number }) =>
+    ipcRenderer.invoke('accept-counter-offer', payload),
+
+  getDeadCap: (teamId: number) =>
+    ipcRenderer.invoke('get-dead-cap', teamId),
+
   // Custom Data Imports
   importCustomTeams: () =>
     ipcRenderer.invoke('import-custom-teams'),
