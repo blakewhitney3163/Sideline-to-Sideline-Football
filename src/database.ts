@@ -299,8 +299,6 @@ export function initDatabase(dbPath: string): void {
     CREATE INDEX IF NOT EXISTS idx_games_season ON games(season);
     CREATE INDEX IF NOT EXISTS idx_games_season_sim ON games(season, is_simulated);
     CREATE INDEX IF NOT EXISTS idx_games_season_week ON games(season, week, is_playoff);
-    CREATE INDEX IF NOT EXISTS idx_players_team_status ON players(team_id, roster_status);
-    CREATE INDEX IF NOT EXISTS idx_players_status ON players(roster_status);
     CREATE INDEX IF NOT EXISTS idx_news_season_week ON news_events(season, week);
     CREATE INDEX IF NOT EXISTS idx_career_stats_player ON career_stats_history(player_id);
     CREATE INDEX IF NOT EXISTS idx_contracts_team ON contracts(team_id);
@@ -334,11 +332,15 @@ export function initDatabase(dbPath: string): void {
     })();
   }
 
-  if (!playerCols.find(c => c.name === 'roster_status')) {
+    if (!playerCols.find(c => c.name === 'roster_status')) {
     _db.prepare("ALTER TABLE players ADD COLUMN roster_status TEXT DEFAULT 'active'").run();
     _db.prepare("UPDATE players SET roster_status = 'free_agent' WHERE is_free_agent = 1").run();
     _db.prepare("UPDATE players SET roster_status = 'active' WHERE is_free_agent = 0 AND team_id IS NOT NULL").run();
   }
+  _db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_players_team_status ON players(team_id, roster_status);
+    CREATE INDEX IF NOT EXISTS idx_players_status ON players(roster_status);
+  `);
 
   const basicPlayerCols = ['injury_status', 'weeks_out', 'injury_type', 'waived_by_team_id', 'waiver_placed_week', 'morale'];
   const basicPlayerDefs: Record<string, string> = {
