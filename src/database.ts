@@ -446,7 +446,7 @@ export function generateContracts(): void {
 
 // ─── Migration Versioning ─────────────────────────────────────────────────────
 
-const CURRENT_SCHEMA_VERSION = 3;
+const CURRENT_SCHEMA_VERSION = 4;
 
 interface Migration { version: number; description: string; up: () => void; }
 
@@ -479,6 +479,23 @@ const MIGRATIONS: Migration[] = [
     },
   },
 ];
+  {
+    version: 4,
+    description: 'Add dead_cap_entries table for tracking dead cap from mid-contract releases',
+    up: () => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS dead_cap_entries (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          team_id INTEGER NOT NULL,
+          player_id INTEGER,
+          player_name TEXT,
+          position TEXT,
+          season INTEGER NOT NULL,
+          amount REAL NOT NULL
+        )
+      `);
+    },
+  },
 
 function getSchemaVersion(): number {
   try {
