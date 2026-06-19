@@ -14,6 +14,7 @@ export interface Contract {
   guaranteed_pct: number;
   contract_id: number;
   morale?: number;
+  franchise_tagged?: number; // 0=none, 1=franchise tag, 2=transition tag
 }
 
 export interface PracticePlayer {
