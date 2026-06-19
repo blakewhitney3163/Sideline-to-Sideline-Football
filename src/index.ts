@@ -15,15 +15,14 @@ import { balanceRosters } from './helpers/balanceRosters';
 import { registerImportHandlers } from './handlers/importHandlers';
 import { registerCoachingHandlers } from './handlers/coachingHandlers';
 import { generateAllCoachingStaff } from './services/CoachingService';
+import { registerSchemeHandlers, seedTeamSchemes } from './handlers/schemeHandlers';
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 
-// ─── Bootstrap ───────────────────────────────────────────────────────────────
-// Called after initDatabase() so the DB proxy is live.
+// ─── Bootstrap ────────────────────────────────────────────────────────────────
 
 function bootstrapDatabase(isNew: boolean): void {
-  // Seed 32 teams on a brand-new save file
   const teamCount = (db.prepare('SELECT COUNT(*) as cnt FROM teams').get() as any).cnt;
   if (teamCount === 0) {
     const insertTeam = db.prepare(
@@ -31,45 +30,45 @@ function bootstrapDatabase(isNew: boolean): void {
     );
     const TEAMS = [
       // AFC North
-      ['Baltimore',      'Rooks',        'ROK', 'AFC', 'North'],
-      ['Cincinnati',     'Strikers',     'STK', 'AFC', 'North'],
-      ['Cleveland',      'Forge',        'FOR', 'AFC', 'North'],
-      ['Pittsburgh',     'Iron',         'IRN', 'AFC', 'North'],
+      ['Baltimore',    'Rooks',        'ROK', 'AFC', 'North'],
+      ['Cincinnati',   'Strikers',     'STK', 'AFC', 'North'],
+      ['Cleveland',    'Forge',        'FOR', 'AFC', 'North'],
+      ['Pittsburgh',   'Iron',         'IRN', 'AFC', 'North'],
       // AFC South
-      ['Houston',        'Storm',        'STM', 'AFC', 'South'],
-      ['Indianapolis',   'Cavalry',      'CAV', 'AFC', 'South'],
-      ['Jacksonville',   'Surge',        'SRG', 'AFC', 'South'],
-      ['Tennessee',      'Thunder',      'THD', 'AFC', 'South'],
+      ['Houston',      'Storm',        'STM', 'AFC', 'South'],
+      ['Indianapolis', 'Cavalry',      'CAV', 'AFC', 'South'],
+      ['Jacksonville', 'Surge',        'SRG', 'AFC', 'South'],
+      ['Tennessee',    'Thunder',      'THD', 'AFC', 'South'],
       // AFC East
-      ['Buffalo',        'Blizzard',     'BLZ', 'AFC', 'East'],
-      ['Miami',          'Wave',         'WAV', 'AFC', 'East'],
-      ['New England',    'Legion',       'LEG', 'AFC', 'East'],
-      ['New York',       'Rush',         'NYR', 'AFC', 'East'],
+      ['Buffalo',      'Blizzard',     'BLZ', 'AFC', 'East'],
+      ['Miami',        'Wave',         'WAV', 'AFC', 'East'],
+      ['New England',  'Legion',       'LEG', 'AFC', 'East'],
+      ['New York',     'Rush',         'NYR', 'AFC', 'East'],
       // AFC West
-      ['Denver',         'Peaks',        'DPK', 'AFC', 'West'],
-      ['Kansas City',    'Kings',        'KCK', 'AFC', 'West'],
-      ['Las Vegas',      'Outlaws',      'LVO', 'AFC', 'West'],
-      ['Los Angeles',    'Bolt',         'LAB', 'AFC', 'West'],
+      ['Denver',       'Peaks',        'DPK', 'AFC', 'West'],
+      ['Kansas City',  'Kings',        'KCK', 'AFC', 'West'],
+      ['Las Vegas',    'Outlaws',      'LVO', 'AFC', 'West'],
+      ['Los Angeles',  'Bolt',         'LAB', 'AFC', 'West'],
       // NFC North
-      ['Chicago',        'Wolves',       'CHW', 'NFC', 'North'],
-      ['Detroit',        'Motors',       'DTM', 'NFC', 'North'],
-      ['Green Bay',      'Tundra',       'GBT', 'NFC', 'North'],
-      ['Minnesota',      'Frost',        'MNF', 'NFC', 'North'],
+      ['Chicago',      'Wolves',       'CHW', 'NFC', 'North'],
+      ['Detroit',      'Motors',       'DTM', 'NFC', 'North'],
+      ['Green Bay',    'Tundra',       'GBT', 'NFC', 'North'],
+      ['Minnesota',    'Frost',        'MNF', 'NFC', 'North'],
       // NFC South
-      ['Atlanta',        'Phoenix',      'ATX', 'NFC', 'South'],
-      ['Carolina',       'Cougars',      'CAC', 'NFC', 'South'],
-      ['New Orleans',    'Crescent',     'NOC', 'NFC', 'South'],
-      ['Tampa Bay',      'Corsairs',     'TBC', 'NFC', 'South'],
+      ['Atlanta',      'Phoenix',      'ATX', 'NFC', 'South'],
+      ['Carolina',     'Cougars',      'CAC', 'NFC', 'South'],
+      ['New Orleans',  'Crescent',     'NOC', 'NFC', 'South'],
+      ['Tampa Bay',    'Corsairs',     'TBC', 'NFC', 'South'],
       // NFC East
-      ['Dallas',         'Mustangs',     'DAM', 'NFC', 'East'],
-      ['New York',       'Empire',       'NYE', 'NFC', 'East'],
-      ['Philadelphia',   'Liberty',      'PHL', 'NFC', 'East'],
-      ['Washington',     'Capitol',      'WAC', 'NFC', 'East'],
+      ['Dallas',       'Mustangs',     'DAM', 'NFC', 'East'],
+      ['New York',     'Empire',       'NYE', 'NFC', 'East'],
+      ['Philadelphia', 'Liberty',      'PHL', 'NFC', 'East'],
+      ['Washington',   'Capitol',      'WAC', 'NFC', 'East'],
       // NFC West
-      ['Arizona',        'Desert Hawks', 'AZH', 'NFC', 'West'],
-      ['Los Angeles',    'Pride',        'LAP', 'NFC', 'West'],
-      ['San Francisco',  'Miners',       'SFM', 'NFC', 'West'],
-      ['Seattle',        'Cascade',      'SEC', 'NFC', 'West'],
+      ['Arizona',      'Desert Hawks', 'AZH', 'NFC', 'West'],
+      ['Los Angeles',  'Pride',        'LAP', 'NFC', 'West'],
+      ['San Francisco','Miners',       'SFM', 'NFC', 'West'],
+      ['Seattle',      'Cascade',      'SEC', 'NFC', 'West'],
     ];
 
     db.transaction(() => { for (const t of TEAMS) insertTeam.run(...t); })();
@@ -81,7 +80,6 @@ function bootstrapDatabase(isNew: boolean): void {
     console.log('Fresh DB: players and contracts generated');
   }
 
-  // Seed pick assets for current + next season
   const season = getCurrentSeason();
   const teams = db.prepare('SELECT id FROM teams').all() as any[];
   const insertPick = db.prepare('INSERT OR IGNORE INTO pick_assets (owner_team_id, original_team_id, season, round) VALUES (?, ?, ?, ?)');
@@ -92,12 +90,14 @@ function bootstrapDatabase(isNew: boolean): void {
           insertPick.run(team.id, team.id, s, r);
   })();
 
-  // Balance rosters on first load if FA pool is empty
   const faCount = (db.prepare("SELECT COUNT(*) as count FROM players WHERE is_free_agent = 1").get() as any).count;
   if (faCount === 0) balanceRosters();
-    // Bootstrap coaching staff for new saves
+
   const coachCount = (db.prepare('SELECT COUNT(*) as cnt FROM coaching_staff').get() as any)?.cnt ?? 0;
   if (coachCount === 0) generateAllCoachingStaff();
+
+  const schemeCount = (db.prepare('SELECT COUNT(*) as cnt FROM team_schemes').get() as any)?.cnt ?? 0;
+  if (schemeCount === 0) seedTeamSchemes();
 }
 
 // ─── App Window ───────────────────────────────────────────────────────────────
@@ -113,8 +113,6 @@ const createWindow = (): void => {
 };
 
 // ─── Register Handlers ────────────────────────────────────────────────────────
-// Save handlers registered first — they don't need the DB.
-// All other handlers are registered immediately but only called after a save is opened.
 
 registerSaveHandlers((isNew: boolean) => {
   bootstrapDatabase(isNew);
@@ -130,6 +128,7 @@ registerSeasonHandlers();
 registerNewsHandlers();
 registerImportHandlers();
 registerCoachingHandlers();
+registerSchemeHandlers();
 
 // ─── App Lifecycle ────────────────────────────────────────────────────────────
 
