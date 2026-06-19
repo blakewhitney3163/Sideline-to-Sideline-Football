@@ -4,13 +4,13 @@ import {
   Matchup, BoxScoreData, StandingEntry, Champion, SeedEntry,
   PlayoffGame, InjuredPlayer,
 } from './home/types';
-import SeasonHeader       from './home/SeasonHeader';
+import SeasonHeader from './home/SeasonHeader';
 import OffseasonChecklist from './home/OffseasonChecklist';
-import WeeklySchedule     from './home/WeeklySchedule';
-import Sidebar            from './home/Sidebar';
-import PlayoffSeedingsView  from './home/PlayoffSeedingsView';
-import PlayoffResultsView   from './home/PlayoffResultsView';
-import SeasonAwardsView     from './home/SeasonAwardsView';
+import WeeklySchedule from './home/WeeklySchedule';
+import Sidebar from './home/Sidebar';
+import PlayoffSeedingsView from './home/PlayoffSeedingsView';
+import PlayoffResultsView from './home/PlayoffResultsView';
+import SeasonAwardsView from './home/SeasonAwardsView';
 import { useGameStore } from './store/gameStore';
 import TradeOfferCard from './home/TradeOfferCard';
 import { CpuOffer } from './trades/types';
@@ -25,33 +25,35 @@ interface Props {
 export default function Home({ onSeasonAdvance, onNavigate }: Props) {
   const { userTeam, currentSeason, setPlayoffsComplete, incrementSimCount } = useGameStore();
 
-  const [loading,             setLoading]             = useState(true);
-  const [hasSchedule,         setHasSchedule]         = useState(false);
-  const [currentWeek,         setCurrentWeek]         = useState<number | null>(null);
-  const [viewWeek,            setViewWeek]            = useState(1);
-  const [matchups,            setMatchups]            = useState<Matchup[]>([]);
-  const [simulating,          setSimulating]          = useState(false);
-  const [simulatingGameId,    setSimulatingGameId]    = useState<number | null>(null);
-  const [generatingSchedule,  setGeneratingSchedule]  = useState(false);
-  const [boxScore,            setBoxScore]            = useState<BoxScoreData | null>(null);
-  const [boxScoreLoading,     setBoxScoreLoading]     = useState(false);
-  const [topAFC,              setTopAFC]              = useState<StandingEntry[]>([]);
-  const [topNFC,              setTopNFC]              = useState<StandingEntry[]>([]);
-  const [champions,           setChampions]           = useState<Champion[]>([]);
-  const [confirming,          setConfirming]          = useState(false);
-  const [advancing,           setAdvancing]           = useState(false);
-  const [playoffSeeds,        setPlayoffSeeds]        = useState<{ afc: SeedEntry[]; nfc: SeedEntry[] } | null>(null);
-  const [playoffResults,      setPlayoffResults]      = useState<PlayoffGame[] | null>(null);
-  const [simulatingPlayoffs,  setSimulatingPlayoffs]  = useState(false);
-  const [userRecord,          setUserRecord]          = useState<{ wins: number; losses: number } | null>(null);
-  const [pendingResigns,      setPendingResigns]      = useState(0);
-  const [draftComplete,       setDraftComplete]       = useState(false);
-  const [draftGenerated,      setDraftGenerated]      = useState(false);
-  const [injuryReport,        setInjuryReport]        = useState<InjuredPlayer[]>([]);
-  const [retiredPlayers,      setRetiredPlayers]      = useState<{ name: string; position: string; age: number; ovr: number }[]>([]);
-  const [statLeaders,         setStatLeaders]         = useState<any>(null);
-  const [psAlert,             setPSAlert]             = useState<string | null>(null);
-  const [seasonAwards,        setSeasonAwards]        = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [hasSchedule, setHasSchedule] = useState(false);
+  const [currentWeek, setCurrentWeek] = useState<number | null>(null);
+  const [viewWeek, setViewWeek] = useState(1);
+  const [matchups, setMatchups] = useState<Matchup[]>([]);
+  const [simulating, setSimulating] = useState(false);
+  const [simulatingGameId, setSimulatingGameId] = useState<number | null>(null);
+  const [generatingSchedule, setGeneratingSchedule] = useState(false);
+  const [boxScore, setBoxScore] = useState<BoxScoreData | null>(null);
+  const [boxScoreLoading, setBoxScoreLoading] = useState(false);
+  const [topAFC, setTopAFC] = useState<StandingEntry[]>([]);
+  const [topNFC, setTopNFC] = useState<StandingEntry[]>([]);
+  const [champions, setChampions] = useState<Champion[]>([]);
+  const [confirming, setConfirming] = useState(false);
+  const [advancing, setAdvancing] = useState(false);
+  const [playoffSeeds, setPlayoffSeeds] = useState<{ afc: SeedEntry[]; nfc: SeedEntry[] } | null>(null);
+  const [playoffResults, setPlayoffResults] = useState<PlayoffGame[] | null>(null);
+  const [simulatingPlayoffs, setSimulatingPlayoffs] = useState(false);
+  const [userRecord, setUserRecord] = useState<{ wins: number; losses: number } | null>(null);
+  const [pendingResigns, setPendingResigns] = useState(0);
+  const [draftComplete, setDraftComplete] = useState(false);
+  const [draftGenerated, setDraftGenerated] = useState(false);
+  const [faOpen, setFaOpen] = useState(false);
+  const [rosterSize, setRosterSize] = useState(0);
+  const [injuryReport, setInjuryReport] = useState<InjuredPlayer[]>([]);
+  const [retiredPlayers, setRetiredPlayers] = useState<{ name: string; position: string; age: number; ovr: number }[]>([]);
+  const [statLeaders, setStatLeaders] = useState<any>(null);
+  const [psAlert, setPSAlert] = useState<string | null>(null);
+  const [seasonAwards, setSeasonAwards] = useState<any>(null);
   const [cpuOffer, setCpuOffer] = useState<CpuOffer | null>(null);
   const [offerHandled, setOfferHandled] = useState(false);
   const [offerWorking, setOfferWorking] = useState(false);
@@ -67,20 +69,21 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
       setPlayoffResults(null); setUserRecord(null); setInjuryReport([]);
       setSeasonAwards(null);
 
-        const [status, dashboard, champs, standings, offseason, injuries, leaders, tradeOffer, tradeStatus] = await Promise.all([
-    window.api.getCurrentWeek(),
-    window.api.getDashboard(currentSeason),
-    window.api.getChampions(),
-    window.api.getStandings(currentSeason),
-    window.api.getOffseasonStatus(),
-    window.api.getInjuryReport(userTeam.id),
-    window.api.getStats(currentSeason),
-    window.api.getCpuTradeOffer(),
-    window.api.getTeamStatus(userTeam.id),
-  ]);
+      const [status, dashboard, champs, standings, offseason, injuries, leaders, tradeOffer, tradeStatus, spots] = await Promise.all([
+        window.api.getCurrentWeek(),
+        window.api.getDashboard(currentSeason),
+        window.api.getChampions(),
+        window.api.getStandings(currentSeason),
+        window.api.getOffseasonStatus(),
+        window.api.getInjuryReport(userTeam.id),
+        window.api.getStats(currentSeason),
+        window.api.getCpuTradeOffer(),
+        window.api.getTeamStatus(userTeam.id),
+        window.api.getRosterSpots(userTeam.id),
+      ]);
       if (cancelled) return;
 
-      const seasonDone    = status.hasSchedule && status.currentWeek === null;
+      const seasonDone = status.hasSchedule && status.currentWeek === null;
       const champForSeason = champs.find((c: Champion) => c.season === currentSeason);
 
       setHasSchedule(status.hasSchedule);
@@ -91,6 +94,8 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
       setPendingResigns(offseason.pendingResigns ?? 0);
       setDraftComplete(offseason.draftComplete ?? false);
       setDraftGenerated(offseason.draftGenerated ?? false);
+      setFaOpen(offseason.faOpen ?? false);
+      setRosterSize(spots?.active ?? 0);
       setInjuryReport(injuries ?? []);
       setStatLeaders(leaders);
       setCpuOffer(tradeOffer ?? null);
@@ -117,10 +122,7 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
           window.api.getSeasonAwards(currentSeason),
         ]);
         if (!cancelled) {
-          setPlayoffResults(results);
-          setMatchups(weekData);
-          setViewWeek(18);
-          setSeasonAwards(awards);
+          setPlayoffResults(results); setMatchups(weekData); setViewWeek(18); setSeasonAwards(awards);
         }
       }
 
@@ -131,26 +133,30 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
   }, [currentSeason, userTeam?.id]);
 
   const refreshOffseasonStatus = async () => {
-    const offseason = await window.api.getOffseasonStatus();
+    const [offseason, spots] = await Promise.all([
+      window.api.getOffseasonStatus(),
+      userTeam ? window.api.getRosterSpots(userTeam.id) : Promise.resolve(null),
+    ]);
     setPendingResigns(offseason.pendingResigns ?? 0);
     setDraftComplete(offseason.draftComplete ?? false);
     setDraftGenerated(offseason.draftGenerated ?? false);
+    setFaOpen(offseason.faOpen ?? false);
+    if (spots) setRosterSize(spots.active ?? 0);
   };
 
   const handleGenerateSchedule = async () => {
-  setGeneratingSchedule(true);
-  await window.api.generateSchedule();
-  const status = await window.api.getCurrentWeek();
-  setHasSchedule(status.hasSchedule);
-  setCurrentWeek(status.currentWeek);
-  setViewWeek(1);
-  setMatchups(await window.api.getWeekMatchups(1));
-  // Fetch trade offer now that the season is active
-  const tradeOffer = await window.api.getCpuTradeOffer();
-  setCpuOffer(tradeOffer ?? null);
-  setOfferHandled(false);
-  setGeneratingSchedule(false);
-};
+    setGeneratingSchedule(true);
+    await window.api.generateSchedule();
+    const status = await window.api.getCurrentWeek();
+    setHasSchedule(status.hasSchedule);
+    setCurrentWeek(status.currentWeek);
+    setViewWeek(1);
+    setMatchups(await window.api.getWeekMatchups(1));
+    const tradeOffer = await window.api.getCpuTradeOffer();
+    setCpuOffer(tradeOffer ?? null);
+    setOfferHandled(false);
+    setGeneratingSchedule(false);
+  };
 
   const handleSimulateWeek = async () => {
     if (currentWeek === null || !userTeam) return;
@@ -233,6 +239,14 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
   };
 
   const handleAdvance = async () => {
+    // Enforce 53-man roster limit before advancing
+    if (userTeam) {
+      const spots = await window.api.getRosterSpots(userTeam.id);
+      if (spots && spots.active > 53) {
+        alert(`You must cut ${spots.active - 53} player(s) before advancing the season.\n\nGo to Franchise → Active Roster to make cuts.`);
+        return;
+      }
+    }
     setAdvancing(true);
     const result = await window.api.advanceSeason();
     setAdvancing(false); setConfirming(false);
@@ -240,7 +254,12 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
     onSeasonAdvance(result.nextSeason);
   };
 
-    const handleAcceptOffer = async () => {
+  const handleOpenFreeAgency = async () => {
+    await window.api.openFreeAgency();
+    await refreshOffseasonStatus();
+  };
+
+  const handleAcceptOffer = async () => {
     if (!cpuOffer || offerWorking) return;
     setOfferWorking(true);
     const res = await window.api.acceptCpuTradeOffer({
@@ -249,10 +268,7 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
       theirTeamId: cpuOffer.fromTeamId,
       theirPickId: cpuOffer.offeredPick?.id ?? null,
     });
-    if (res.success) {
-      setCpuOffer(null);
-      setOfferHandled(true);
-    }
+    if (res.success) { setCpuOffer(null); setOfferHandled(true); }
     setOfferWorking(false);
   };
 
@@ -270,105 +286,104 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
     setSettingStatus(false);
   };
 
-  const allWeeksDone      = hasSchedule && currentWeek === null;
-  const currentChampion   = champions.find(c => c.season === currentSeason);
+  const allWeeksDone = hasSchedule && currentWeek === null;
+  const currentChampion = champions.find(c => c.season === currentSeason);
   const isPlayoffsComplete = !!currentChampion;
 
   if (loading || !userTeam)
-    return <div style={{ padding: 24, color: T.textDim }}>Loading...</div>;
+    return <div style={{ color: T.textMuted, padding: 40, textAlign: 'center' }}>Loading...</div>;
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 24, padding: '20px 24px', maxWidth: 1400, margin: '0 auto' }}>
-      <div>
-        <SeasonHeader
-          currentSeason={currentSeason}
-          userTeam={userTeam}
-          userRecord={userRecord}
-          hasSchedule={hasSchedule}
-          allWeeksDone={allWeeksDone}
-          playoffsComplete={isPlayoffsComplete}
-          currentWeek={currentWeek}
-          matchups={matchups}
-          simulating={simulating}
-          simulatingGameId={simulatingGameId}
-          generatingSchedule={generatingSchedule}
-          simulatingPlayoffs={simulatingPlayoffs}
-          pendingResigns={pendingResigns}
-          advancing={advancing}
-          confirming={confirming}
-          setConfirming={setConfirming}
-          retiredPlayers={retiredPlayers}
-          setRetiredPlayers={setRetiredPlayers}
-          handleGenerateSchedule={handleGenerateSchedule}
-          handleSimulateWeek={handleSimulateWeek}
-          handleSimulateGame={handleSimulateGame}
-          handleSimulatePlayoffs={handleSimulatePlayoffs}
-          handleAdvance={handleAdvance}
-        />
+    <div style={{ display: 'flex', gap: 0, height: '100%', overflow: 'hidden' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
 
-  {/* Incoming trade offer */}
-  {cpuOffer && !offerHandled && (
-    <TradeOfferCard
-      offer={cpuOffer}
-      currentSeason={currentSeason}
-      working={offerWorking}
-      onAccept={handleAcceptOffer}
-      onDecline={handleDeclineOffer}
-      onViewDetails={() => onNavigate('trades')}
-    />
-  )}
-        
-        {allWeeksDone && isPlayoffsComplete && (
-          <OffseasonChecklist
-            pendingResigns={pendingResigns}
-            draftComplete={draftComplete}
-            draftGenerated={draftGenerated}
-            refreshOffseasonStatus={refreshOffseasonStatus}
-            onNavigate={onNavigate}
+        {/* Incoming trade offer */}
+        {cpuOffer && !offerHandled && (
+          <TradeOfferCard
+            offer={cpuOffer}
+            onAccept={handleAcceptOffer}
+            onDecline={handleDeclineOffer}
+            onViewDetails={() => onNavigate('trades')}
           />
         )}
 
+        {allWeeksDone && isPlayoffsComplete && (
+          <SeasonAwardsView awards={seasonAwards} season={currentSeason} />
+        )}
+
         {!hasSchedule ? (
-          <div style={{ textAlign: 'center', padding: '60px 0', color: T.textDim }}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>🏈</div>
-            <div style={{ fontSize: 16, marginBottom: 4 }}>No schedule for {currentSeason} yet.</div>
-            <div style={{ fontSize: 12 }}>Click "Start {currentSeason} Season" to generate all 18 weeks.</div>
+          <div style={{ textAlign: 'center', padding: '60px 20px', color: T.textMuted }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>🏈</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: T.textPrimary, marginBottom: 8 }}>
+              No schedule for {currentSeason} yet.
+            </div>
+            <div style={{ fontSize: 14, marginBottom: 24 }}>
+              Click "Start {currentSeason} Season" to generate all 18 weeks.
+            </div>
           </div>
         ) : allWeeksDone && isPlayoffsComplete ? (
           <>
-            <PlayoffResultsView results={playoffResults} champion={currentChampion} />
-            <SeasonAwardsView awards={seasonAwards} season={currentSeason} />
+            <OffseasonChecklist
+              pendingResigns={pendingResigns}
+              draftComplete={draftComplete}
+              draftGenerated={draftGenerated}
+              faOpen={faOpen}
+              rosterSize={rosterSize}
+              refreshOffseasonStatus={refreshOffseasonStatus}
+              onNavigate={onNavigate}
+              onOpenFreeAgency={handleOpenFreeAgency}
+            />
+            <PlayoffResultsView results={playoffResults} season={currentSeason} />
           </>
         ) : allWeeksDone && !isPlayoffsComplete ? (
-          <PlayoffSeedingsView seeds={playoffSeeds} />
+          <PlayoffSeedingsView
+            seeds={playoffSeeds}
+            onSimulate={handleSimulatePlayoffs}
+            simulating={simulatingPlayoffs}
+          />
         ) : (
           <WeeklySchedule
-            viewWeek={viewWeek}
             matchups={matchups}
-            boxScore={boxScore}
-            boxScoreLoading={boxScoreLoading}
+            currentWeek={currentWeek}
+            viewWeek={viewWeek}
             simulating={simulating}
             simulatingGameId={simulatingGameId}
-            userTeam={userTeam}
+            boxScore={boxScore}
+            boxScoreLoading={boxScoreLoading}
             psAlert={psAlert}
-            setPSAlert={setPSAlert}
-            handleViewWeek={handleViewWeek}
-            handleSimulateGame={handleSimulateGame}
-            handleBoxScore={handleBoxScore}
+            onSimulateWeek={handleSimulateWeek}
+            onSimulateGame={handleSimulateGame}
+            onViewWeek={handleViewWeek}
+            onBoxScore={handleBoxScore}
+            onDismissAlert={() => setPSAlert(null)}
           />
         )}
       </div>
 
-        <Sidebar
-    injuryReport={injuryReport}
-    topAFC={topAFC}
-    topNFC={topNFC}
-    champions={champions}
-    statLeaders={statLeaders}
-    userTradeStatus={userTradeStatus}
-    onSetTradeStatus={handleSetTradeStatus}
-    settingStatus={settingStatus}
-  />
+      <Sidebar
+        userTeam={userTeam}
+        currentSeason={currentSeason}
+        userRecord={userRecord}
+        hasSchedule={hasSchedule}
+        allWeeksDone={allWeeksDone}
+        isPlayoffsComplete={isPlayoffsComplete}
+        generatingSchedule={generatingSchedule}
+        confirming={confirming}
+        advancing={advancing}
+        topAFC={topAFC}
+        topNFC={topNFC}
+        champions={champions}
+        statLeaders={statLeaders}
+        injuryReport={injuryReport}
+        retiredPlayers={retiredPlayers}
+        userTradeStatus={userTradeStatus}
+        settingStatus={settingStatus}
+        onGenerateSchedule={handleGenerateSchedule}
+        onConfirm={() => setConfirming(true)}
+        onCancelConfirm={() => setConfirming(false)}
+        onAdvance={handleAdvance}
+        onSetTradeStatus={handleSetTradeStatus}
+      />
     </div>
   );
 }
