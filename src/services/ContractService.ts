@@ -600,6 +600,43 @@ export function signFreeAgentToPS(playerId: number, teamId: number): SuccessResu
 export function extendPlayer(playerId: number, years: number, salary: number): SuccessResult {
   const contract = contractRepo.getByPlayer(playerId);
   if (!contract) return { success: false, reason: 'No contract found.' };
+
+  const player = playerRepo.getById(playerId);
+  if (!player) return { success: false, reason: 'Player not found.' };
+
+  const fairMarket = calcFairMarket(player.overall_rating, player.position, player.dev_trait);
+  const ratio = salary / Math.max(fairMarket, 1);
+
+  // Players are more forgiving of extensions (team loyalty) but still demand fair value
+  let acceptChance =
+    ratio >= 0.95 ? 1.00 :
+    ratio >= 0.80 ? 0.82 :
+    ratio >= 0.65 ? 0.45 :
+    ratio >= 0.50 ? 0.12 : 0.00;
+
+  // Elite players push back harder
+  if (player.dev_trait === 'X-Factor')  acceptChance = Math.max(0, acceptChance - 0.22);
+  if (player.dev_trait === 'Superstar') acceptChance = Math.max(0, acceptChance - 0.12);
+
+  // Older players more willing to secure long-term safety
+  if (player.age >= 32) acceptChance = Math.min(1, acceptChance + 0.15);
+  if (player.age >= 35) acceptChance = Math.min(1, acceptChance + 0.15);
+
+  // Morale matters
+  if ((player.morale ?? 75) < 60) acceptChance = Math.max(0, acceptChance - 0.15);
+  if ((player.morale ?? 75) >= 85) acceptChance = Math.min(1, acceptChance + 0.08);
+
+  if (Math.random() >= acceptChance) {
+    const floor = Math.round(fairMarket * 0.90 * 2) / 2;
+    return {
+      success: false,
+      reason:
+        ratio < 0.50 ? `Insulted by the offer. Looking for at least $${floor.toFixed(1)}M/yr.` :
+        ratio < 0.65 ? `Not enough to commit long-term. Needs $${floor.toFixed(1)}M/yr or better.` :
+                       `Declined the extension — wants closer to $${floor.toFixed(1)}M/yr.`,
+    };
+  }
+
   const guaranteedPct = Math.round(40 + Math.random() * 20);
   contractRepo.update(playerId, years, salary, Math.round(salary * years * (guaranteedPct / 100) * 10) / 10, guaranteedPct);
   return { success: true };
