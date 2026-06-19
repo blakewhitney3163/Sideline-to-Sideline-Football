@@ -48,12 +48,8 @@ export default function TeamSelection({ onSelect }: Props) {
     }}>
       {/* Title */}
       <div style={{ marginBottom: 28, textAlign: 'center' }}>
-        <div style={{ fontSize: 12, color: T.textDim, letterSpacing: 3, marginBottom: 8 }}>
-          NFL SIMULATOR
-        </div>
-        <div style={{ fontSize: 26, fontWeight: 'bold', color: '#fff', marginBottom: 6 }}>
-          Choose Your Franchise
-        </div>
+        <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: 6, color: '#4FC3F7' }}>GRIDIRON DYNASTY</div>
+<div style={{ fontSize: 13, color: T.textMuted, marginBottom: 8 }}>Choose Your Franchise</div>
         <div style={{ fontSize: 12, color: T.borderStrong }}>
           You'll manage this team throughout the dynasty
         </div>
