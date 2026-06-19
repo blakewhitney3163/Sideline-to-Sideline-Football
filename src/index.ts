@@ -13,6 +13,8 @@ import { registerNewsHandlers } from './handlers/newsHandlers';
 import { getCurrentSeason } from './helpers/getCurrentSeason';
 import { balanceRosters } from './helpers/balanceRosters';
 import { registerImportHandlers } from './handlers/importHandlers';
+import { registerCoachingHandlers } from './handlers/coachingHandlers';
+import { generateAllCoachingStaff } from './services/CoachingService';
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
@@ -93,6 +95,9 @@ function bootstrapDatabase(isNew: boolean): void {
   // Balance rosters on first load if FA pool is empty
   const faCount = (db.prepare("SELECT COUNT(*) as count FROM players WHERE is_free_agent = 1").get() as any).count;
   if (faCount === 0) balanceRosters();
+    // Bootstrap coaching staff for new saves
+  const coachCount = (db.prepare('SELECT COUNT(*) as cnt FROM coaching_staff').get() as any)?.cnt ?? 0;
+  if (coachCount === 0) generateAllCoachingStaff();
 }
 
 // ─── App Window ───────────────────────────────────────────────────────────────
