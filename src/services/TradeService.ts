@@ -156,7 +156,6 @@ export function getCpuTradeOffer(userTeamId: number): any | null {
 
   const cpuTeams = db.prepare(`SELECT id, city, name FROM teams WHERE id != ? ORDER BY RANDOM()`).all(userTeamId) as any[];
 
-  // Fetch user players once — reused across all loop iterations
   const userPlayersAll = db.prepare(`
     SELECT id, first_name, last_name, position, overall_rating, age, dev_trait
     FROM players WHERE team_id = ? AND roster_status = 'active'
@@ -171,8 +170,8 @@ export function getCpuTradeOffer(userTeamId: number): any | null {
   const stmtVeterans = db.prepare(`
     SELECT id, first_name, last_name, position, overall_rating, age, dev_trait
     FROM players WHERE team_id = ? AND roster_status = 'active'
-      AND overall_rating >= 76 AND dev_trait != 'X-Factor'
-      AND (age >= 28 OR dev_trait IN ('Star','Superstar'))
+    AND overall_rating >= 76 AND dev_trait != 'X-Factor'
+    AND (age >= 28 OR dev_trait IN ('Star','Superstar'))
     ORDER BY overall_rating DESC
   `);
 
@@ -183,26 +182,33 @@ export function getCpuTradeOffer(userTeamId: number): any | null {
       const cpuNeeds = getTeamNeeds(cpuTeam.id);
       if (cpuNeeds.length === 0) continue;
 
-      const wanted = userPlayersAll.find((p: any) => cpuNeeds.includes(p.position) && p.overall_rating >= 75 && p.dev_trait !== 'X-Factor');
+      const wanted = userPlayersAll.find((p: any) =>
+        cpuNeeds.includes(p.position) && p.overall_rating >= 75 && p.dev_trait !== 'X-Factor'
+      );
       if (!wanted) continue;
 
       const requestedValue = calcPlayerTradeValue(wanted.overall_rating, wanted.age, wanted.position, wanted.dev_trait);
       const cpuPlayers = stmtCpuPlayers.all(cpuTeam.id) as any[];
+
+      // Tighter window: CPU must offer a player worth 78–115% of what they're asking for
       const offerPlayer = cpuPlayers.find((p: any) => {
         const v = calcPlayerTradeValue(p.overall_rating, p.age, p.position, p.dev_trait);
-        return v >= requestedValue * 0.65 && v <= requestedValue * 1.05;
+        return v >= requestedValue * 0.78 && v <= requestedValue * 1.15;
       });
       if (!offerPlayer) continue;
 
       const offerValue = calcPlayerTradeValue(offerPlayer.overall_rating, offerPlayer.age, offerPlayer.position, offerPlayer.dev_trait);
       const gap = requestedValue - offerValue;
+
+      // Only add a pick if there's a meaningful gap AND it won't create an absurd overpay
       let offeredPick: any = null;
-      if (gap > 10) {
+      if (gap > 12 && gap <= requestedValue * 0.30) {
         offeredPick = pickRepo.getByTeam(cpuTeam.id, season).find((pk: any) => {
           const pv = calcPickTradeValue(pk.round, pk.season);
-          return pv >= gap * 0.6 && pv <= gap * 1.6;
+          return pv >= gap * 0.65 && pv <= gap * 1.35;
         }) ?? null;
       }
+
       return {
         fromTeamId: cpuTeam.id, fromTeamName: `${cpuTeam.city} ${cpuTeam.name}`,
         requestedPlayer: wanted, requestedValue,
@@ -210,6 +216,44 @@ export function getCpuTradeOffer(userTeamId: number): any | null {
         offerValue: offerValue + (offeredPick ? calcPickTradeValue(offeredPick.round, offeredPick.season) : 0),
       };
     }
+
+    if (status === 'Seller' || status === 'Rebuilding') {
+      const veterans = stmtVeterans.all(cpuTeam.id) as any[];
+      if (veterans.length === 0) continue;
+
+      const offering = veterans[Math.floor(Math.random() * Math.min(4, veterans.length))];
+      const offerValue = calcPlayerTradeValue(offering.overall_rating, offering.age, offering.position, offering.dev_trait);
+
+      // Seller asks for a young player worth 70–95% of what they're giving up (slight user advantage)
+      const target = userPlayersAll.find((p: any) => {
+        if (p.age > 26) return false;
+        const v = calcPlayerTradeValue(p.overall_rating, p.age, p.position, p.dev_trait);
+        return v >= offerValue * 0.70 && v <= offerValue * 0.95;
+      });
+      if (!target) continue;
+
+      const targetValue = calcPlayerTradeValue(target.overall_rating, target.age, target.position, target.dev_trait);
+      // For sellers: the slight discount on the user's player IS the sweetener.
+      // Only add a pick if the CPU's offered player is worth LESS than what they're requesting.
+      let bonusPick: any = null;
+      if (offerValue < targetValue) {
+        const gap = targetValue - offerValue;
+        bonusPick = pickRepo.getByTeam(cpuTeam.id, season).find((pk: any) => {
+          const pv = calcPickTradeValue(pk.round, pk.season);
+          return pv >= gap * 0.5 && pv <= gap * 1.2;
+        }) ?? null;
+      }
+
+      return {
+        fromTeamId: cpuTeam.id, fromTeamName: `${cpuTeam.city} ${cpuTeam.name}`,
+        requestedPlayer: target, requestedValue: targetValue,
+        offeredPlayer: offering, offeredPick: bonusPick,
+        offerValue: offerValue + (bonusPick ? calcPickTradeValue(bonusPick.round, bonusPick.season) : 0),
+      };
+    }
+  }
+  return null;
+}
 
     if (status === 'Seller' || status === 'Rebuilding') {
       const veterans = stmtVeterans.all(cpuTeam.id) as any[];
