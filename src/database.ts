@@ -298,11 +298,12 @@ export function initDatabase(dbPath: string): void {
     _db.prepare("UPDATE players SET roster_status = 'active' WHERE is_free_agent = 0 AND team_id IS NOT NULL").run();
   }
 
-  const basicPlayerCols = ['injury_status', 'weeks_out', 'injury_type', 'waived_by_team_id', 'waiver_placed_week'];
-  const basicPlayerDefs: Record<string, string> = {
-    injury_status: "TEXT DEFAULT 'healthy'", weeks_out: 'INTEGER DEFAULT 0',
-    injury_type: 'TEXT', waived_by_team_id: 'INTEGER', waiver_placed_week: 'INTEGER',
-  };
+  const basicPlayerCols = ['injury_status', 'weeks_out', 'injury_type', 'waived_by_team_id', 'waiver_placed_week', 'morale'];
+const basicPlayerDefs: Record<string, string> = {
+  injury_status: "TEXT DEFAULT 'healthy'", weeks_out: 'INTEGER DEFAULT 0',
+  injury_type: 'TEXT', waived_by_team_id: 'INTEGER', waiver_placed_week: 'INTEGER',
+  morale: 'INTEGER DEFAULT 75',
+};
   const playerColNames = (playerCols.length ? playerCols : (_db.prepare('PRAGMA table_info(players)').all() as any[])).map((c: any) => c.name);
   for (const col of basicPlayerCols) {
     if (!playerColNames.includes(col))
