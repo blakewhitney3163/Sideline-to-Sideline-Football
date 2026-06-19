@@ -446,7 +446,7 @@ export function generateContracts(): void {
 
 // ─── Migration Versioning ─────────────────────────────────────────────────────
 
-const CURRENT_SCHEMA_VERSION = 2;
+const CURRENT_SCHEMA_VERSION = 3;
 
 interface Migration { version: number; description: string; up: () => void; }
 
@@ -456,17 +456,26 @@ const MIGRATIONS: Migration[] = [
     description: 'Denormalize season/week/is_playoff onto stats for direct indexed access',
     up: () => {
       const cols = (db.prepare('PRAGMA table_info(stats)').all() as any[]).map((c: any) => c.name);
-      if (!cols.includes('season'))     db.prepare('ALTER TABLE stats ADD COLUMN season INTEGER').run();
-      if (!cols.includes('week'))       db.prepare('ALTER TABLE stats ADD COLUMN week INTEGER').run();
+      if (!cols.includes('season')) db.prepare('ALTER TABLE stats ADD COLUMN season INTEGER').run();
+      if (!cols.includes('week')) db.prepare('ALTER TABLE stats ADD COLUMN week INTEGER').run();
       if (!cols.includes('is_playoff')) db.prepare('ALTER TABLE stats ADD COLUMN is_playoff INTEGER DEFAULT 0').run();
       db.prepare(`
         UPDATE stats
         SET season = (SELECT season FROM games WHERE games.id = stats.game_id),
-            week   = (SELECT week   FROM games WHERE games.id = stats.game_id),
+            week   = (SELECT week  FROM games WHERE games.id = stats.game_id),
             is_playoff = (SELECT is_playoff FROM games WHERE games.id = stats.game_id)
         WHERE season IS NULL
       `).run();
       db.exec('CREATE INDEX IF NOT EXISTS idx_stats_season_playoff ON stats(season, is_playoff);');
+    },
+  },
+  {
+    version: 3,
+    description: 'Add franchise_tagged flag to players for Franchise Tag / Transition Tag system',
+    up: () => {
+      const cols = (db.prepare('PRAGMA table_info(players)').all() as any[]).map((c: any) => c.name);
+      if (!cols.includes('franchise_tagged'))
+        db.prepare('ALTER TABLE players ADD COLUMN franchise_tagged INTEGER DEFAULT 0').run();
     },
   },
 ];
