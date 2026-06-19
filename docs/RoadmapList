@@ -5,9 +5,6 @@ Repository: https://github.com/blakewhitney3163/Gridiron-Dynasty
 
 TIER 2 — Strategic depth
 ────────────────────────────────────────────────────────────────────────────────
-Draft Combine / Deeper Scouting — measurables (40 time, bench press) that
-  hint at hidden potential. Ties into the existing 25-point scouting system.
-
 Schemes — offensive and defensive scheme selection that shapes team identity
   and influences sim output (run-heavy, pass-heavy, zone vs. man, etc.).
 
@@ -23,6 +20,19 @@ In-Game Narrative / Play-by-Play — text play-by-play during simulation.
 ================================================================================
 COMPLETED ITEMS
 ================================================================================
+
+[DONE June 19, 2026] Draft Combine / Deeper Scouting — five physical combine
+  measurables added to every draft prospect: 40-yard dash, bench press reps,
+  vertical jump (inches), broad jump (inches), and 3-cone drill time. Stats
+  are generated per position at draft class creation with realistic noise and
+  position-specific distributions (e.g. OL/DL skew heavier on bench press,
+  skill positions skew faster on 40 time). Displayed as color-coded inline
+  badges beneath each prospect's name in ProspectBoard.tsx — gold for elite
+  marks, green for good, orange for below average. Color thresholds in
+  draftUtils.ts (fortyColor / benchColor / vertColor / coneColor). Stored in
+  draft_prospects via migration v6 (five REAL columns). Visible without
+  scouting — combine stats are public information that hints at athleticism
+  independent of the hidden OVR.
 
 [DONE June 19, 2026] Coaching Staff System — HC / OC / DC / ST coordinators
   for every team, each with overall, offense, defense, and development ratings.
