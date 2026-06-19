@@ -5,9 +5,17 @@ interface Props {
   pendingResigns: number;
   draftComplete: boolean;
   draftGenerated: boolean;
+  faOpen: boolean;          // NEW
+  rosterSize: number;       // NEW — active roster count
   refreshOffseasonStatus: () => void;
   onNavigate: (tab: string) => void;
+  onOpenFreeAgency: () => void;  // NEW
 }
+
+export default function OffseasonChecklist({
+  pendingResigns, draftComplete, draftGenerated, faOpen, rosterSize,
+  refreshOffseasonStatus, onNavigate, onOpenFreeAgency,
+}: Props) {
 
 export default function OffseasonChecklist({
   pendingResigns, draftComplete, draftGenerated,
