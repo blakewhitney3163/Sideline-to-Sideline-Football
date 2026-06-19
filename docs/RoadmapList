@@ -5,13 +5,6 @@ Repository: https://github.com/blakewhitney3163/Gridiron-Dynasty
 
 TIER 2 — Strategic depth
 ────────────────────────────────────────────────────────────────────────────────
-Contract Negotiation Depth — multi-year offer counters, holdout mechanic,
-  dead cap penalties on early releases. Contracts feel functional but not
-  deeply strategic today.
-
-Coaching Staff System — OC/DC coordinators with ratings that affect team
-  performance. Hiring and firing adds another management layer.
-
 Draft Combine / Deeper Scouting — measurables (40 time, bench press) that
   hint at hidden potential. Ties into the existing 25-point scouting system.
 
@@ -30,6 +23,34 @@ In-Game Narrative / Play-by-Play — text play-by-play during simulation.
 ================================================================================
 COMPLETED ITEMS
 ================================================================================
+
+[DONE June 19, 2026] Coaching Staff System — HC / OC / DC / ST coordinators
+  for every team, each with overall, offense, defense, and development ratings.
+  Hiring and firing coaches from a free-agent pool managed per role. OC's
+  offense_rating and DC's defense_rating directly modify team strength in every
+  game sim via getTeamRatings() (coordinator adds ±(rating−70)×0.15 to the
+  relevant side; HC adds ±(ovr−70)×0.05 to both). New COACHING STAFF tab in
+  Franchise shows 2×2 staff cards with primary rating badge, Dev rating, Exp,
+  and salary. "View Available Coaches" panel with role filter tabs and Hire
+  button. Backed by coaching_staff table (migration v5), CoachingRepository,
+  CoachingService (generateAllCoachingStaff seeds 32 teams + 16-coach pool),
+  coachingHandlers IPC, and preload exposure.
+
+[DONE June 19, 2026] Contract Negotiation Depth — multi-year offer counters,
+  holdout mechanic, dead cap penalties on early releases.
+  Counter Offer: elite players (OVR 80+) can reject an offer and return a
+  counter at their asking price; the counter panel appears inline in the
+  Offseason tab with Accept / Decline — Let Walk buttons. Accepting writes a
+  new contract; declining releases the player to FA.
+  Holdout Risk Badge: players with OVR 85+, Superstar/X-Factor trait, and
+  morale < 65 display a ⚠ HOLDOUT RISK warning badge while still pending.
+  Dead Cap: releasing a player mid-contract writes the remaining guaranteed
+  amount to dead_cap_entries (season-scoped); getCapUsage() sums active
+  salaries + dead cap charges; Franchise cap summary shows 💀 Dead cap with
+  per-player breakdown. Backed by dead_cap_entries table (migration v4),
+  ContractRepository dead cap methods, ContractService resignPlayer /
+  releasePlayer / acceptCounterOffer, and accept-counter-offer /
+  get-dead-cap IPC handlers.
 
 [DONE June 19, 2026] Surface Trade Offers on Main Screen — incoming CPU trade
   proposals now surface on the Home tab as a green-bordered notification card.
