@@ -1,6 +1,7 @@
 import React from 'react';
 import { T } from '../theme';
 import { StandingEntry, Champion, InjuredPlayer } from './types';
+import { STATUS_META } from '../trades/tradeUtils';
 
 function injuryBadge(status: string): { label: string; color: string; bg: string } {
   if (status === 'ir')           return { label: 'IR',  color: '#e57373', bg: T.bgRed };
@@ -33,9 +34,15 @@ interface Props {
   topNFC: StandingEntry[];
   champions: Champion[];
   statLeaders: any;
+  userTradeStatus?: any;
+  onSetTradeStatus?: (status: string) => void;
+  settingStatus?: boolean;
 }
 
-export default function Sidebar({ injuryReport, topAFC, topNFC, champions, statLeaders }: Props) {
+export default function Sidebar({
+  injuryReport, topAFC, topNFC, champions, statLeaders,
+  userTradeStatus, onSetTradeStatus, settingStatus,
+}: Props) {
   return (
     <div>
       {injuryReport.length > 0 && (
@@ -102,6 +109,51 @@ export default function Sidebar({ injuryReport, topAFC, topNFC, champions, statL
               <span style={{ color: T.textDim, fontSize: 9, letterSpacing: 0.5 }}>{label}</span>
               <span style={{ color: T.textMuted, flex: 1, marginLeft: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.player_name}</span>
               <span style={{ color: T.textPrimary, fontWeight: 700, fontFamily: 'monospace' }}>{val(p)}</span>
+
+                {userTradeStatus && onSetTradeStatus && (
+    <SidebarBlock title="TRADE STATUS">
+      {/* Current status badge */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <span style={{
+          fontSize: 11, fontWeight: 'bold', padding: '2px 8px', borderRadius: 3,
+          color: STATUS_META[userTradeStatus.status]?.color ?? '#aaa',
+          background: `${STATUS_META[userTradeStatus.status]?.color ?? '#aaa'}18`,
+          border: `1px solid ${STATUS_META[userTradeStatus.status]?.color ?? '#aaa'}44`,
+        }}>
+          {userTradeStatus.status}
+        </span>
+        {userTradeStatus.isOverridden && (
+          <span style={{ fontSize: 9, color: '#444' }}>manual</span>
+        )}
+      </div>
+
+      {/* Quick-set buttons */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+        {['auto', 'Buyer', 'Seller', 'Rebuilding', 'Neutral'].map(opt => {
+          const isCurrent = opt === 'auto'
+            ? !userTradeStatus.isOverridden
+            : userTradeStatus.isOverridden && userTradeStatus.status === opt;
+          return (
+            <button
+              key={opt}
+              onClick={() => onSetTradeStatus(opt)}
+              disabled={settingStatus || isCurrent}
+              style={{
+                padding: '3px 8px', fontSize: 9, borderRadius: 3, cursor: isCurrent ? 'default' : 'pointer',
+                fontFamily: 'monospace', letterSpacing: 0.5,
+                background: isCurrent ? (STATUS_META[opt]?.bg ?? '#1a1a1a') : '#0f0f0f',
+                border: `1px solid ${isCurrent ? (STATUS_META[opt]?.color ?? '#555') : '#1e1e1e'}`,
+                color: isCurrent ? (STATUS_META[opt]?.color ?? '#aaa') : '#444',
+                fontWeight: isCurrent ? 'bold' : 'normal',
+              }}
+            >
+              {opt}
+            </button>
+          );
+        })}
+      </div>
+    </SidebarBlock>
+  )}
             </div>
           ))}
         </SidebarBlock>
