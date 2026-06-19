@@ -16,10 +16,11 @@ const Draft      = lazy(() => import('./Draft'));
 const DepthChart = lazy(() => import('./DepthChart'));
 const Records    = lazy(() => import('./Records'));
 const NewsFeed   = lazy(() => import('./newsCenter/NewsFeed'));
+const Import     = lazy(() => import('./Import'));
 const TeamSelection = lazy(() => import('./TeamSelection'));
 const SavePicker = lazy(() => import('./SavePicker'));
 
-type Tab = 'home' | 'standings' | 'teams' | 'schedule' | 'stats' | 'playoffs' | 'trades' | 'franchise' | 'draft' | 'depth' | 'records' | 'news';
+type Tab = 'home' | 'standings' | 'teams' | 'schedule' | 'stats' | 'playoffs' | 'trades' | 'franchise' | 'draft' | 'depth' | 'records' | 'news' | 'import';
 type Screen = 'save-picker' | 'loading' | 'start' | 'team-select' | 'setup' | 'game';
 
 interface SetupStep { label: string; done: boolean; }
@@ -36,6 +37,7 @@ const BASE_TABS: { id: Tab; label: string }[] = [
   { id: 'franchise', label: 'Franchise' },
   { id: 'depth',     label: 'Depth Chart' },
   { id: 'news',      label: '📰 News' },
+  { id: 'import',    label: 'Import' },
 ];
 
 function TabFallback() {
@@ -97,19 +99,10 @@ export default function App() {
   };
 
   const runSetup = async () => {
-    markStep('Importing contracts...', false);
-    await window.api.importOtcContracts();
-    markStep('Importing contracts...', true);
-
-    markStep('Building player career histories...', false);
-    await window.api.importNflverseStats();
-    markStep('Building player career histories...', true);
-
     markStep('Finalizing dynasty setup...', false);
     await window.api.balanceRosters();
-    await new Promise(r => setTimeout(r, 600));
+    await new Promise(r => setTimeout(r, 800));
     markStep('Finalizing dynasty setup...', true);
-
     setSetupComplete(true);
     setTimeout(() => setScreen('game'), 1200);
   };
@@ -137,7 +130,7 @@ export default function App() {
   };
 
   const tabs = playoffsComplete
-    ? [...BASE_TABS.filter(t => t.id !== 'news'), { id: 'draft' as Tab, label: '⚡ Draft' }, { id: 'news' as Tab, label: '📰 News' }]
+    ? [...BASE_TABS.filter(t => t.id !== 'news' && t.id !== 'import'), { id: 'draft' as Tab, label: '⚡ Draft' }, { id: 'news' as Tab, label: '📰 News' }, { id: 'import' as Tab, label: 'Import' }]
     : BASE_TABS;
 
   const isMounted = (id: Tab) => mountedTabs.has(id);
@@ -325,6 +318,9 @@ export default function App() {
           )}
           {isMounted('news') && (
             <div style={tabStyle('news')}><NewsFeed /></div>
+          )}
+          {isMounted('import') && (
+            <div style={tabStyle('import')}><Import /></div>
           )}
           {isMounted('draft') && (
             <div style={tabStyle('draft')}>
