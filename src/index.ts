@@ -26,25 +26,50 @@ function bootstrapDatabase(isNew: boolean): void {
     const insertTeam = db.prepare(
       'INSERT INTO teams (city, name, abbreviation, conference, division) VALUES (?, ?, ?, ?, ?)'
     );
-    const NFL_TEAMS = [
-      ['Baltimore','Ravens','BAL','AFC','North'],['Cincinnati','Bengals','CIN','AFC','North'],
-      ['Cleveland','Browns','CLE','AFC','North'],['Pittsburgh','Steelers','PIT','AFC','North'],
-      ['Houston','Texans','HOU','AFC','South'],['Indianapolis','Colts','IND','AFC','South'],
-      ['Jacksonville','Jaguars','JAX','AFC','South'],['Tennessee','Titans','TEN','AFC','South'],
-      ['Buffalo','Bills','BUF','AFC','East'],['Miami','Dolphins','MIA','AFC','East'],
-      ['New England','Patriots','NE','AFC','East'],['New York','Jets','NYJ','AFC','East'],
-      ['Denver','Broncos','DEN','AFC','West'],['Kansas City','Chiefs','KC','AFC','West'],
-      ['Las Vegas','Raiders','LV','AFC','West'],['Los Angeles','Chargers','LAC','AFC','West'],
-      ['Chicago','Bears','CHI','NFC','North'],['Detroit','Lions','DET','NFC','North'],
-      ['Green Bay','Packers','GB','NFC','North'],['Minnesota','Vikings','MIN','NFC','North'],
-      ['Atlanta','Falcons','ATL','NFC','South'],['Carolina','Panthers','CAR','NFC','South'],
-      ['New Orleans','Saints','NO','NFC','South'],['Tampa Bay','Buccaneers','TB','NFC','South'],
-      ['Dallas','Cowboys','DAL','NFC','East'],['New York','Giants','NYG','NFC','East'],
-      ['Philadelphia','Eagles','PHI','NFC','East'],['Washington','Commanders','WAS','NFC','East'],
-      ['Arizona','Cardinals','ARI','NFC','West'],['Los Angeles','Rams','LAR','NFC','West'],
-      ['San Francisco','49ers','SF','NFC','West'],['Seattle','Seahawks','SEA','NFC','West'],
-    ];
-    db.transaction(() => { for (const t of NFL_TEAMS) insertTeam.run(...t); })();
+    const TEAMS = [
+  // AFC North
+  ['Baltimore',    'Rooks',        'ROK', 'AFC', 'North'],
+  ['Cincinnati',   'Strikers',     'STK', 'AFC', 'North'],
+  ['Cleveland',    'Forge',        'FOR', 'AFC', 'North'],
+  ['Pittsburgh',   'Iron',         'IRN', 'AFC', 'North'],
+  // AFC South
+  ['Houston',      'Storm',        'STM', 'AFC', 'South'],
+  ['Indianapolis', 'Cavalry',      'CAV', 'AFC', 'South'],
+  ['Jacksonville', 'Surge',        'SRG', 'AFC', 'South'],
+  ['Tennessee',    'Thunder',      'THD', 'AFC', 'South'],
+  // AFC East
+  ['Buffalo',      'Blizzard',     'BLZ', 'AFC', 'East'],
+  ['Miami',        'Wave',         'WAV', 'AFC', 'East'],
+  ['New England',  'Legion',       'LEG', 'AFC', 'East'],
+  ['New York',     'Rush',         'NYR', 'AFC', 'East'],
+  // AFC West
+  ['Denver',       'Peaks',        'DPK', 'AFC', 'West'],
+  ['Kansas City',  'Kings',        'KCK', 'AFC', 'West'],
+  ['Las Vegas',    'Outlaws',      'LVO', 'AFC', 'West'],
+  ['Los Angeles',  'Bolt',         'LAB', 'AFC', 'West'],
+  // NFC North
+  ['Chicago',      'Wolves',       'CHW', 'NFC', 'North'],
+  ['Detroit',      'Motors',       'DTM', 'NFC', 'North'],
+  ['Green Bay',    'Tundra',       'GBT', 'NFC', 'North'],
+  ['Minnesota',    'Frost',        'MNF', 'NFC', 'North'],
+  // NFC South
+  ['Atlanta',      'Phoenix',      'ATX', 'NFC', 'South'],
+  ['Carolina',     'Cougars',      'CAC', 'NFC', 'South'],
+  ['New Orleans',  'Crescent',     'NOC', 'NFC', 'South'],
+  ['Tampa Bay',    'Corsairs',     'TBC', 'NFC', 'South'],
+  // NFC East
+  ['Dallas',       'Mustangs',     'DAM', 'NFC', 'East'],
+  ['New York',     'Empire',       'NYE', 'NFC', 'East'],
+  ['Philadelphia', 'Liberty',      'PHL', 'NFC', 'East'],
+  ['Washington',   'Capitol',      'WAC', 'NFC', 'East'],
+  // NFC West
+  ['Arizona',      'Desert Hawks', 'AZH', 'NFC', 'West'],
+  ['Los Angeles',  'Pride',        'LAP', 'NFC', 'West'],
+  ['San Francisco','Miners',       'SFM', 'NFC', 'West'],
+  ['Seattle',      'Cascade',      'SEC', 'NFC', 'West'],
+];
+
+db.transaction(() => { for (const t of TEAMS) insertTeam.run(...t); })();
     console.log('32 NFL teams seeded');
 
     const { importFromMadden } = require('./importfromMadden');
