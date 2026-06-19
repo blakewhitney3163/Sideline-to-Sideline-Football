@@ -4,7 +4,8 @@ import { CapSummary, RosterSpots } from '../types';
 import { settingsRepo, playerRepo, contractRepo } from '../repositories';
 import {
   calcFairMarket, signFreeAgent, resignPlayer, promoteFromPS, cpuFASigning,
-  signFreeAgentToPS, extendPlayer, restructurePlayer, releasePlayer, getOffseasonStatus,
+  signFreeAgentToPS, extendPlayer, restructurePlayer, releasePlayer,
+  getOffseasonStatus, applyFranchiseTag, removeFranchiseTag,
 } from '../services/ContractService';
 import { logNewsEvent } from '../helpers/logNewsEvent';
 import { db } from '../database';
@@ -96,4 +97,13 @@ export function registerContractHandlers(): void {
 
   ipcMain.handle('cpu-fa-signing', () =>
     cpuFASigning(settingsRepo.getUserTeamId() ?? -1));
+
+    ipcMain.handle('apply-franchise-tag', (_event: any, { playerId, tagType }: { playerId: number; tagType: 'franchise' | 'transition' }) => {
+    const teamId = settingsRepo.getUserTeamId();
+    if (!teamId) return { success: false, reason: 'No franchise selected.' };
+    return applyFranchiseTag(playerId, teamId, tagType);
+  });
+
+  ipcMain.handle('remove-franchise-tag', (_event: any, playerId: number) =>
+    removeFranchiseTag(playerId));
 }
