@@ -147,7 +147,10 @@ Roster Tab:
   - Full active roster with salary, years remaining, OVR, age, dev trait
   - Morale bar per player — colored progress bar + numeric value:
     green (80+), orange (60–79), red (<60)
-  - Sort by salary / years / OVR / age; filter by position; name search
+  - Sort by salary / years / OVR / age; name search
+  - Position filter buttons use dual match: c.position === filter OR
+    c.position_label === filter — ensures RB (label: HB/FB) and S
+    (label: SS/FS) appear correctly under their position group buttons
   - Contract grade badges (TEAM DEAL / OVERPAID)
   - Release, Extend, Restructure actions with cap impact preview
 
@@ -163,6 +166,10 @@ Free Agents Tab:
   - Browse FAs, filter by position, sort by OVR / age / value
   - Query uses dual condition: (is_free_agent = 1 OR roster_status = 'free_agent')
     AND team_id IS NULL
+  - Client-side filter uses dual match: f.position === filter OR
+    f.position_label === filter — same fix as Roster tab; prevents RBs and
+    safeties from disappearing when those position buttons are clicked
+  - NEEDS button highlights positions the team is thin at
   - Cap impact preview; sign to active roster or practice squad
 
 Offseason Tab:
@@ -196,9 +203,21 @@ TRADES TAB
 - Trade value calculator: OVR, age, dev trait, round value
 - CPU acceptance logic: value balance, team needs, trade status
 - Team trade status: Buyer / Seller / Rebuilding / Neutral (+ manual override)
-- CPU incoming offer modal with accept/decline (also surfaced on Home tab)
+- CPU incoming trade offers (getCpuTradeOffers in TradeService.ts):
+  - Returns an array of up to 3 simultaneous offers (previously single offer)
+  - ~35% chance of any offers generating on a given check — prevents inbox
+    from always being full after every tab visit
+  - No two offers in the same batch can target the same user player
+    (claimedUserPlayerIds Set tracks claimed players)
+  - Displayed in CpuOfferBanner.tsx with "X of Y offers" pill and ‹ › prev/
+    next navigation buttons when multiple offers are present
+  - Accept removes that offer from the array; Decline removes it too; other
+    offers in the batch remain visible and navigable
+  - Also surfaced as a card on the Home tab (TradeOfferCard.tsx)
 - Trade deadline enforcement (locked after Week 8)
-- CPU-vs-CPU in-season trades (Weeks 2–8, capped at 4/week)
+- CPU-vs-CPU in-season trades (runCpuTrades): Weeks 2–8, capped at 2/week
+  (reduced from 4), higher skip threshold (72% for normal sellers) to reduce
+  news feed noise
 - All trades logged to news feed
 
 DRAFT TAB
@@ -327,7 +346,11 @@ CPU GM INTELLIGENCE
   protects X-Factor and OVR 88+ cornerstones
 - CPU resign attempts: offer premium by team type (78%–110% of market)
 - Competitive FA bidding engine: market-rate bids, cap-aware, need-weighted
-- CPU-vs-CPU in-season trades: Weeks 2–8, capped at 4/week, value-balanced
+- CPU incoming trade offers to user: getCpuTradeOffers() returns up to 3
+  simultaneous offers per check; 35% chance gate prevents constant offer spam;
+  claimedUserPlayerIds prevents two offers targeting the same player
+- CPU-vs-CPU in-season trades: Weeks 2–8, capped at 2/week; 72% skip
+  threshold for normal sellers (previously 60%) reduces news feed volume
 - All 32 CPU teams have assigned schemes that affect sim ratings
 
 MILESTONE SYSTEM
