@@ -5,7 +5,7 @@ import { TradeResult } from '../types';
 import { settingsRepo, playerRepo, contractRepo, pickRepo } from '../repositories';
 import {
   calcPlayerTradeValue, calcPickTradeValue,
-  getTeamTradeProfile, getTeamNeeds, proposeTrade, getCpuTradeOffer,
+  getTeamTradeProfile, getTeamNeeds, proposeTrade, getCpuTradeOffers,
 } from '../services/TradeService';
 import { logNewsEvent } from '../helpers/logNewsEvent';
 
@@ -75,8 +75,8 @@ export function registerTradeHandlers(): void {
 
   ipcMain.handle('get-cpu-trade-offer', () => {
     const userTeamId = settingsRepo.getUserTeamId();
-    if (!userTeamId) return null;
-    return getCpuTradeOffer(userTeamId);
+    if (!userTeamId) return [];
+    return getCpuTradeOffers(userTeamId);
   });
 
   ipcMain.handle('accept-cpu-trade-offer', (_event: any, { myPlayerId, theirPlayerId, theirTeamId, theirPickId }: {
