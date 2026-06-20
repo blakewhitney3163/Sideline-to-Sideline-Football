@@ -2,7 +2,7 @@ export const POSITIONS = [
   'ALL', 'QB', 'RB', 'WR', 'TE',
   'LT', 'LG', 'C', 'RG', 'RT',
   'DE', 'DT',
-  'MLB', 'OLB', 'CB', 'S', 'K',
+  'MLB', 'OLB', 'CB', 'FS', 'SS', 'K',
 ];
 
 export const TRAIT_META: Record<string, { color: string; short: string; bg: string }> = {
