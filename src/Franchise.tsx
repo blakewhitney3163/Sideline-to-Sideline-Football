@@ -32,7 +32,6 @@ export default function Franchise() {
   const [rosterSearch, setRosterSearch] = useState('');
   const [extendingId, setExtendingId] = useState<number | null>(null);
   const [extendYears, setExtendYears] = useState(3);
-  const [extendSalary, setExtendSalary] = useState('');
   const [releasingId, setReleasingId] = useState<number | null>(null);
 
   const [faPos, setFaPos] = useState('ALL');
@@ -100,23 +99,23 @@ export default function Franchise() {
     setTeamNeeds(Array.isArray(needs) ? needs : []);
   };
 
-  const handleExtend = async () => {
-    if (!extendingId || working) return;
-    const salary = parseFloat(extendSalary);
-    if (isNaN(salary) || salary <= 0) return;
-    const current = contracts.find(c => c.id === extendingId);
-    const capImpact = salary - (current?.annual_salary ?? 0);
-    if (cap && capImpact > cap.available_cap + 0.1) {
-      showToast(`Not enough cap space. Need $${capImpact.toFixed(1)}M more.`, 'error');
-      return;
-    }
-    setWorking(true);
-    await window.api.extendPlayer({ playerId: extendingId, years: extendYears, salary });
-    setExtendingId(null);
-    showToast('Contract extended successfully.', 'success');
-    await loadData();
-    setWorking(false);
-  };
+  const handleExtend = async (salary: string) => {
+  if (!extendingId || working) return;
+  const salaryNum = parseFloat(salary);
+  if (isNaN(salaryNum) || salaryNum <= 0) return;
+  const current = contracts.find(c => c.id === extendingId);
+  const capImpact = salaryNum - (current?.annual_salary ?? 0);
+  if (cap && capImpact > cap.available_cap + 0.1) {
+    showToast(`Not enough cap space. Need $${capImpact.toFixed(1)}M more.`, 'error');
+    return;
+  }
+  setWorking(true);
+  await window.api.extendPlayer({ playerId: extendingId, years: extendYears, salary: salaryNum });
+  setExtendingId(null);
+  showToast('Contract extended successfully.', 'success');
+  await loadData();
+  setWorking(false);
+};
 
   const handleRelease = async () => {
     if (!releasingId || working) return;
