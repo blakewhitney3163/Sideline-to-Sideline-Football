@@ -154,9 +154,6 @@ export async function advanceSeason(): Promise<AdvanceSeasonResult> {
     }
   })();
 
-    // ── Prune old news events (keep last 3 seasons) ──────────────────────────
-  db.prepare('DELETE FROM news_events WHERE season < ?').run(next - 2);
-
   // ── Dev Trait Evolution ───────────────────────────────────────────────────
   const setTrait = db.prepare('UPDATE players SET dev_trait = ? WHERE id = ?');
   db.transaction(() => {
