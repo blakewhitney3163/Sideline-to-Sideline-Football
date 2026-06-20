@@ -3,6 +3,7 @@ import { db } from '../database';
 const pathModule = require('path');
 const fsModule = require('fs');
 import { POSITION_TO_GROUP } from '../constants';
+import { getFranchiseRecords } from '../services/StatsService';
 
 // ─── Depth Chart Helper ───────────────────────────────────────────────────────
 
@@ -129,6 +130,9 @@ export function registerStatsHandlers(): void {
     }
     return result;
   });
+
+    ipcMain.handle('get-franchise-records', (_event: any, teamId: number) =>
+    getFranchiseRecords(teamId));
 
   ipcMain.handle('get-season-records', () => {
     const historical = db.prepare(`
