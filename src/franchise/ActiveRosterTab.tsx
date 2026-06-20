@@ -241,7 +241,6 @@ export default function ActiveRosterTab({
                         inputMode="decimal"
                         defaultValue={currentExtend.annual_salary.toFixed(1)}
                         onChange={e => setCapSalary(e.target.value)}
-                        onKeyDown={e => { e.stopPropagation(); e.nativeEvent.stopImmediatePropagation(); }}
                         placeholder="0.0"
                         style={{ background: '#141414', border: '1px solid #2a2a2a', borderRadius: 4, color: '#ccc', padding: '6px 10px', fontSize: 13, width: 80 }}
                       />
