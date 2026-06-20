@@ -17,8 +17,8 @@ class PlayerRepository {
   getPracticeSquad(teamId: number): any[] {
     return db.prepare(`
       SELECT p.id, p.first_name, p.last_name, p.position, p.position_label,
-             p.overall_rating, p.age, p.dev_trait,
-             c.annual_salary, c.years_remaining
+      p.overall_rating, p.age, p.dev_trait,
+      c.annual_salary, c.years_remaining
       FROM players p
       LEFT JOIN contracts c ON c.player_id = p.id
       WHERE p.team_id = ? AND p.roster_status = 'practice_squad'
@@ -27,26 +27,77 @@ class PlayerRepository {
   }
 
   getFreeAgents(position?: string, limit: number = 200): any[] {
-  const base = `
-    SELECT id, first_name, last_name, position, position_label,
-    overall_rating, age, dev_trait
-    FROM players
-    WHERE (is_free_agent = 1 OR roster_status = 'free_agent')
-    AND roster_status != 'waivers'
-    AND roster_status != 'retired'
-    AND team_id IS NULL
-  `;
-  if (position && position !== 'ALL') {
-    return db.prepare(`${base} AND (position = ? OR position_label = ?) ORDER BY overall_rating DESC LIMIT ?`)
-      .all(position, position, limit);
+    const base = `
+      SELECT id, first_name, last_name, position, position_label,
+      overall_rating, age, dev_trait
+      FROM players
+      WHERE (is_free_agent = 1 OR roster_status = 'free_agent')
+      AND roster_status != 'waivers'
+      AND roster_status != 'retired'
+      AND team_id IS NULL
+    `;
+    if (position && position !== 'ALL') {
+      return db.prepare(`${base} AND (position = ? OR position_label = ?) ORDER BY overall_rating DESC LIMIT ?`)
+        .all(position, position, limit);
+    }
+    return db.prepare(`${base} ORDER BY overall_rating DESC LIMIT ?`).all(limit);
   }
-  return db.prepare(`${base} ORDER BY overall_rating DESC LIMIT ?`).all(limit);
-}
+
+  getFranchiseHealth(teamId: number): {
+    offense_ovr: number;
+    defense_ovr: number;
+    overall_ovr: number;
+    groups: { group: string; avg_ovr: number; count: number }[];
+  } {
+    const rows = db.prepare(`
+      SELECT position_label, overall_rating
+      FROM players
+      WHERE team_id = ? AND roster_status = 'active'
+    `).all(teamId) as { position_label: string; overall_rating: number }[];
+
+    const groupMap: Record<string, number[]> = {
+      'QB': [], 'RB': [], 'WR/TE': [], 'OL': [], 'DL': [], 'LB': [], 'DB': [],
+    };
+
+    const offenseRatings: number[] = [];
+    const defenseRatings: number[] = [];
+    const offensePositions = new Set(['QB', 'RB', 'FB', 'WR', 'TE', 'SWR', 'LT', 'LG', 'C', 'RG', 'RT']);
+    const defensePositions = new Set(['DE', 'DT', 'NT', 'MLB', 'OLB', 'ILB', 'EDGE', 'LB', 'CB', 'SS', 'FS', 'SCB']);
+
+    for (const p of rows) {
+      const pos = p.position_label ?? '';
+      const ovr = p.overall_rating;
+      if (pos === 'QB') groupMap['QB'].push(ovr);
+      else if (['RB', 'FB'].includes(pos)) groupMap['RB'].push(ovr);
+      else if (['WR', 'TE', 'SWR'].includes(pos)) groupMap['WR/TE'].push(ovr);
+      else if (['LT', 'LG', 'C', 'RG', 'RT'].includes(pos)) groupMap['OL'].push(ovr);
+      else if (['DE', 'DT', 'NT'].includes(pos)) groupMap['DL'].push(ovr);
+      else if (['MLB', 'OLB', 'ILB', 'EDGE', 'LB'].includes(pos)) groupMap['LB'].push(ovr);
+      else if (['CB', 'SS', 'FS', 'SCB'].includes(pos)) groupMap['DB'].push(ovr);
+
+      if (offensePositions.has(pos)) offenseRatings.push(ovr);
+      else if (defensePositions.has(pos)) defenseRatings.push(ovr);
+    }
+
+    const avg = (arr: number[]) =>
+      arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
+
+    const groups = Object.entries(groupMap)
+      .filter(([, ratings]) => ratings.length > 0)
+      .map(([group, ratings]) => ({ group, avg_ovr: avg(ratings), count: ratings.length }));
+
+    return {
+      offense_ovr: avg(offenseRatings),
+      defense_ovr: avg(defenseRatings),
+      overall_ovr: avg([...offenseRatings, ...defenseRatings]),
+      groups,
+    };
+  }
 
   getOnWaivers(userTeamId?: number): any[] {
     const rows = db.prepare(`
       SELECT id, first_name, last_name, position, position_label,
-             overall_rating, age, dev_trait, speed, strength, awareness, waived_by_team_id
+      overall_rating, age, dev_trait, speed, strength, awareness, waived_by_team_id
       FROM players WHERE roster_status = 'waivers'
       ORDER BY overall_rating DESC
     `).all() as any[];
