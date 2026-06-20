@@ -276,7 +276,7 @@ export default function App() {
   if (screen === 'save-picker') {
     return (
       <Suspense fallback={<TabFallback />}>
-        <SavePicker onLoaded={handleSaveLoaded} onBack={() => setScreen('main-menu')} />
+        <SavePicker onSaveLoaded={handleSaveLoaded} onBack={() => setScreen('main-menu')} />
       </Suspense>
     );
   }
@@ -315,7 +315,7 @@ export default function App() {
   if (screen === 'meet-team') {
     return (
       <Suspense fallback={<TabFallback />}>
-        <MeetTheTeam onBegin={() => setScreen('game')} />
+        <MeetTheTeam team={userTeam!} season={currentSeason} onStart={() => setScreen('game')} />
       </Suspense>
     );
   }
