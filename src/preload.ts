@@ -288,6 +288,8 @@ contextBridge.exposeInMainWorld('api', {
 
   setTeamScheme: (payload: { teamId: number; offenseScheme?: string; defenseScheme?: string }) =>
     ipcRenderer.invoke('set-team-scheme', payload),
+    getFranchiseHealth: (teamId: number) =>
+    ipcRenderer.invoke('get-franchise-health', teamId),
   openFreeAgency: () => ipcRenderer.invoke('open-free-agency'),
 
 });
