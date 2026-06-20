@@ -11,10 +11,19 @@ CORE INFRASTRUCTURE
   draft_prospects, depth_chart, career_stats_history, hall_of_fame,
   historical_records, news_events, pick_assets, team_trade_overrides,
   player_milestones, dead_cap_entries, coaching_staff, team_schemes
-- Schema version: v9. Migration runner in runMigrations() upgrades existing
+- Schema version: v11. Migration runner in runMigrations() upgrades existing
   saves on launch. Old migration blocks removed once all saves have passed them.
   Active migrations:
-    v9: team_id INTEGER on career_stats_history + idx_career_stats_team
+    v9:  team_id INTEGER on career_stats_history + idx_career_stats_team
+    v10: Recalibrate all active-roster contract salaries to market-rate scale
+         (fixes "TEAM DEAL" badge on nearly every player from prior saves)
+    v11: Normalize all team salary totals to 95% of salary cap (~$265M),
+         proportionally scaling each team's roster for equal cap distribution
+- generateContracts() uses CONTRACT_MARKET_RATES table (positions QB/WR/DL/CB/
+  OL/LB/TE/S/RB/K, breakpoints OVR 70–99) + TRAIT_PREMIUM multipliers to
+  generate realistic per-player salaries. After generation, every team is
+  proportionally scaled so total payroll lands at exactly 95% of SALARY_CAP
+  (~$265M), giving all 32 teams equal cap standing at dynasty start.
 - career_stats_history columns: player_id, season, team_id, games,
   completions, pass/rush/rec stats, defensive stats, def_tds.
   team_id captures the team the player accumulated stats for that season
