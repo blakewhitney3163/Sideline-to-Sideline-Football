@@ -126,12 +126,15 @@ const createWindow = (): void => {
     mainWindow.webContents.focus();
   });
 
-  mainWindow.webContents.on('devtools-closed', () => {
-    mainWindow.webContents.focus();
+    mainWindow.webContents.on('devtools-closed', () => {
+    setTimeout(() => {
+      mainWindow.focus();
+      mainWindow.webContents.focus();
+    }, 250);
   });
 
-    if (process.env.NODE_ENV === 'development') {
-    mainWindow.webContents.openDevTools();
+      if (process.env.NODE_ENV === 'development') {
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
   }
 };
 
