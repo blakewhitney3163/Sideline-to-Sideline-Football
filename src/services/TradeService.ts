@@ -156,23 +156,36 @@ export function getCpuTradeOffer(userTeamId: number): any | null {
 
   const cpuTeams = db.prepare(`SELECT id, city, name FROM teams WHERE id != ? ORDER BY RANDOM()`).all(userTeamId) as any[];
 
-  const userPlayersAll = db.prepare(`
-    SELECT id, first_name, last_name, position, overall_rating, age, dev_trait
-    FROM players WHERE team_id = ? AND roster_status = 'active'
-    ORDER BY overall_rating DESC
+    const userPlayersAll = db.prepare(`
+    SELECT p.id, p.first_name, p.last_name, p.position, p.position_label,
+           p.overall_rating, p.age, p.dev_trait,
+           c.annual_salary AS salary
+    FROM players p
+    LEFT JOIN contracts c ON c.player_id = p.id AND c.team_id = p.team_id
+    WHERE p.team_id = ? AND p.roster_status = 'active'
+    ORDER BY p.overall_rating DESC
   `).all(userTeamId) as any[];
 
   const stmtCpuPlayers = db.prepare(`
-    SELECT id, first_name, last_name, position, overall_rating, age, dev_trait
-    FROM players WHERE team_id = ? AND roster_status = 'active'
+    SELECT p.id, p.first_name, p.last_name, p.position, p.position_label,
+           p.overall_rating, p.age, p.dev_trait,
+           c.annual_salary AS salary
+    FROM players p
+    LEFT JOIN contracts c ON c.player_id = p.id AND c.team_id = p.team_id
+    WHERE p.team_id = ? AND p.roster_status = 'active'
     ORDER BY RANDOM()
   `);
+
   const stmtVeterans = db.prepare(`
-    SELECT id, first_name, last_name, position, overall_rating, age, dev_trait
-    FROM players WHERE team_id = ? AND roster_status = 'active'
-    AND overall_rating >= 76 AND dev_trait != 'X-Factor'
-    AND (age >= 28 OR dev_trait IN ('Star','Superstar'))
-    ORDER BY overall_rating DESC
+    SELECT p.id, p.first_name, p.last_name, p.position, p.position_label,
+           p.overall_rating, p.age, p.dev_trait,
+           c.annual_salary AS salary
+    FROM players p
+    LEFT JOIN contracts c ON c.player_id = p.id AND c.team_id = p.team_id
+    WHERE p.team_id = ? AND p.roster_status = 'active'
+      AND p.overall_rating >= 76 AND p.dev_trait != 'X-Factor'
+      AND (p.age >= 28 OR p.dev_trait IN ('Star','Superstar'))
+    ORDER BY p.overall_rating DESC
   `);
 
   for (const cpuTeam of cpuTeams.slice(0, 15)) {
