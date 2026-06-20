@@ -209,45 +209,40 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
       setMatchups(await window.api.getWeekMatchups(currentWeek));
     }
     setFranchiseHealth(await window.api.getFranchiseHealth(userTeam.id));
-    incrementSimCount();
     setSimulatingGameId(null);
-  };
-
-  const handleSimulatePlayoffs = async () => {
-    setSimulatingPlayoffs(true);
-    await window.api.simulatePlayoffs(currentSeason);
-    const [champs, results, awards] = await Promise.all([
-      window.api.getChampions(),
-      window.api.getPlayoffs(currentSeason),
-      window.api.getSeasonAwards(currentSeason),
-    ]);
-    setChampions(champs); setPlayoffResults(results); setPlayoffSeeds(null);
-    setPlayoffsComplete(true);
-    setSeasonAwards(awards);
-    await refreshOffseasonStatus();
-    setSimulatingPlayoffs(false);
   };
 
   const handleBoxScore = async (gameId: number) => {
     if (boxScore?.game?.id === gameId) { setBoxScore(null); return; }
-    setBoxScoreLoading(true); setBoxScore(null);
-    setBoxScore(await window.api.getGameBoxScore(gameId));
+    setBoxScoreLoading(true);
+    const data = await window.api.getGameBoxScore(gameId);
+    setBoxScore(data);
     setBoxScoreLoading(false);
   };
 
-  const handleAdvance = async () => {
-    if (userTeam) {
-      const spots = await window.api.getRosterSpots(userTeam.id);
-      if (spots && spots.active > 53) {
-        alert(`You must cut ${spots.active - 53} player(s) before advancing.\n\nGo to My Team → Team Management → Active Roster.`);
-        return;
-      }
+  const handleSimulatePlayoffs = async () => {
+    setSimulatingPlayoffs(true);
+    const results = await window.api.simulatePlayoffs(currentSeason);
+    setPlayoffResults(results);
+    const champs = await window.api.getChampions();
+    setChampions(champs);
+    const champForSeason = champs.find((c: Champion) => c.season === currentSeason);
+    if (champForSeason) {
+      setPlayoffsComplete(true);
+      const awards = await window.api.getSeasonAwards(currentSeason);
+      setSeasonAwards(awards);
     }
+    setSimulatingPlayoffs(false);
+  };
+
+  const handleAdvance = async () => {
     setAdvancing(true);
     const result = await window.api.advanceSeason();
-    setAdvancing(false); setConfirming(false);
-    if (result.retired?.length > 0) setRetiredPlayers(result.retired);
+    const retired = result?.retiredPlayers ?? [];
+    setRetiredPlayers(retired);
     onSeasonAdvance(result.nextSeason);
+    setAdvancing(false);
+    setConfirming(false);
   };
 
   const handleOpenFreeAgency = async () => {
@@ -258,23 +253,25 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
   const handleAcceptOffer = async () => {
     if (!cpuOffer || offerWorking) return;
     setOfferWorking(true);
-    const res = await window.api.acceptCpuTradeOffer({
-      myPlayerId: cpuOffer.requestedPlayer.id,
-      theirPlayerId: cpuOffer.offeredPlayer.id,
-      theirTeamId: cpuOffer.fromTeamId,
-      theirPickId: cpuOffer.offeredPick?.id ?? null,
-    });
-    if (res.success) { setCpuOffer(null); setOfferHandled(true); }
+    await window.api.acceptCpuTrade(cpuOffer.tradeId);
+    setCpuOffer(null);
+    setOfferHandled(true);
     setOfferWorking(false);
   };
 
-  const handleDeclineOffer = () => { setCpuOffer(null); setOfferHandled(true); };
+  const handleDeclineOffer = async () => {
+    if (!cpuOffer || offerWorking) return;
+    setOfferWorking(true);
+    await window.api.declineCpuTrade(cpuOffer.tradeId);
+    setCpuOffer(null);
+    setOfferHandled(true);
+    setOfferWorking(false);
+  };
 
   const handleSetTradeStatus = async (status: string) => {
-    if (!userTeam || settingStatus) return;
     setSettingStatus(true);
-    await window.api.setTeamTradeStatus({ teamId: userTeam.id, status: status === 'auto' ? null : status });
-    const updated = await window.api.getTeamStatus(userTeam.id);
+    await window.api.setTradeStatus(userTeam!.id, status);
+    const updated = await window.api.getTeamStatus(userTeam!.id);
     setUserTradeStatus(updated);
     setSettingStatus(false);
   };
@@ -311,22 +308,9 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
           />
         )}
 
-        {/* ── No schedule ── */}
-        {!hasSchedule && (
-          <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>🏈</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: T.textPrimary, marginBottom: 8 }}>
-              No schedule for {currentSeason} yet.
-            </div>
-            <div style={{ fontSize: 13, color: T.textMuted, marginBottom: 24 }}>
-              Click "Start {currentSeason} Season" in the sidebar to generate all 18 weeks.
-            </div>
-          </div>
-        )}
-
-        {/* ── Season active: user's game card ── */}
+        {/* Week card */}
         {hasSchedule && !allWeeksDone && userGame && (
-          <div style={{ background: T.bgPanel, border: `1px solid ${T.borderMid}`, borderRadius: 8, padding: '20px 24px' }}>
+          <div style={{ background: T.bgPanel, border: `1px solid ${T.borderMid}`, borderRadius: 8, padding: '16px 20px' }}>
             <div style={{ fontSize: 9, letterSpacing: 2, color: T.textMuted, marginBottom: 16, textTransform: 'uppercase' }}>
               Your Game — Week {currentWeek}
             </div>
@@ -360,12 +344,12 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
                   </button>
                   <button
                     onClick={handleSimulateWeek}
-                    disabled={!!simulating}
+                    disabled={!!simulating || !!simulatingGameId}
                     style={{
                       flex: 1, padding: '10px 0', background: T.bgCard,
                       border: `1px solid ${T.borderMid}`, borderRadius: 5, color: T.textMuted,
-                      fontWeight: 700, fontSize: 12, cursor: simulating ? 'not-allowed' : 'pointer',
-                      opacity: simulating ? 0.5 : 1,
+                      fontWeight: 700, fontSize: 12, cursor: (simulating || !!simulatingGameId) ? 'not-allowed' : 'pointer',
+                      opacity: (simulating || !!simulatingGameId) ? 0.5 : 1,
                     }}
                   >
                     {simulating ? 'Simulating Week...' : '▶ Sim Full Week'}
@@ -421,7 +405,7 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
           </div>
         )}
 
-        {/* ── Roster Health ── */}
+        {/* Roster Health */}
         {hasSchedule && !allWeeksDone && franchiseHealth && franchiseHealth.overall_ovr > 0 && (
           <div style={{ background: T.bgPanel, border: `1px solid ${T.borderMid}`, borderRadius: 8, padding: '16px 20px' }}>
             <div style={{ fontSize: 9, letterSpacing: 2, color: T.textMuted, marginBottom: 12, textTransform: 'uppercase' }}>Roster Health</div>
@@ -449,7 +433,7 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
           </div>
         )}
 
-        {/* ── Active Alerts ── */}
+        {/* Active Alerts */}
         {hasSchedule && !allWeeksDone && (seriousInjuries.length > 0 || psAlert) && (
           <div style={{ background: T.bgPanel, border: `1px solid ${T.borderMid}`, borderRadius: 8, padding: '14px 20px' }}>
             <div style={{ fontSize: 9, letterSpacing: 2, color: T.textMuted, marginBottom: 10, textTransform: 'uppercase' }}>Active Alerts</div>
@@ -476,12 +460,12 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
           </div>
         )}
 
-        {/* ── Playoff seedings ── */}
+        {/* Playoff seedings */}
         {allWeeksDone && !isPlayoffsComplete && (
           <PlayoffSeedingsView seeds={playoffSeeds} onSimulate={handleSimulatePlayoffs} simulating={simulatingPlayoffs} />
         )}
 
-        {/* ── Post-season ── */}
+        {/* Post-season */}
         {allWeeksDone && isPlayoffsComplete && (
           <>
             <SeasonAwardsView awards={seasonAwards} season={currentSeason} />
