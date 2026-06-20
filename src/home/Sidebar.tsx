@@ -1,6 +1,6 @@
 import React from 'react';
 import { T } from '../theme';
-import { StandingEntry, Champion, InjuredPlayer, Matchup, UserTeam } from './types';
+import { StandingEntry, Champion, InjuredPlayer, Matchup, UserTeam, FranchiseHealth } from './types';
 import { STATUS_META } from '../trades/tradeUtils';
 
 function injuryBadge(status: string): { label: string; color: string; bg: string } {
