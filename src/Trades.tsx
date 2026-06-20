@@ -37,12 +37,13 @@ export default function Trades({ isActive }: Props) {
   const [proposing, setProposing] = useState(false);
   const [needs, setNeeds] = useState<TeamNeed[]>([]);
   const [weekInfo, setWeekInfo] = useState<{ hasSchedule: boolean; currentWeek: number | null } | null>(null);
-  const [cpuOffer, setCpuOffer] = useState<CpuOffer | null>(null);
-  const [offerHandled, setOfferHandled] = useState(false);
+  const [cpuOffers, setCpuOffers] = useState<CpuOffer[]>([]);
+  const [offerIndex, setOfferIndex] = useState(0);
   const [offerWorking, setOfferWorking] = useState(false);
   const [savingOverride, setSavingOverride] = useState(false);
 
-  // Initial load
+  const cpuOffer: CpuOffer | null = cpuOffers.length > 0 ? cpuOffers[offerIndex] ?? null : null;
+
   useEffect(() => {
     if (!userTeam) return;
     Promise.all([
@@ -52,19 +53,21 @@ export default function Trades({ isActive }: Props) {
       window.api.getCurrentWeek(),
       window.api.getTradeablePicks(userTeam.id),
       window.api.getCpuTradeOffer(),
-    ]).then(([allTeams, roster, n, wi, picks, offer]: any[]) => {
+    ]).then(([allTeams, roster, n, wi, picks, offers]: any[]) => {
       setTeams(allTeams.filter((t: Team) => t.id !== userTeam.id));
       setMyRoster(roster); setNeeds(n); setWeekInfo(wi);
-      setMyPicks(picks); setCpuOffer(offer);
+      setMyPicks(picks);
+      setCpuOffers(Array.isArray(offers) ? offers : offers ? [offers] : []);
+      setOfferIndex(0);
     });
   }, [userTeam?.id]);
 
-  // Refresh CPU offer whenever the tab becomes active
   useEffect(() => {
     if (!isActive || !userTeam) return;
-    window.api.getCpuTradeOffer().then((offer: CpuOffer | null) => {
-      setCpuOffer(offer ?? null);
-      setOfferHandled(false);
+    window.api.getCpuTradeOffer().then((offers: any) => {
+      const arr: CpuOffer[] = Array.isArray(offers) ? offers : offers ? [offers] : [];
+      setCpuOffers(arr);
+      setOfferIndex(0);
     });
   }, [isActive]);
 
@@ -89,9 +92,9 @@ export default function Trades({ isActive }: Props) {
     setSavingOverride(false);
   };
 
-  const toggleMine    = (id: number) => { setResult(null); setMySelected(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]); };
-  const toggleTheirs  = (id: number) => { setResult(null); setTheirSelected(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]); };
-  const toggleMyPick  = (id: number) => { setResult(null); setMyPicksSelected(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]); };
+  const toggleMine      = (id: number) => { setResult(null); setMySelected(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]); };
+  const toggleTheirs    = (id: number) => { setResult(null); setTheirSelected(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]); };
+  const toggleMyPick    = (id: number) => { setResult(null); setMyPicksSelected(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]); };
   const toggleTheirPick = (id: number) => { setResult(null); setTheirPicksSelected(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]); };
 
   const handlePropose = async () => {
@@ -115,6 +118,14 @@ export default function Trades({ isActive }: Props) {
     setProposing(false);
   };
 
+  const removeCurrentOffer = () => {
+    setCpuOffers(prev => {
+      const remaining = prev.filter((_, i) => i !== offerIndex);
+      setOfferIndex(idx => Math.min(idx, Math.max(0, remaining.length - 1)));
+      return remaining;
+    });
+  };
+
   const handleAcceptOffer = async () => {
     if (!cpuOffer || offerWorking) return;
     setOfferWorking(true);
@@ -130,7 +141,7 @@ export default function Trades({ isActive }: Props) {
         window.api.getTradeablePicks(userTeam!.id),
       ]);
       setMyRoster(newRoster); setMyPicks(newPicks);
-      setCpuOffer(null); setOfferHandled(true);
+      removeCurrentOffer();
     }
     setOfferWorking(false);
   };
@@ -154,7 +165,7 @@ export default function Trades({ isActive }: Props) {
   const selectedTeam = teams.find(t => t.id === selectedTeamId);
   const isPastDeadline = !!(weekInfo?.hasSchedule && (!weekInfo.currentWeek || weekInfo.currentWeek > DEADLINE));
   const weeksToDeadline = weekInfo?.currentWeek ? Math.max(0, DEADLINE - weekInfo.currentWeek + 1) : null;
-  const myFiltered  = myRoster.filter(p => myPos === 'ALL' || p.position === myPos);
+  const myFiltered    = myRoster.filter(p => myPos === 'ALL' || p.position === myPos);
   const theirFiltered = theirRoster.filter(p => theirPos === 'ALL' || p.position === theirPos);
 
   return (
@@ -170,13 +181,17 @@ export default function Trades({ isActive }: Props) {
         )}
       </div>
 
-      {cpuOffer && !offerHandled && (
+      {cpuOffer && (
         <CpuOfferBanner
           cpuOffer={cpuOffer}
           offerWorking={offerWorking}
           currentSeason={currentSeason}
+          offerIndex={offerIndex}
+          offerCount={cpuOffers.length}
           onAccept={handleAcceptOffer}
-          onDecline={() => setOfferHandled(true)}
+          onDecline={removeCurrentOffer}
+          onPrev={() => setOfferIndex(i => Math.max(0, i - 1))}
+          onNext={() => setOfferIndex(i => Math.min(cpuOffers.length - 1, i + 1))}
         />
       )}
 
