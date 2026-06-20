@@ -1,20 +1,21 @@
 import { ipcMain } from 'electron';
+import type { IpcEvent } from '../types/ipc';
 import {
   getStaffByTeam, getAvailableCoaches, hireCoach, fireCoach, replenishCoachPool,
 } from '../services/CoachingService';
 
 export function registerCoachingHandlers(): void {
-  ipcMain.handle('get-coaching-staff', (_event: any, teamId: number) =>
+  ipcMain.handle('get-coaching-staff', (_event: IpcEvent, teamId: number) =>
     getStaffByTeam(teamId));
 
-  ipcMain.handle('get-available-coaches', (_event: any, role?: string) => {
+  ipcMain.handle('get-available-coaches', (_event: IpcEvent, role?: string) => {
     replenishCoachPool();
     return getAvailableCoaches(role);
   });
 
-  ipcMain.handle('hire-coach', (_event: any, { teamId, coachId }: { teamId: number; coachId: number }) =>
+  ipcMain.handle('hire-coach', (_event: IpcEvent, { teamId, coachId }: { teamId: number; coachId: number }) =>
     hireCoach(teamId, coachId));
 
-  ipcMain.handle('fire-coach', (_event: any, coachId: number) =>
+  ipcMain.handle('fire-coach', (_event: IpcEvent, coachId: number) =>
     fireCoach(coachId));
 }
