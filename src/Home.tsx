@@ -1,12 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { T } from './theme';
-import {
-  Matchup, BoxScoreData, StandingEntry, Champion, SeedEntry,
-  PlayoffGame, InjuredPlayer,
-} from './home/types';
-import SeasonHeader from './home/SeasonHeader';
+import { Matchup, BoxScoreData, StandingEntry, Champion, SeedEntry, PlayoffGame, InjuredPlayer, FranchiseHealth } from './home/types';
 import OffseasonChecklist from './home/OffseasonChecklist';
-import WeeklySchedule from './home/WeeklySchedule';
 import Sidebar from './home/Sidebar';
 import PlayoffSeedingsView from './home/PlayoffSeedingsView';
 import PlayoffResultsView from './home/PlayoffResultsView';
@@ -22,13 +17,15 @@ interface Props {
   onNavigate: (tab: string) => void;
 }
 
+const ovrColor = (v: number) => v >= 80 ? '#4caf50' : v >= 70 ? '#FF8740' : '#e57373';
+const ovrGrade = (v: number) => v >= 90 ? 'A+' : v >= 85 ? 'A' : v >= 80 ? 'B+' : v >= 75 ? 'B' : v >= 70 ? 'C+' : v >= 65 ? 'C' : 'D';
+
 export default function Home({ onSeasonAdvance, onNavigate }: Props) {
   const { userTeam, currentSeason, setPlayoffsComplete, incrementSimCount } = useGameStore();
 
   const [loading, setLoading] = useState(true);
   const [hasSchedule, setHasSchedule] = useState(false);
   const [currentWeek, setCurrentWeek] = useState<number | null>(null);
-  const [viewWeek, setViewWeek] = useState(1);
   const [matchups, setMatchups] = useState<Matchup[]>([]);
   const [simulating, setSimulating] = useState(false);
   const [simulatingGameId, setSimulatingGameId] = useState<number | null>(null);
@@ -59,7 +56,7 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
   const [offerWorking, setOfferWorking] = useState(false);
   const [userTradeStatus, setUserTradeStatus] = useState<any>(null);
   const [settingStatus, setSettingStatus] = useState(false);
-  const [franchiseHealth, setFranchiseHealth] = useState<any>(null);
+  const [franchiseHealth, setFranchiseHealth] = useState<FranchiseHealth | null>(null);
 
   useEffect(() => {
     if (!userTeam) return;
@@ -111,22 +108,18 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
       if (myTeam) setUserRecord({ wins: myTeam.wins, losses: myTeam.losses });
 
       if (status.hasSchedule && !seasonDone) {
-        const week = status.currentWeek!;
-        setViewWeek(week);
-        const data = await window.api.getWeekMatchups(week);
+        const data = await window.api.getWeekMatchups(status.currentWeek);
         if (!cancelled) setMatchups(data);
       } else if (seasonDone && !champForSeason) {
         const [seeds, weekData] = await Promise.all([window.api.getPlayoffSeeds(), window.api.getWeekMatchups(18)]);
-        if (!cancelled) { setPlayoffSeeds(seeds); setMatchups(weekData); setViewWeek(18); }
+        if (!cancelled) { setPlayoffSeeds(seeds); setMatchups(weekData); }
       } else if (seasonDone && champForSeason) {
         const [results, weekData, awards] = await Promise.all([
           window.api.getPlayoffs(currentSeason),
           window.api.getWeekMatchups(18),
           window.api.getSeasonAwards(currentSeason),
         ]);
-        if (!cancelled) {
-          setPlayoffResults(results); setMatchups(weekData); setViewWeek(18); setSeasonAwards(awards);
-        }
+        if (!cancelled) { setPlayoffResults(results); setMatchups(weekData); setSeasonAwards(awards); }
       }
 
       if (!cancelled) setLoading(false);
@@ -153,8 +146,7 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
     const status = await window.api.getCurrentWeek();
     setHasSchedule(status.hasSchedule);
     setCurrentWeek(status.currentWeek);
-    setViewWeek(1);
-    setMatchups(await window.api.getWeekMatchups(1));
+    setMatchups(await window.api.getWeekMatchups(status.currentWeek));
     const tradeOffer = await window.api.getCpuTradeOffer();
     setCpuOffer(tradeOffer ?? null);
     setOfferHandled(false);
@@ -169,20 +161,23 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
       window.api.getCurrentWeek(), window.api.getDashboard(currentSeason),
       window.api.getStandings(currentSeason), window.api.getInjuryReport(userTeam.id),
     ]);
-    setCurrentWeek(status.currentWeek); setTopAFC(dashboard.topAFC); setTopNFC(dashboard.topNFC);
+    setCurrentWeek(status.currentWeek);
+    setTopAFC(dashboard.topAFC); setTopNFC(dashboard.topNFC);
     setInjuryReport(injuries ?? []);
     const mine = standings.find((t: any) => t.id === userTeam.id);
     if (mine) setUserRecord({ wins: mine.wins, losses: mine.losses });
-    setMatchups(await window.api.getWeekMatchups(viewWeek));
     if (weekResult?.userPSOpenSpots > 0)
-      setPSAlert(`Practice squad has ${weekResult.userPSOpenSpots} open spot${weekResult.userPSOpenSpots !== 1 ? 's' : ''}. Sign free agents in Franchise → Practice Squad tab.`);
+      setPSAlert(`Practice squad has ${weekResult.userPSOpenSpots} open spot${weekResult.userPSOpenSpots !== 1 ? 's' : ''}. Go to My Team → Practice Squad.`);
     if (status.currentWeek === null && status.hasSchedule) {
       const seeds = await window.api.getPlayoffSeeds();
       setPlayoffSeeds(seeds);
-      setMatchups(await window.api.getWeekMatchups(18)); setViewWeek(18);
+      setMatchups(await window.api.getWeekMatchups(18));
+    } else if (status.currentWeek) {
+      setMatchups(await window.api.getWeekMatchups(status.currentWeek));
     }
     setStatLeaders(await window.api.getStats(currentSeason));
     setFranchiseHealth(await window.api.getFranchiseHealth(userTeam.id));
+    setBoxScore(null);
     incrementSimCount();
     setSimulating(false);
   };
@@ -200,15 +195,18 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
     setInjuryReport(injuries ?? []);
     const mine = standings.find((t: any) => t.id === userTeam.id);
     if (mine) setUserRecord({ wins: mine.wins, losses: mine.losses });
-    setMatchups(await window.api.getWeekMatchups(viewWeek));
     if (result.userPSOpenSpots > 0)
-      setPSAlert(`Practice squad has ${result.userPSOpenSpots} open spot${result.userPSOpenSpots !== 1 ? 's' : ''}. Sign free agents in Franchise → Practice Squad tab.`);
+      setPSAlert(`Practice squad has ${result.userPSOpenSpots} open spot${result.userPSOpenSpots !== 1 ? 's' : ''}. Go to My Team → Practice Squad.`);
     if (result.weekComplete) {
       setStatLeaders(await window.api.getStats(currentSeason));
       if (status.currentWeek === null && status.hasSchedule) {
         setPlayoffSeeds(await window.api.getPlayoffSeeds());
-        setMatchups(await window.api.getWeekMatchups(18)); setViewWeek(18);
+        setMatchups(await window.api.getWeekMatchups(18));
+      } else if (status.currentWeek) {
+        setMatchups(await window.api.getWeekMatchups(status.currentWeek));
       }
+    } else if (currentWeek) {
+      setMatchups(await window.api.getWeekMatchups(currentWeek));
     }
     setFranchiseHealth(await window.api.getFranchiseHealth(userTeam.id));
     incrementSimCount();
@@ -230,12 +228,6 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
     setSimulatingPlayoffs(false);
   };
 
-  const handleViewWeek = async (week: number) => {
-    if (week < 1 || week > 18) return;
-    setViewWeek(week); setBoxScore(null);
-    setMatchups(await window.api.getWeekMatchups(week));
-  };
-
   const handleBoxScore = async (gameId: number) => {
     if (boxScore?.game?.id === gameId) { setBoxScore(null); return; }
     setBoxScoreLoading(true); setBoxScore(null);
@@ -247,7 +239,7 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
     if (userTeam) {
       const spots = await window.api.getRosterSpots(userTeam.id);
       if (spots && spots.active > 53) {
-        alert(`You must cut ${spots.active - 53} player(s) before advancing the season.\n\nGo to Franchise → Active Roster to make cuts.`);
+        alert(`You must cut ${spots.active - 53} player(s) before advancing.\n\nGo to My Team → Team Management → Active Roster.`);
         return;
       }
     }
@@ -276,10 +268,7 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
     setOfferWorking(false);
   };
 
-  const handleDeclineOffer = () => {
-    setCpuOffer(null);
-    setOfferHandled(true);
-  };
+  const handleDeclineOffer = () => { setCpuOffer(null); setOfferHandled(true); };
 
   const handleSetTradeStatus = async (status: string) => {
     if (!userTeam || settingStatus) return;
@@ -294,40 +283,207 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
   const currentChampion = champions.find(c => c.season === currentSeason);
   const isPlayoffsComplete = !!currentChampion;
 
+  const userGame = matchups.find(m => m.home_team_id === userTeam?.id || m.away_team_id === userTeam?.id);
+  const isHome = userGame?.home_team_id === userTeam?.id;
+  const userScore = isHome ? userGame?.home_score : userGame?.away_score;
+  const oppScore = isHome ? userGame?.away_score : userGame?.home_score;
+  const oppTeamName = isHome ? userGame?.away_team : userGame?.home_team;
+  const isGameSimmed = (userGame?.is_simulated ?? 0) === 1;
+  const userWon = isGameSimmed && (userScore ?? 0) > (oppScore ?? 0);
+
+  const seriousInjuries = injuryReport.filter(p => p.injury_status === 'ir' || p.injury_status === 'out');
+
   if (loading || !userTeam)
     return <div style={{ color: T.textMuted, padding: 40, textAlign: 'center' }}>Loading...</div>;
 
   return (
-    <div style={{ display: 'flex', gap: 0, height: '100%', overflow: 'hidden' }}>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
+    <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
 
+      {/* Main content */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+        {/* Trade offer */}
         {cpuOffer && !offerHandled && (
           <TradeOfferCard
-            offer={cpuOffer}
-            currentSeason={currentSeason}
-            working={offerWorking}
-            onAccept={handleAcceptOffer}
-            onDecline={handleDeclineOffer}
+            offer={cpuOffer} currentSeason={currentSeason} working={offerWorking}
+            onAccept={handleAcceptOffer} onDecline={handleDeclineOffer}
             onViewDetails={() => onNavigate('trades')}
           />
         )}
 
-        {allWeeksDone && isPlayoffsComplete && (
-          <SeasonAwardsView awards={seasonAwards} season={currentSeason} />
-        )}
-
-        {!hasSchedule ? (
-          <div style={{ textAlign: 'center', padding: '60px 20px', color: T.textMuted }}>
+        {/* ── No schedule ── */}
+        {!hasSchedule && (
+          <div style={{ textAlign: 'center', padding: '60px 20px' }}>
             <div style={{ fontSize: 48, marginBottom: 16 }}>🏈</div>
             <div style={{ fontSize: 20, fontWeight: 700, color: T.textPrimary, marginBottom: 8 }}>
               No schedule for {currentSeason} yet.
             </div>
-            <div style={{ fontSize: 14, marginBottom: 24 }}>
-              Click "Start {currentSeason} Season" to generate all 18 weeks.
+            <div style={{ fontSize: 13, color: T.textMuted, marginBottom: 24 }}>
+              Click "Start {currentSeason} Season" in the sidebar to generate all 18 weeks.
             </div>
           </div>
-        ) : allWeeksDone && isPlayoffsComplete ? (
+        )}
+
+        {/* ── Season active: user's game card ── */}
+        {hasSchedule && !allWeeksDone && userGame && (
+          <div style={{ background: '#0f0f0f', border: '1px solid #1e1e1e', borderRadius: 8, padding: '20px 24px' }}>
+            <div style={{ fontSize: 9, letterSpacing: 2, color: '#444', marginBottom: 16, textTransform: 'uppercase' }}>
+              Your Game — Week {currentWeek}
+            </div>
+
+            {!isGameSimmed ? (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+                  <div style={{ flex: 1, textAlign: 'center' }}>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: '#4FC3F7' }}>{userTeam.city} {userTeam.name}</div>
+                    <div style={{ fontSize: 9, color: '#444', marginTop: 3, letterSpacing: 1 }}>{isHome ? 'HOME' : 'AWAY'}</div>
+                  </div>
+                  <div style={{ fontSize: 14, color: '#333', fontWeight: 700, fontFamily: 'monospace' }}>VS</div>
+                  <div style={{ flex: 1, textAlign: 'center' }}>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: '#aaa' }}>{oppTeamName}</div>
+                    <div style={{ fontSize: 9, color: '#444', marginTop: 3, letterSpacing: 1 }}>{isHome ? 'AWAY' : 'HOME'}</div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button
+                    onClick={() => handleSimulateGame(userGame.id)}
+                    disabled={!!simulating || !!simulatingGameId}
+                    style={{
+                      flex: 1, padding: '10px 0', background: simulatingGameId === userGame.id ? '#1a3a1a' : '#0a2a0a',
+                      border: '1px solid #4caf50', borderRadius: 5, color: '#4caf50',
+                      fontWeight: 700, fontSize: 12, cursor: (simulating || !!simulatingGameId) ? 'not-allowed' : 'pointer',
+                      opacity: (simulating || !!simulatingGameId) ? 0.5 : 1,
+                    }}
+                  >
+                    {simulatingGameId === userGame.id ? 'Simulating...' : '▶ Sim My Game'}
+                  </button>
+                  <button
+                    onClick={handleSimulateWeek}
+                    disabled={!!simulating}
+                    style={{
+                      flex: 1, padding: '10px 0', background: '#111',
+                      border: `1px solid ${T.borderMid}`, borderRadius: 5, color: T.textMuted,
+                      fontWeight: 700, fontSize: 12, cursor: simulating ? 'not-allowed' : 'pointer',
+                      opacity: simulating ? 0.5 : 1,
+                    }}
+                  >
+                    {simulating ? 'Simulating Week...' : '▶ Sim Full Week'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                  <div style={{ flex: 1, textAlign: 'center' }}>
+                    <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>{userTeam.city} {userTeam.name}</div>
+                    <div style={{ fontSize: 40, fontWeight: 900, color: userWon ? '#4caf50' : '#e57373', fontFamily: 'monospace' }}>{userScore}</div>
+                  </div>
+                  <div style={{ fontSize: 10, color: '#333', letterSpacing: 1 }}>FINAL</div>
+                  <div style={{ flex: 1, textAlign: 'center' }}>
+                    <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>{oppTeamName}</div>
+                    <div style={{ fontSize: 40, fontWeight: 900, color: !userWon ? '#4caf50' : '#e57373', fontFamily: 'monospace' }}>{oppScore}</div>
+                  </div>
+                </div>
+                <div style={{ textAlign: 'center', fontSize: 11, fontWeight: 700, color: userWon ? '#4caf50' : '#e57373', marginBottom: 12, letterSpacing: 2 }}>
+                  {userWon ? 'VICTORY' : 'DEFEAT'}
+                </div>
+                <button
+                  onClick={() => handleBoxScore(userGame.id)}
+                  disabled={boxScoreLoading}
+                  style={{ width: '100%', padding: '8px 0', background: '#0a0a0a', border: `1px solid ${T.borderFaint}`, borderRadius: 4, color: T.textMuted, cursor: 'pointer', fontSize: 11 }}
+                >
+                  {boxScoreLoading ? 'Loading...' : boxScore?.game?.id === userGame.id ? '▲ Hide Box Score' : '▼ View Box Score'}
+                </button>
+                {boxScore && boxScore.game.id === userGame.id && (
+                  <div style={{ marginTop: 12, borderTop: `1px solid ${T.borderFaint}`, paddingTop: 12 }}>
+                    {[
+                      { label: 'PASSING', rows: boxScore.players.filter(p => p.pass_attempts > 0).sort((a, b) => b.pass_yards - a.pass_yards).slice(0, 4), cols: ['pass_yards','completions','pass_attempts','pass_tds','interceptions'], heads: ['YDS','CMP','ATT','TD','INT'] },
+                      { label: 'RUSHING', rows: boxScore.players.filter(p => p.rush_attempts > 0).sort((a, b) => b.rush_yards - a.rush_yards).slice(0, 4), cols: ['rush_yards','rush_attempts','rush_tds'], heads: ['YDS','CAR','TD'] },
+                      { label: 'RECEIVING', rows: boxScore.players.filter(p => p.targets > 0).sort((a, b) => b.rec_yards - a.rec_yards).slice(0, 4), cols: ['rec_yards','receptions','targets','rec_tds'], heads: ['YDS','REC','TGT','TD'] },
+                    ].filter(s => s.rows.length > 0).map(section => (
+                      <div key={section.label} style={{ marginBottom: 10 }}>
+                        <div style={{ fontSize: 8, color: '#444', letterSpacing: 1.5, marginBottom: 4 }}>{section.label}</div>
+                        {section.rows.map((p, i) => (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, padding: '2px 0', borderBottom: `1px solid ${T.borderFaint}` }}>
+                            <span style={{ color: '#aaa', flex: 2 }}>{p.player_name}</span>
+                            {section.cols.map(col => (
+                              <span key={col} style={{ color: '#4FC3F7', fontFamily: 'monospace', minWidth: 30, textAlign: 'right' }}>{(p as any)[col] ?? 0}</span>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ── Roster Health ── */}
+        {hasSchedule && !allWeeksDone && franchiseHealth && franchiseHealth.overall_ovr > 0 && (
+          <div style={{ background: '#0f0f0f', border: '1px solid #1a1a1a', borderRadius: 8, padding: '16px 20px' }}>
+            <div style={{ fontSize: 9, letterSpacing: 2, color: '#444', marginBottom: 12, textTransform: 'uppercase' }}>Roster Health</div>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+              {[
+                { label: 'OFFENSE', value: franchiseHealth.offense_ovr },
+                { label: 'DEFENSE', value: franchiseHealth.defense_ovr },
+                { label: 'OVERALL', value: franchiseHealth.overall_ovr },
+              ].map(({ label, value }) => (
+                <div key={label} style={{ flex: 1, textAlign: 'center', background: '#0a0a0a', border: '1px solid #111', borderRadius: 6, padding: '8px 0' }}>
+                  <div style={{ fontSize: 8, color: '#444', letterSpacing: 1 }}>{label}</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: ovrColor(value) }}>{value}</div>
+                  <div style={{ fontSize: 9, color: ovrColor(value), opacity: 0.7 }}>{ovrGrade(value)}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+              {franchiseHealth.groups.map(g => (
+                <div key={g.group} style={{ textAlign: 'center', background: '#0a0a0a', border: '1px solid #111', borderRadius: 4, padding: '4px 0' }}>
+                  <div style={{ fontSize: 7, color: '#444' }}>{g.group}</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: ovrColor(g.avg_ovr) }}>{g.avg_ovr}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Active Alerts ── */}
+        {hasSchedule && !allWeeksDone && (seriousInjuries.length > 0 || psAlert) && (
+          <div style={{ background: '#0f0f0f', border: '1px solid #1a1a1a', borderRadius: 8, padding: '14px 20px' }}>
+            <div style={{ fontSize: 9, letterSpacing: 2, color: '#444', marginBottom: 10, textTransform: 'uppercase' }}>Active Alerts</div>
+            {seriousInjuries.slice(0, 5).map(p => (
+              <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', borderBottom: `1px solid #111` }}>
+                <span style={{
+                  fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 3, minWidth: 26, textAlign: 'center',
+                  background: p.injury_status === 'ir' ? '#1a0a0a' : '#140a00',
+                  color: p.injury_status === 'ir' ? '#e57373' : '#FF8740',
+                }}>
+                  {p.injury_status === 'ir' ? 'IR' : 'OUT'}
+                </span>
+                <span style={{ fontSize: 12, color: '#ccc', flex: 1 }}>{p.first_name[0]}. {p.last_name}</span>
+                <span style={{ fontSize: 10, color: '#555' }}>{p.position_label || p.position}</span>
+                <span style={{ fontSize: 10, color: '#444' }}>{p.injury_type}{p.weeks_out > 0 ? ` · ${p.weeks_out}wk` : ''}</span>
+              </div>
+            ))}
+            {psAlert && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 8 }}>
+                <span style={{ fontSize: 11, color: '#FF8740' }}>⚠ {psAlert}</span>
+                <button onClick={() => setPSAlert(null)} style={{ fontSize: 9, color: '#444', background: 'none', border: 'none', cursor: 'pointer' }}>dismiss</button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Playoff seedings ── */}
+        {allWeeksDone && !isPlayoffsComplete && (
+          <PlayoffSeedingsView seeds={playoffSeeds} onSimulate={handleSimulatePlayoffs} simulating={simulatingPlayoffs} />
+        )}
+
+        {/* ── Post-season ── */}
+        {allWeeksDone && isPlayoffsComplete && (
           <>
+            <SeasonAwardsView awards={seasonAwards} season={currentSeason} />
             <OffseasonChecklist
               pendingResigns={pendingResigns}
               draftComplete={draftComplete}
@@ -340,31 +496,10 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
             />
             <PlayoffResultsView results={playoffResults} champion={currentChampion} />
           </>
-        ) : allWeeksDone && !isPlayoffsComplete ? (
-          <PlayoffSeedingsView
-            seeds={playoffSeeds}
-            onSimulate={handleSimulatePlayoffs}
-            simulating={simulatingPlayoffs}
-          />
-        ) : (
-          <WeeklySchedule
-            matchups={matchups}
-            viewWeek={viewWeek}
-            userTeam={userTeam}
-            simulating={simulating}
-            simulatingGameId={simulatingGameId}
-            boxScore={boxScore}
-            boxScoreLoading={boxScoreLoading}
-            psAlert={psAlert}
-            onSimulateWeek={handleSimulateWeek}
-            onSimulateGame={handleSimulateGame}
-            onViewWeek={handleViewWeek}
-            onBoxScore={handleBoxScore}
-            onDismissAlert={() => setPSAlert(null)}
-          />
         )}
       </div>
 
+      {/* Sidebar */}
       <Sidebar
         userTeam={userTeam}
         currentSeason={currentSeason}
@@ -389,7 +524,6 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
         statLeaders={statLeaders}
         userTradeStatus={userTradeStatus}
         settingStatus={settingStatus}
-        franchiseHealth={franchiseHealth}
         onGenerateSchedule={handleGenerateSchedule}
         onSimulateWeek={handleSimulateWeek}
         onSimulatePlayoffs={handleSimulatePlayoffs}
