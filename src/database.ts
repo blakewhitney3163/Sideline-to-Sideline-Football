@@ -487,12 +487,10 @@ export function generateContracts(): void {
 
   // Scale down any team that's over 95% of the cap
   const CAP_TARGET = SALARY_CAP * 0.95;
-  for (const contract of pending) {
-    const total = teamTotals.get(contract.team_id) ?? 0;
-    if (total > CAP_TARGET) {
-      contract.salary = Math.max(1.0, Math.round(contract.salary * (CAP_TARGET / total) * 10) / 10);
-    }
-  }
+for (const contract of pending) {
+  const total = teamTotals.get(contract.team_id) ?? 0;
+  contract.salary = Math.max(1.0, Math.round(contract.salary * (CAP_TARGET / total) * 10) / 10);
+}
 
   db.transaction(() => {
     for (const c of pending) {
@@ -510,7 +508,7 @@ export function generateContracts(): void {
 
 // ─── Migration Versioning ─────────────────────────────────────────────────────
 
-const CURRENT_SCHEMA_VERSION = 10;
+const CURRENT_SCHEMA_VERSION = 11;
 
 interface Migration { version: number; description: string; up: () => void; }
 
@@ -546,6 +544,40 @@ const MIGRATIONS: Migration[] = [
       }
     },
   },
+  {
+  version: 11,
+  description: 'Normalize all team salary totals to 95% of salary cap',
+  up: () => {
+    const CAP_TARGET = SALARY_CAP * 0.95;
+    const teamRows = db.prepare(`
+      SELECT c.team_id, SUM(c.annual_salary) as total_salary
+      FROM contracts c
+      JOIN players p ON c.player_id = p.id
+      WHERE p.roster_status = 'active'
+      GROUP BY c.team_id
+    `).all() as any[];
+
+    const updateSalary = db.prepare(
+      'UPDATE contracts SET annual_salary = ?, guaranteed_amount = ? WHERE player_id = ?'
+    );
+
+    for (const team of teamRows as any[]) {
+      if (Math.abs(team.total_salary - CAP_TARGET) < 5) continue;
+      const scale = CAP_TARGET / team.total_salary;
+      const contracts = db.prepare(`
+        SELECT c.player_id, c.annual_salary, c.years_total, c.guaranteed_pct
+        FROM contracts c
+        JOIN players p ON c.player_id = p.id
+        WHERE c.team_id = ? AND p.roster_status = 'active'
+      `).all(team.team_id) as any[];
+      for (const c of contracts) {
+        const newSalary = Math.max(1.0, Math.round(c.annual_salary * scale * 10) / 10);
+        const newGtd = Math.round(newSalary * c.years_total * ((c.guaranteed_pct ?? 20) / 100) * 10) / 10;
+        updateSalary.run(newSalary, newGtd, c.player_id);
+      }
+    }
+  },
+},
 ];
 
 function getSchemaVersion(): number {
