@@ -71,18 +71,18 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
       setSeasonAwards(null);
 
       const [status, dashboard, champs, standings, offseason, injuries, leaders, tradeOffer, tradeStatus, spots, health] = await Promise.all([
-  window.api.getCurrentWeek(),
-  window.api.getDashboard(currentSeason),
-  window.api.getChampions(),
-  window.api.getStandings(currentSeason),
-  window.api.getOffseasonStatus(),
-  window.api.getInjuryReport(userTeam.id),
-  window.api.getStats(currentSeason),
-  window.api.getCpuTradeOffer(),
-  window.api.getTeamStatus(userTeam.id),
-  window.api.getRosterSpots(userTeam.id),
-  window.api.getFranchiseHealth(userTeam.id),
-]);
+        window.api.getCurrentWeek(),
+        window.api.getDashboard(currentSeason),
+        window.api.getChampions(),
+        window.api.getStandings(currentSeason),
+        window.api.getOffseasonStatus(),
+        window.api.getInjuryReport(userTeam.id),
+        window.api.getStats(currentSeason),
+        window.api.getCpuTradeOffer(),
+        window.api.getTeamStatus(userTeam.id),
+        window.api.getRosterSpots(userTeam.id),
+        window.api.getFranchiseHealth(userTeam.id),
+      ]);
       if (cancelled) return;
 
       const seasonDone = status.hasSchedule && status.currentWeek === null;
@@ -182,6 +182,7 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
       setMatchups(await window.api.getWeekMatchups(18)); setViewWeek(18);
     }
     setStatLeaders(await window.api.getStats(currentSeason));
+    setFranchiseHealth(await window.api.getFranchiseHealth(userTeam.id));
     incrementSimCount();
     setSimulating(false);
   };
@@ -190,7 +191,6 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
     if (!userTeam) return;
     setSimulatingGameId(gameId);
     const result = await window.api.simulateOneGame(gameId);
-    setFranchiseHealth(await window.api.getFranchiseHealth(userTeam.id));
     if (!result?.success) { setSimulatingGameId(null); return; }
     const [status, dashboard, standings, injuries] = await Promise.all([
       window.api.getCurrentWeek(), window.api.getDashboard(currentSeason),
@@ -210,6 +210,7 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
         setMatchups(await window.api.getWeekMatchups(18)); setViewWeek(18);
       }
     }
+    setFranchiseHealth(await window.api.getFranchiseHealth(userTeam.id));
     incrementSimCount();
     setSimulatingGameId(null);
   };
@@ -243,7 +244,6 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
   };
 
   const handleAdvance = async () => {
-    // Enforce 53-man roster limit before advancing
     if (userTeam) {
       const spots = await window.api.getRosterSpots(userTeam.id);
       if (spots && spots.active > 53) {
@@ -301,16 +301,15 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
     <div style={{ display: 'flex', gap: 0, height: '100%', overflow: 'hidden' }}>
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
 
-        {/* Incoming trade offer */}
         {cpuOffer && !offerHandled && (
           <TradeOfferCard
-  offer={cpuOffer}
-  currentSeason={currentSeason}
-  working={offerWorking}
-  onAccept={handleAcceptOffer}
-  onDecline={handleDeclineOffer}
-  onViewDetails={() => onNavigate('trades')}
-/>
+            offer={cpuOffer}
+            currentSeason={currentSeason}
+            working={offerWorking}
+            onAccept={handleAcceptOffer}
+            onDecline={handleDeclineOffer}
+            onViewDetails={() => onNavigate('trades')}
+          />
         )}
 
         {allWeeksDone && isPlayoffsComplete && (
@@ -349,56 +348,56 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
           />
         ) : (
           <WeeklySchedule
-  matchups={matchups}
-  viewWeek={viewWeek}
-  userTeam={userTeam}
-  simulating={simulating}
-  simulatingGameId={simulatingGameId}
-  boxScore={boxScore}
-  boxScoreLoading={boxScoreLoading}
-  psAlert={psAlert}
-  onSimulateWeek={handleSimulateWeek}
-  onSimulateGame={handleSimulateGame}
-  onViewWeek={handleViewWeek}
-  onBoxScore={handleBoxScore}
-  onDismissAlert={() => setPSAlert(null)}
-  franchiseHealth={franchiseHealth}
-/>
+            matchups={matchups}
+            viewWeek={viewWeek}
+            userTeam={userTeam}
+            simulating={simulating}
+            simulatingGameId={simulatingGameId}
+            boxScore={boxScore}
+            boxScoreLoading={boxScoreLoading}
+            psAlert={psAlert}
+            onSimulateWeek={handleSimulateWeek}
+            onSimulateGame={handleSimulateGame}
+            onViewWeek={handleViewWeek}
+            onBoxScore={handleBoxScore}
+            onDismissAlert={() => setPSAlert(null)}
+          />
         )}
       </div>
 
-     <Sidebar
-  userTeam={userTeam}
-  currentSeason={currentSeason}
-  userRecord={userRecord}
-  hasSchedule={hasSchedule}
-  allWeeksDone={allWeeksDone}
-  isPlayoffsComplete={isPlayoffsComplete}
-  currentWeek={currentWeek}
-  matchups={matchups}
-  simulating={simulating}
-  simulatingPlayoffs={simulatingPlayoffs}
-  generatingSchedule={generatingSchedule}
-  advancing={advancing}
-  confirming={confirming}
-  pendingResigns={pendingResigns}
-  retiredPlayers={retiredPlayers}
-  setRetiredPlayers={setRetiredPlayers}
-  injuryReport={injuryReport}
-  topAFC={topAFC}
-  topNFC={topNFC}
-  champions={champions}
-  statLeaders={statLeaders}
-  userTradeStatus={userTradeStatus}
-  settingStatus={settingStatus}
-  onGenerateSchedule={handleGenerateSchedule}
-  onSimulateWeek={handleSimulateWeek}
-  onSimulatePlayoffs={handleSimulatePlayoffs}
-  onConfirm={() => setConfirming(true)}
-  onCancelConfirm={() => setConfirming(false)}
-  onAdvance={handleAdvance}
-  onSetTradeStatus={handleSetTradeStatus}
-/>
+      <Sidebar
+        userTeam={userTeam}
+        currentSeason={currentSeason}
+        userRecord={userRecord}
+        hasSchedule={hasSchedule}
+        allWeeksDone={allWeeksDone}
+        isPlayoffsComplete={isPlayoffsComplete}
+        currentWeek={currentWeek}
+        matchups={matchups}
+        simulating={simulating}
+        simulatingPlayoffs={simulatingPlayoffs}
+        generatingSchedule={generatingSchedule}
+        advancing={advancing}
+        confirming={confirming}
+        pendingResigns={pendingResigns}
+        retiredPlayers={retiredPlayers}
+        setRetiredPlayers={setRetiredPlayers}
+        injuryReport={injuryReport}
+        topAFC={topAFC}
+        topNFC={topNFC}
+        champions={champions}
+        statLeaders={statLeaders}
+        userTradeStatus={userTradeStatus}
+        settingStatus={settingStatus}
+        franchiseHealth={franchiseHealth}
+        onGenerateSchedule={handleGenerateSchedule}
+        onSimulateWeek={handleSimulateWeek}
+        onSimulatePlayoffs={handleSimulatePlayoffs}
+        onConfirm={() => setConfirming(true)}
+        onCancelConfirm={() => setConfirming(false)}
+        onAdvance={handleAdvance}
+        onSetTradeStatus={handleSetTradeStatus}
+      />
     </div>
   );
 }
