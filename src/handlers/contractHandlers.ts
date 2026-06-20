@@ -33,6 +33,9 @@ export function registerContractHandlers(): void {
   ipcMain.handle('get-free-agents', (_event: any, position?: string) =>
     playerRepo.getFreeAgents(position));
 
+   ipcMain.handle('get-franchise-health', (_event: any, teamId: number) =>
+   playerRepo.getFranchiseHealth(teamId));
+
   ipcMain.handle('get-expiring-contracts', () => {
     const teamId = settingsRepo.getUserTeamId();
     if (!teamId) return [];
