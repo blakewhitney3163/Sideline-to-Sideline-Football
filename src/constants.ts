@@ -41,9 +41,9 @@ export const POSITION_TO_GROUP: Record<string, string> = {
   MLB: 'MLB', MIKE: 'MLB', WILL: 'MLB',
   OLB: 'OLB', LOLB: 'OLB', ROLB: 'OLB',
   LB: 'MLB',  // fallback for unlabeled LB players
-  // DB / K
+    // DB / K
   CB: 'CB',
-  FS: 'S', SS: 'S', S: 'S',
+  FS: 'FS', SS: 'SS', S: 'FS',   // S is fallback for unlabeled safeties
   K: 'K',
 };
 
