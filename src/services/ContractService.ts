@@ -539,7 +539,7 @@ export function extendPlayer(playerId: number, years: number, salary: number): S
   if ((player.morale ?? 75) >= 85) acceptChance = Math.min(1, acceptChance + 0.08);
 
   if (Math.random() >= acceptChance) {
-    const floor = Math.round(fairMarket * 0.90 * 2) / 2;
+        const floor = Math.round(Math.max(fairMarket * 0.90, payCutFloor) * 2) / 2;
     return {
       success: false,
       reason:
