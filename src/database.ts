@@ -46,27 +46,40 @@ export function initDatabase(dbPath: string): void {
       division TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS players (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      first_name TEXT NOT NULL,
-      last_name TEXT NOT NULL,
-      position TEXT NOT NULL,
-      age INTEGER NOT NULL,
-      overall_rating INTEGER NOT NULL,
-      speed INTEGER NOT NULL,
-      strength INTEGER NOT NULL,
-      awareness INTEGER NOT NULL,
-      team_id INTEGER,
-      is_free_agent INTEGER DEFAULT 0,
-      roster_status TEXT DEFAULT 'active',
-      franchise_tagged INTEGER DEFAULT 0,
-      dev_trait TEXT DEFAULT 'Normal',
-      position_label TEXT,
-      injury_status TEXT DEFAULT 'healthy',
-      weeks_out INTEGER DEFAULT 0,
-      injury_type TEXT,
-      morale INTEGER DEFAULT 75,
-      FOREIGN KEY (team_id) REFERENCES teams(id)
-    );
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  first_name TEXT NOT NULL,
+  last_name TEXT NOT NULL,
+  position TEXT NOT NULL,
+  position_label TEXT,
+  age INTEGER NOT NULL,
+  overall_rating INTEGER NOT NULL,
+  speed INTEGER NOT NULL,
+  strength INTEGER NOT NULL,
+  awareness INTEGER NOT NULL,
+  throw_accuracy INTEGER DEFAULT 0,
+  throw_power INTEGER DEFAULT 0,
+  catching INTEGER DEFAULT 0,
+  route_running INTEGER DEFAULT 0,
+  tackle_rating INTEGER DEFAULT 0,
+  coverage INTEGER DEFAULT 0,
+  pass_rush INTEGER DEFAULT 0,
+  kickpower INTEGER DEFAULT 0,
+  kickaccuracy INTEGER DEFAULT 0,
+  runblocking INTEGER DEFAULT 0,
+  passblocking INTEGER DEFAULT 0,
+  team_id INTEGER,
+  is_free_agent INTEGER DEFAULT 0,
+  roster_status TEXT DEFAULT 'active',
+  franchise_tagged INTEGER DEFAULT 0,
+  dev_trait TEXT DEFAULT 'Normal',
+  injury_status TEXT DEFAULT 'healthy',
+  weeks_out INTEGER DEFAULT 0,
+  injury_type TEXT,
+  waived_by_team_id INTEGER,
+  waiver_placed_week INTEGER,
+  morale INTEGER DEFAULT 75,
+  FOREIGN KEY (team_id) REFERENCES teams(id)
+);
     CREATE TABLE IF NOT EXISTS games (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       season INTEGER NOT NULL,
@@ -338,129 +351,12 @@ export function initDatabase(dbPath: string): void {
     CREATE INDEX IF NOT EXISTS idx_picks_owner_season ON pick_assets(owner_team_id, season);
     CREATE INDEX IF NOT EXISTS idx_prospects_season ON draft_prospects(season);
     CREATE INDEX IF NOT EXISTS idx_players_team_status ON players(team_id, roster_status);
-    CREATE INDEX IF NOT EXISTS idx_players_status ON players(roster_status);
+      CREATE INDEX IF NOT EXISTS idx_players_status ON players(roster_status);
+  CREATE INDEX IF NOT EXISTS idx_stats_season_playoff ON stats(season, is_playoff);
+  CREATE INDEX IF NOT EXISTS idx_career_stats_season ON career_stats_history(player_id, season);
+  CREATE INDEX IF NOT EXISTS idx_news_season_cat ON news_events(season, category);
   `);
-
-  // ── Stats column migrations — must run before the season index ────────────
-  const statCols = (_db!.prepare('PRAGMA table_info(stats)').all() as any[]).map((c: any) => c.name);
-  const statMigrations: [string, string][] = [
-    ['season', 'INTEGER'],
-    ['week', 'INTEGER'],
-    ['is_playoff', 'INTEGER DEFAULT 0'],
-    ['tackles', 'INTEGER DEFAULT 0'],
-    ['assisted_tackles', 'INTEGER DEFAULT 0'],
-    ['sacks', 'REAL DEFAULT 0'],
-    ['tfl', 'INTEGER DEFAULT 0'],
-    ['forced_fumbles', 'INTEGER DEFAULT 0'],
-    ['fumble_recoveries', 'INTEGER DEFAULT 0'],
-    ['def_interceptions', 'INTEGER DEFAULT 0'],
-    ['pass_deflections', 'INTEGER DEFAULT 0'],
-    ['def_tds', 'INTEGER DEFAULT 0'],
-    ['fg_made', 'INTEGER DEFAULT 0'],
-    ['fg_att', 'INTEGER DEFAULT 0'],
-    ['xp_made', 'INTEGER DEFAULT 0'],
-    ['xp_att', 'INTEGER DEFAULT 0'],
-  ];
-  for (const [col, type] of statMigrations) {
-    if (!statCols.includes(col))
-      _db!.prepare(`ALTER TABLE stats ADD COLUMN ${col} ${type}`).run();
-  }
-
-  // Now safe to create the season-dependent index
-  _db!.exec(`CREATE INDEX IF NOT EXISTS idx_stats_season_playoff ON stats(season, is_playoff);`);
-
-  // ── Games column migrations ───────────────────────────────────────────────
-  const gameCols = (_db!.prepare('PRAGMA table_info(games)').all() as any[]).map((c: any) => c.name);
-  const gameColMigrations: [string, string][] = [
-    ['home_q1', 'INTEGER DEFAULT 0'], ['home_q2', 'INTEGER DEFAULT 0'],
-    ['home_q3', 'INTEGER DEFAULT 0'], ['home_q4', 'INTEGER DEFAULT 0'],
-    ['away_q1', 'INTEGER DEFAULT 0'], ['away_q2', 'INTEGER DEFAULT 0'],
-    ['away_q3', 'INTEGER DEFAULT 0'], ['away_q4', 'INTEGER DEFAULT 0'],
-    ['weather', 'TEXT'],
-  ];
-  for (const [col, type] of gameColMigrations) {
-    if (!gameCols.includes(col))
-      _db!.prepare(`ALTER TABLE games ADD COLUMN ${col} ${type}`).run();
-  }
-
-  // ── Players column migrations ─────────────────────────────────────────────
-  const playerCols: any[] = _db!.prepare('PRAGMA table_info(players)').all() as any[];
-  const playerColNames = playerCols.map((c: any) => c.name);
-
-  if (!playerColNames.includes('position_label'))
-    _db!.prepare('ALTER TABLE players ADD COLUMN position_label TEXT').run();
-
-  if (!playerColNames.includes('dev_trait')) {
-    _db!.prepare("ALTER TABLE players ADD COLUMN dev_trait TEXT DEFAULT 'Normal'").run();
-    const allPlayers = _db!.prepare('SELECT id, overall_rating FROM players').all() as any[];
-    const assignTrait = _db!.prepare('UPDATE players SET dev_trait = ? WHERE id = ?');
-    _db!.transaction(() => {
-      for (const player of allPlayers) {
-        const ovr: number = player.overall_rating;
-        const rand = Math.random();
-        let trait: string;
-        if (ovr >= 90) trait = rand < 0.05 ? 'X-Factor' : rand < 0.25 ? 'Superstar' : rand < 0.85 ? 'Star' : 'Normal';
-        else if (ovr >= 85) trait = rand < 0.02 ? 'X-Factor' : rand < 0.14 ? 'Superstar' : rand < 0.74 ? 'Star' : 'Normal';
-        else if (ovr >= 80) trait = rand < 0.005 ? 'X-Factor' : rand < 0.055 ? 'Superstar' : rand < 0.505 ? 'Star' : 'Normal';
-        else if (ovr >= 70) trait = rand < 0.001 ? 'X-Factor' : rand < 0.011 ? 'Superstar' : rand < 0.211 ? 'Star' : 'Normal';
-        else trait = rand < 0.04 ? 'Star' : 'Normal';
-        assignTrait.run(trait, player.id);
-      }
-    })();
-  }
-
-  if (!playerColNames.includes('roster_status')) {
-    _db!.prepare("ALTER TABLE players ADD COLUMN roster_status TEXT DEFAULT 'active'").run();
-    _db!.prepare("UPDATE players SET roster_status = 'free_agent' WHERE is_free_agent = 1").run();
-    _db!.prepare("UPDATE players SET roster_status = 'active' WHERE is_free_agent = 0 AND team_id IS NOT NULL").run();
-  }
-
-  if (!playerColNames.includes('franchise_tagged'))
-    _db!.prepare('ALTER TABLE players ADD COLUMN franchise_tagged INTEGER DEFAULT 0').run();
-
-  const basicPlayerExtras: [string, string][] = [
-    ['injury_status', "TEXT DEFAULT 'healthy'"],
-    ['weeks_out', 'INTEGER DEFAULT 0'],
-    ['injury_type', 'TEXT'],
-    ['waived_by_team_id', 'INTEGER'],
-    ['waiver_placed_week', 'INTEGER'],
-    ['morale', 'INTEGER DEFAULT 75'],
-  ];
-  const freshPlayerCols1 = (_db!.prepare('PRAGMA table_info(players)').all() as any[]).map((c: any) => c.name);
-  for (const [col, def] of basicPlayerExtras) {
-    if (!freshPlayerCols1.includes(col))
-      _db!.prepare(`ALTER TABLE players ADD COLUMN ${col} ${def}`).run();
-  }
-
-  const maddenCols = [
-    'agility', 'acceleration', 'stamina', 'toughness', 'injury', 'jumping', 'trucking',
-    'changeofdirection', 'playrecognition', 'throwpower', 'throwaccuracyshort',
-    'throwaccuracymid', 'throwaccuracydeep', 'playaction', 'throwonrun', 'carrying',
-    'ballcarriervision', 'stiffarm', 'spinmove', 'jukemove', 'catching',
-    'shortrouterunning', 'midrouterunning', 'deeprouterunning', 'spectacularcatch',
-    'catchintraffic', 'release', 'runblocking', 'passblocking', 'impactblocking',
-    'mancoverage', 'zonecoverage', 'tackle', 'hitpower', 'press', 'pursuit',
-    'kickaccuracy', 'kickpower', 'kick_return', 'jerseynumber', 'yearspro',
-    'throw_accuracy', 'throw_power', 'route_running', 'tackle_rating',
-    'coverage', 'pass_rush', 'kick_power', 'kick_accuracy',
-  ];
-  const freshPlayerCols2 = (_db!.prepare('PRAGMA table_info(players)').all() as any[]).map((c: any) => c.name);
-  for (const col of maddenCols) {
-    if (!freshPlayerCols2.includes(col))
-      _db!.prepare(`ALTER TABLE players ADD COLUMN ${col} INTEGER DEFAULT 0`).run();
-  }
-
-  // ── Contracts column migrations ───────────────────────────────────────────
-  const contractCols = (_db!.prepare('PRAGMA table_info(contracts)').all() as any[]).map((c: any) => c.name);
-  if (!contractCols.includes('guaranteed_amount'))
-    _db!.prepare('ALTER TABLE contracts ADD COLUMN guaranteed_amount REAL DEFAULT 0').run();
-  if (!contractCols.includes('guaranteed_pct'))
-    _db!.prepare('ALTER TABLE contracts ADD COLUMN guaranteed_pct REAL DEFAULT 0').run();
-
-  // ── Draft prospects column migrations ─────────────────────────────────────
-  const prospectCols = (_db!.prepare('PRAGMA table_info(draft_prospects)').all() as any[]).map((c: any) => c.name);
-  if (!prospectCols.includes('scouted'))
-    _db!.prepare('ALTER TABLE draft_prospects ADD COLUMN scouted INTEGER DEFAULT 0').run();
+  `);
 
   // ── Roster trimming ───────────────────────────────────────────────────────
   const ACTIVE_LIMIT = 53;
@@ -539,7 +435,7 @@ export function generateContracts(): void {
 
 // ─── Migration Versioning ─────────────────────────────────────────────────────
 
-const CURRENT_SCHEMA_VERSION = 7;
+const CURRENT_SCHEMA_VERSION = 8;
 
 interface Migration { version: number; description: string; up: () => void; }
 
@@ -634,6 +530,93 @@ const MIGRATIONS: Migration[] = [
           FOREIGN KEY (team_id) REFERENCES teams(id)
         )
       `);
+    },
+  },
+    {
+    version: 8,
+    description: 'Consolidate legacy startup PRAGMA checks — all column additions now version-gated',
+    up: () => {
+      // Stats columns
+      const statCols = (db.prepare('PRAGMA table_info(stats)').all() as any[]).map((c: any) => c.name);
+      const statMigs: [string, string][] = [
+        ['season', 'INTEGER'], ['week', 'INTEGER'], ['is_playoff', 'INTEGER DEFAULT 0'],
+        ['tackles', 'INTEGER DEFAULT 0'], ['assisted_tackles', 'INTEGER DEFAULT 0'],
+        ['sacks', 'REAL DEFAULT 0'], ['tfl', 'INTEGER DEFAULT 0'],
+        ['forced_fumbles', 'INTEGER DEFAULT 0'], ['fumble_recoveries', 'INTEGER DEFAULT 0'],
+        ['def_interceptions', 'INTEGER DEFAULT 0'], ['pass_deflections', 'INTEGER DEFAULT 0'],
+        ['def_tds', 'INTEGER DEFAULT 0'], ['fg_made', 'INTEGER DEFAULT 0'],
+        ['fg_att', 'INTEGER DEFAULT 0'], ['xp_made', 'INTEGER DEFAULT 0'],
+        ['xp_att', 'INTEGER DEFAULT 0'],
+      ];
+      for (const [col, type] of statMigs)
+        if (!statCols.includes(col)) db.prepare(`ALTER TABLE stats ADD COLUMN ${col} ${type}`).run();
+
+      // Games columns
+      const gameCols = (db.prepare('PRAGMA table_info(games)').all() as any[]).map((c: any) => c.name);
+      const gameMigs: [string, string][] = [
+        ['home_q1', 'INTEGER DEFAULT 0'], ['home_q2', 'INTEGER DEFAULT 0'],
+        ['home_q3', 'INTEGER DEFAULT 0'], ['home_q4', 'INTEGER DEFAULT 0'],
+        ['away_q1', 'INTEGER DEFAULT 0'], ['away_q2', 'INTEGER DEFAULT 0'],
+        ['away_q3', 'INTEGER DEFAULT 0'], ['away_q4', 'INTEGER DEFAULT 0'],
+        ['weather', 'TEXT'],
+      ];
+      for (const [col, type] of gameMigs)
+        if (!gameCols.includes(col)) db.prepare(`ALTER TABLE games ADD COLUMN ${col} ${type}`).run();
+
+      // Players columns — read once, handle dev_trait/roster_status data migrations first
+      const playerCols = (db.prepare('PRAGMA table_info(players)').all() as any[]).map((c: any) => c.name);
+
+      if (!playerCols.includes('dev_trait')) {
+        db.prepare("ALTER TABLE players ADD COLUMN dev_trait TEXT DEFAULT 'Normal'").run();
+        const allPlayers = db.prepare('SELECT id, overall_rating FROM players').all() as any[];
+        const assignTrait = db.prepare('UPDATE players SET dev_trait = ? WHERE id = ?');
+        db.transaction(() => {
+          for (const p of allPlayers) {
+            const r = Math.random();
+            const ovr: number = p.overall_rating;
+            let trait: string;
+            if (ovr >= 90)      trait = r < 0.05 ? 'X-Factor' : r < 0.25 ? 'Superstar' : r < 0.85 ? 'Star' : 'Normal';
+            else if (ovr >= 85) trait = r < 0.02 ? 'X-Factor' : r < 0.14 ? 'Superstar' : r < 0.74 ? 'Star' : 'Normal';
+            else if (ovr >= 80) trait = r < 0.005 ? 'X-Factor' : r < 0.055 ? 'Superstar' : r < 0.505 ? 'Star' : 'Normal';
+            else if (ovr >= 70) trait = r < 0.001 ? 'X-Factor' : r < 0.011 ? 'Superstar' : r < 0.211 ? 'Star' : 'Normal';
+            else                trait = r < 0.04 ? 'Star' : 'Normal';
+            assignTrait.run(trait, p.id);
+          }
+        })();
+      }
+
+      if (!playerCols.includes('roster_status')) {
+        db.prepare("ALTER TABLE players ADD COLUMN roster_status TEXT DEFAULT 'active'").run();
+        db.prepare("UPDATE players SET roster_status = 'free_agent' WHERE is_free_agent = 1").run();
+        db.prepare("UPDATE players SET roster_status = 'active' WHERE is_free_agent = 0 AND team_id IS NOT NULL").run();
+      }
+
+      const playerMigs: [string, string][] = [
+        ['position_label', 'TEXT'], ['franchise_tagged', 'INTEGER DEFAULT 0'],
+        ['injury_status', "TEXT DEFAULT 'healthy'"], ['weeks_out', 'INTEGER DEFAULT 0'],
+        ['injury_type', 'TEXT'], ['waived_by_team_id', 'INTEGER'], ['waiver_placed_week', 'INTEGER'],
+        ['morale', 'INTEGER DEFAULT 75'], ['throw_accuracy', 'INTEGER DEFAULT 0'],
+        ['throw_power', 'INTEGER DEFAULT 0'], ['catching', 'INTEGER DEFAULT 0'],
+        ['route_running', 'INTEGER DEFAULT 0'], ['tackle_rating', 'INTEGER DEFAULT 0'],
+        ['coverage', 'INTEGER DEFAULT 0'], ['pass_rush', 'INTEGER DEFAULT 0'],
+        ['kickpower', 'INTEGER DEFAULT 0'], ['kickaccuracy', 'INTEGER DEFAULT 0'],
+        ['runblocking', 'INTEGER DEFAULT 0'], ['passblocking', 'INTEGER DEFAULT 0'],
+      ];
+      const freshPlayerCols = (db.prepare('PRAGMA table_info(players)').all() as any[]).map((c: any) => c.name);
+      for (const [col, def] of playerMigs)
+        if (!freshPlayerCols.includes(col)) db.prepare(`ALTER TABLE players ADD COLUMN ${col} ${def}`).run();
+
+      // Contracts columns
+      const contractCols = (db.prepare('PRAGMA table_info(contracts)').all() as any[]).map((c: any) => c.name);
+      if (!contractCols.includes('guaranteed_amount'))
+        db.prepare('ALTER TABLE contracts ADD COLUMN guaranteed_amount REAL DEFAULT 0').run();
+      if (!contractCols.includes('guaranteed_pct'))
+        db.prepare('ALTER TABLE contracts ADD COLUMN guaranteed_pct REAL DEFAULT 0').run();
+
+      // Draft prospects columns
+      const prospectCols = (db.prepare('PRAGMA table_info(draft_prospects)').all() as any[]).map((c: any) => c.name);
+      if (!prospectCols.includes('scouted'))
+        db.prepare('ALTER TABLE draft_prospects ADD COLUMN scouted INTEGER DEFAULT 0').run();
     },
   },
 ];
