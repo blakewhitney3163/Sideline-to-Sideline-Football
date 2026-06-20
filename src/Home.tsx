@@ -422,9 +422,9 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
 
         {/* ── Roster Health ── */}
         {hasSchedule && !allWeeksDone && franchiseHealth && franchiseHealth.overall_ovr > 0 && (
-          <div style={{ background: '#0f0f0f', border: '1px solid #1a1a1a', borderRadius: 8, padding: '16px 20px' }}>
-            <div style={{ fontSize: 9, letterSpacing: 2, color: '#444', marginBottom: 12, textTransform: 'uppercase' }}>Roster Health</div>
-            <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+          <div style={{ background: T.bgPanel, border: `1px solid ${T.borderMid}`, borderRadius: 8, padding: '16px 20px' }}>
+  <div style={{ fontSize: 9, letterSpacing: 2, color: T.textDim, marginBottom: 12, textTransform: 'uppercase' }}>Roster Health</div>
+  <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
               {[
                 { label: 'OFFENSE', value: franchiseHealth.offense_ovr },
                 { label: 'DEFENSE', value: franchiseHealth.defense_ovr },
@@ -437,10 +437,10 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
                 </div>
               ))}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
-              {franchiseHealth.groups.map(g => (
-                <div key={g.group} style={{ textAlign: 'center', background: '#0a0a0a', border: '1px solid #111', borderRadius: 4, padding: '4px 0' }}>
-                  <div style={{ fontSize: 7, color: '#444' }}>{g.group}</div>
+             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+    {franchiseHealth.groups.map(g => (
+      <div key={g.group} style={{ textAlign: 'center', background: T.bgCard, border: `1px solid ${T.borderFaint}`, borderRadius: 4, padding: '4px 0' }}>
+        <div style={{ fontSize: 7, color: T.textMuted }}>{g.group}</div>
                   <div style={{ fontSize: 14, fontWeight: 700, color: ovrColor(g.avg_ovr) }}>{g.avg_ovr}</div>
                 </div>
               ))}
