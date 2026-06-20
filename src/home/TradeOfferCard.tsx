@@ -1,7 +1,7 @@
 import React from 'react';
 import { T } from '../theme';
 import { CpuOffer } from '../trades/types';
-import { pickLabel, ratingColor, STATUS_META } from '../trades/tradeUtils';
+import { pickLabel, ratingColor } from '../trades/tradeUtils';
 
 interface Props {
   offer: CpuOffer;
@@ -20,6 +20,8 @@ const fmtSal = (s?: number) => s ? `$${s.toFixed(1)}M` : '';
 export default function TradeOfferCard({
   offer, currentSeason, working, onAccept, onDecline, onViewDetails,
 }: Props) {
+  if (!offer?.requestedPlayer || !offer?.offeredPlayer) return null;
+
   const valueDiff = offer.offerValue - offer.requestedValue;
   const valueColor = valueDiff >= 0 ? '#4caf50' : '#FF8740';
 
