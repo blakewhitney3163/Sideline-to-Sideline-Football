@@ -109,7 +109,9 @@ const createWindow = (): void => {
     webPreferences: { preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY },
   });
   mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
+  if (process.env.NODE_ENV === 'development') {
   mainWindow.webContents.openDevTools();
+}
 };
 
 // ─── Register Handlers ────────────────────────────────────────────────────────
