@@ -1,14 +1,11 @@
 import { ipcMain } from 'electron';
 import { db } from '../database';
-const pathModule = require('path');
-const fsModule = require('fs');
 import { POSITION_TO_GROUP } from '../constants';
 import { getFranchiseRecords } from '../services/StatsService';
 
 // ─── Depth Chart Helper ───────────────────────────────────────────────────────
 
 function initDepthChart(teamId: number) {
-  // Auto-migrate old flat OL/DL groups to specific position groups
   const hasOldGroups = (db.prepare(
     "SELECT COUNT(*) as cnt FROM depth_chart WHERE team_id = ? AND position_group IN ('OL','DL','LB')"
   ).get(teamId) as any).cnt > 0;
@@ -69,10 +66,9 @@ export function registerStatsHandlers(): void {
     teamId: number; positionGroup: string; playerIds: number[];
   }) => {
     const update = db.prepare('UPDATE depth_chart SET slot = ? WHERE team_id = ? AND player_id = ? AND position_group = ?');
-    const run = db.transaction(() => {
+    db.transaction(() => {
       playerIds.forEach((pid, idx) => update.run(idx + 1, teamId, pid, positionGroup));
-    });
-    run();
+    })();
     return { success: true };
   });
 
@@ -121,18 +117,14 @@ export function registerStatsHandlers(): void {
     const result: any = {};
     for (const [cat, sortKey] of Object.entries(sortBy)) {
       const combined = [...historical.filter((r: any) => r.category === cat), ...ingame];
-      const sorted = combined.sort((a: any, b: any) => {
+      result[cat] = combined.sort((a: any, b: any) => {
         const av = sortKey === '_skill_tds' ? ((a.rush_tds || 0) + (a.rec_tds || 0)) : (parseFloat(a[sortKey]) || 0);
         const bv = sortKey === '_skill_tds' ? ((b.rush_tds || 0) + (b.rec_tds || 0)) : (parseFloat(b[sortKey]) || 0);
         return bv - av;
       }).slice(0, 15);
-      result[cat] = sorted;
     }
     return result;
   });
-
-    ipcMain.handle('get-franchise-records', (_event: any, teamId: number) =>
-    getFranchiseRecords(teamId));
 
   ipcMain.handle('get-season-records', () => {
     const historical = db.prepare(`
@@ -144,24 +136,24 @@ export function registerStatsHandlers(): void {
       FROM historical_records WHERE record_type = 'season'
     `).all() as any[];
 
-      const ingame = db.prepare(`
-    SELECT p.id as player_id, p.first_name || ' ' || p.last_name AS player_name,
-      t.name as team_name, p.overall_rating, p.age, p.position, p.dev_trait,
-      s.season, COUNT(DISTINCT s.game_id) as games_played,
-      SUM(s.pass_yards) as pass_yards, SUM(s.pass_tds) as pass_tds, SUM(s.interceptions) as interceptions,
-      SUM(s.completions) as completions, SUM(s.pass_attempts) as pass_attempts,
-      SUM(s.rush_yards) as rush_yards, SUM(s.rush_tds) as rush_tds, SUM(s.rush_attempts) as rush_attempts,
-      SUM(s.rec_yards) as rec_yards, SUM(s.rec_tds) as rec_tds, SUM(s.receptions) as receptions, 0 as targets,
-      SUM(s.tackles) as tackles, SUM(s.assisted_tackles) as assisted_tackles,
-      SUM(s.sacks) as sacks, 0 as tfl, SUM(s.def_interceptions) as def_interceptions,
-      SUM(s.pass_deflections) as pass_deflections, SUM(s.forced_fumbles) as forced_fumbles,
-      0 as is_historical
-    FROM stats s
-    JOIN players p ON s.player_id = p.id
-    LEFT JOIN teams t ON p.team_id = t.id
-    WHERE s.is_playoff = 0
-    GROUP BY s.player_id, s.season
-  `).all() as any[];
+    const ingame = db.prepare(`
+      SELECT p.id as player_id, p.first_name || ' ' || p.last_name AS player_name,
+        t.name as team_name, p.overall_rating, p.age, p.position, p.dev_trait,
+        s.season, COUNT(DISTINCT s.game_id) as games_played,
+        SUM(s.pass_yards) as pass_yards, SUM(s.pass_tds) as pass_tds, SUM(s.interceptions) as interceptions,
+        SUM(s.completions) as completions, SUM(s.pass_attempts) as pass_attempts,
+        SUM(s.rush_yards) as rush_yards, SUM(s.rush_tds) as rush_tds, SUM(s.rush_attempts) as rush_attempts,
+        SUM(s.rec_yards) as rec_yards, SUM(s.rec_tds) as rec_tds, SUM(s.receptions) as receptions, 0 as targets,
+        SUM(s.tackles) as tackles, SUM(s.assisted_tackles) as assisted_tackles,
+        SUM(s.sacks) as sacks, 0 as tfl, SUM(s.def_interceptions) as def_interceptions,
+        SUM(s.pass_deflections) as pass_deflections, SUM(s.forced_fumbles) as forced_fumbles,
+        0 as is_historical
+      FROM stats s
+      JOIN players p ON s.player_id = p.id
+      LEFT JOIN teams t ON p.team_id = t.id
+      WHERE s.is_playoff = 0
+      GROUP BY s.player_id, s.season
+    `).all() as any[];
 
     const sortBy: Record<string, string> = {
       passing: 'pass_yards', rushing: 'rush_yards', receiving: 'rec_yards',
@@ -172,48 +164,47 @@ export function registerStatsHandlers(): void {
     const result: any = {};
     for (const [cat, sortKey] of Object.entries(sortBy)) {
       const combined = [...historical.filter((r: any) => r.category === cat), ...ingame];
-      const sorted = combined.sort((a: any, b: any) => {
+      result[cat] = combined.sort((a: any, b: any) => {
         const av = sortKey === '_skill_tds' ? ((a.rush_tds || 0) + (a.rec_tds || 0)) : (parseFloat(a[sortKey]) || 0);
         const bv = sortKey === '_skill_tds' ? ((b.rush_tds || 0) + (b.rec_tds || 0)) : (parseFloat(b[sortKey]) || 0);
         return bv - av;
       }).slice(0, 15);
-      result[cat] = sorted;
     }
     return result;
   });
 
   ipcMain.handle('get-season-awards', (_event: any, season: number) => {
-      const offStats = db.prepare(`
-    SELECT p.id, p.first_name || ' ' || p.last_name as name,
-      p.position, p.position_label, p.age, p.overall_rating, p.dev_trait,
-      p.team_id, t.name as team_name, t.city as team_city,
-      SUM(s.pass_yards) as pass_yards, SUM(s.pass_tds) as pass_tds,
-      SUM(s.interceptions) as interceptions,
-      SUM(s.rush_yards) as rush_yards, SUM(s.rush_tds) as rush_tds,
-      SUM(s.rec_yards) as rec_yards, SUM(s.rec_tds) as rec_tds,
-      SUM(s.receptions) as receptions,
-      COUNT(DISTINCT s.game_id) as games
-    FROM stats s
-    JOIN players p ON s.player_id = p.id
-    JOIN teams t ON p.team_id = t.id
-    WHERE s.season = ? AND s.is_playoff = 0
-    GROUP BY p.id HAVING games > 0
-  `).all(season) as any[];
+    const offStats = db.prepare(`
+      SELECT p.id, p.first_name || ' ' || p.last_name as name,
+        p.position, p.position_label, p.age, p.overall_rating, p.dev_trait,
+        p.team_id, t.name as team_name, t.city as team_city,
+        SUM(s.pass_yards) as pass_yards, SUM(s.pass_tds) as pass_tds,
+        SUM(s.interceptions) as interceptions,
+        SUM(s.rush_yards) as rush_yards, SUM(s.rush_tds) as rush_tds,
+        SUM(s.rec_yards) as rec_yards, SUM(s.rec_tds) as rec_tds,
+        SUM(s.receptions) as receptions,
+        COUNT(DISTINCT s.game_id) as games
+      FROM stats s
+      JOIN players p ON s.player_id = p.id
+      JOIN teams t ON p.team_id = t.id
+      WHERE s.season = ? AND s.is_playoff = 0
+      GROUP BY p.id HAVING games > 0
+    `).all(season) as any[];
 
-      const defStats = db.prepare(`
-    SELECT p.id, p.first_name || ' ' || p.last_name as name,
-      p.position, p.position_label, p.age, p.overall_rating, p.dev_trait,
-      p.team_id, t.name as team_name, t.city as team_city,
-      SUM(s.tackles) as tackles, SUM(s.assisted_tackles) as assisted_tackles,
-      SUM(s.sacks) as sacks, SUM(s.def_interceptions) as def_interceptions,
-      SUM(s.pass_deflections) as pass_deflections, SUM(s.forced_fumbles) as forced_fumbles,
-      COUNT(DISTINCT s.game_id) as games
-    FROM stats s
-    JOIN players p ON s.player_id = p.id
-    JOIN teams t ON p.team_id = t.id
-    WHERE s.season = ? AND s.is_playoff = 0
-    GROUP BY p.id HAVING games > 0
-  `).all(season) as any[];
+    const defStats = db.prepare(`
+      SELECT p.id, p.first_name || ' ' || p.last_name as name,
+        p.position, p.position_label, p.age, p.overall_rating, p.dev_trait,
+        p.team_id, t.name as team_name, t.city as team_city,
+        SUM(s.tackles) as tackles, SUM(s.assisted_tackles) as assisted_tackles,
+        SUM(s.sacks) as sacks, SUM(s.def_interceptions) as def_interceptions,
+        SUM(s.pass_deflections) as pass_deflections, SUM(s.forced_fumbles) as forced_fumbles,
+        COUNT(DISTINCT s.game_id) as games
+      FROM stats s
+      JOIN players p ON s.player_id = p.id
+      JOIN teams t ON p.team_id = t.id
+      WHERE s.season = ? AND s.is_playoff = 0
+      GROUP BY p.id HAVING games > 0
+    `).all(season) as any[];
 
     const offScore = (p: any) =>
       (p.pass_yards || 0) * 0.04 + (p.pass_tds || 0) * 6 - (p.interceptions || 0) * 3 +
@@ -228,10 +219,10 @@ export function registerStatsHandlers(): void {
     const OFF_POS = ['QB', 'RB', 'WR', 'TE'];
     const DEF_POS = ['DL', 'LB', 'CB', 'S'];
 
-    const offPlayers = offStats.filter((p: any) => OFF_POS.includes(p.position));
-    const defPlayers = defStats.filter((p: any) => DEF_POS.includes(p.position));
-    const topOff = [...offPlayers].sort((a: any, b: any) => offScore(b) - offScore(a));
-    const topDef = [...defPlayers].sort((a: any, b: any) => defScore(b) - defScore(a));
+    const topOff = offStats.filter((p: any) => OFF_POS.includes(p.position))
+      .sort((a: any, b: any) => offScore(b) - offScore(a));
+    const topDef = defStats.filter((p: any) => DEF_POS.includes(p.position))
+      .sort((a: any, b: any) => defScore(b) - defScore(a));
 
     const coyRow = db.prepare(`
       SELECT t.id, t.city, t.name,
@@ -245,131 +236,17 @@ export function registerStatsHandlers(): void {
     `).get(season) as any;
 
     return {
-      mvp: topOff[0] || null,
-      opoy: topOff.find((p: any) => p.position !== 'QB') || null,
-      dpoy: topDef[0] || null,
+      mvp:   topOff[0] || null,
+      opoy:  topOff.find((p: any) => p.position !== 'QB') || null,
+      dpoy:  topDef[0] || null,
       oroty: topOff.filter((p: any) => p.age <= 23)[0] || null,
       droty: topDef.filter((p: any) => p.age <= 23)[0] || null,
-      coy: coyRow || null,
+      coy:   coyRow || null,
     };
   });
 
-  // ─── NFLverse Stats Import ──────────────────────────────────────────────────
+  // ─── Franchise Records ─────────────────────────────────────────────────────
 
-  ipcMain.handle('import-nflverse-stats', () => {
-    const csvPath = pathModule.join(process.cwd(), 'src', 'data', 'player-career-stats.csv');
-    if (!fsModule.existsSync(csvPath)) {
-      return { success: false, matched: 0, error: 'player-career-stats.csv not found — run scripts/fetch-career-stats.js first' };
-    }
-
-    const norm = (s: string) => s.toLowerCase().replace(/['\u2019.]/g, '').replace(/\s+/g, ' ').trim();
-    const players = db.prepare('SELECT id, first_name, last_name FROM players').all() as any[];
-    const byName: Record<string, any> = {};
-    for (const p of players) byName[norm(`${p.first_name} ${p.last_name}`)] = p;
-
-    const parseCSV = (filePath: string) => {
-      const lines = fsModule.readFileSync(filePath, 'utf8').split('\n').filter((l: string) => l.trim());
-      const headers = lines[0].split(',').map((h: string) => h.trim());
-      return lines.slice(1).map((line: string) => {
-        const vals: string[] = [];
-        let cur = '', inQ = false;
-        for (const ch of line) {
-          if (ch === '"') { inQ = !inQ; }
-          else if (ch === ',' && !inQ) { vals.push(cur); cur = ''; }
-          else { cur += ch; }
-        }
-        vals.push(cur);
-        const r: any = {};
-        headers.forEach((h: string, i: number) => { r[h] = (vals[i] ?? '').trim(); });
-        return r;
-      });
-    };
-
-    const offRows = parseCSV(csvPath);
-    const upsertOff = db.prepare(`
-      INSERT OR IGNORE INTO career_stats_history
-        (player_id, season, games,
-        completions, pass_attempts, pass_yards, pass_tds, interceptions,
-        rush_attempts, rush_yards, rush_tds,
-        targets, receptions, rec_yards, rec_tds)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-    `);
-
-    let matched = 0, skipped = 0;
-    const runOff = db.transaction(() => {
-      for (const r of offRows) {
-        const player = byName[norm(r.player_display_name ?? '')];
-        if (!player) { skipped++; continue; }
-        const season = parseInt(r.season);
-        if (!season) { skipped++; continue; }
-        upsertOff.run(
-          player.id, season,
-          parseInt(r.games) || 0,
-          parseInt(r.completions) || 0,
-          parseInt(r.attempts) || 0,
-          parseInt(r.passing_yards) || 0,
-          parseInt(r.passing_tds) || 0,
-          parseInt(r.interceptions) || 0,
-          parseInt(r.carries) || 0,
-          parseInt(r.rushing_yards) || 0,
-          parseInt(r.rushing_tds) || 0,
-          parseInt(r.targets) || 0,
-          parseInt(r.receptions) || 0,
-          parseInt(r.receiving_yards) || 0,
-          parseInt(r.receiving_tds) || 0,
-        );
-        matched++;
-      }
-    });
-    runOff();
-
-    const defCsvPath = pathModule.join(process.cwd(), 'src', 'data', 'player-career-stats-def.csv');
-    let defMatched = 0;
-
-    if (fsModule.existsSync(defCsvPath)) {
-      const defRows = parseCSV(defCsvPath);
-      const upsertDef = db.prepare(`
-        INSERT INTO career_stats_history
-          (player_id, season, games, tackles, assisted_tackles, sacks, tfl,
-          forced_fumbles, def_interceptions, pass_deflections, def_tds)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?)
-        ON CONFLICT(player_id, season) DO UPDATE SET
-          tackles = excluded.tackles,
-          assisted_tackles = excluded.assisted_tackles,
-          sacks = excluded.sacks,
-          tfl = excluded.tfl,
-          forced_fumbles = excluded.forced_fumbles,
-          def_interceptions = excluded.def_interceptions,
-          pass_deflections = excluded.pass_deflections,
-          def_tds = excluded.def_tds,
-          games = MAX(career_stats_history.games, excluded.games)
-      `);
-
-      const runDef = db.transaction(() => {
-        for (const r of defRows) {
-          const player = byName[norm(r.player_display_name ?? '')];
-          if (!player) continue;
-          const season = parseInt(r.season);
-          if (!season) continue;
-          upsertDef.run(
-            player.id, season,
-            parseInt(r.games) || 0,
-            parseFloat(r.tackles) || 0,
-            parseFloat(r.assisted_tackles) || 0,
-            parseFloat(r.sacks) || 0,
-            parseFloat(r.tfl) || 0,
-            parseFloat(r.forced_fumbles) || 0,
-            parseFloat(r.def_interceptions) || 0,
-            parseFloat(r.pass_deflections) || 0,
-            parseFloat(r.def_tds) || 0,
-          );
-          defMatched++;
-        }
-      });
-      runDef();
-    }
-
-    console.log(`Career stats: ${matched} offense matched, ${skipped} skipped, ${defMatched} defense matched`);
-    return { success: true, matched: matched + defMatched, skipped };
-  });
+  ipcMain.handle('get-franchise-records', (_event: any, teamId: number) =>
+    getFranchiseRecords(teamId));
 }
