@@ -7,11 +7,24 @@ type WeatherType = 'clear' | 'rain' | 'wind' | 'snow';
 
 interface PlayerRow {
   id: number;
+  position: string;
   overall_rating: number;
+  morale: number;
+  depth_slot: number;
   speed: number | null; strength: number | null; awareness: number | null;
   throw_accuracy: number | null; throw_power: number | null;
   catching: number | null; route_running: number | null;
   tackle_rating: number | null; coverage: number | null; pass_rush: number | null;
+}
+
+interface CoachRow { role: string; overall_rating: number; offense_rating: number; defense_rating: number; }
+interface SchemeRow { offense_scheme: string; defense_scheme: string; }
+
+interface TeamData {
+  teamId: number;
+  players: PlayerRow[];
+  coaches: CoachRow[];
+  scheme: SchemeRow | null;
 }
 
 interface TeamRatings { offenseRating: number; defenseRating: number; }
@@ -48,149 +61,151 @@ function clampFloat(val: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, Math.round(val * 2) / 2));
 }
 
-function attr(p: PlayerRow, col: keyof Omit<PlayerRow, 'id'>, fallback = 70): number {
+function attr(p: PlayerRow, col: keyof Omit<PlayerRow, 'id' | 'position' | 'depth_slot'>, fallback = 70): number {
   return (p[col] as number | null) ?? fallback;
 }
 
-// ─── DB Helpers ───────────────────────────────────────────────────────────────
+// ─── Team Data Loader — 3 queries per team replaces ~15–25 per-game queries ───
 
-function getHealthyByGroup(teamId: number, positionGroup: string, limit: number): PlayerRow[] {
-  const cols = `p.id, p.overall_rating, p.speed, p.strength, p.awareness,
-    p.throw_accuracy, p.throw_power, p.catching, p.route_running,
-    p.tackle_rating, p.coverage, p.pass_rush`;
-  const rows = db.prepare(`
-    SELECT ${cols} FROM depth_chart dc
-    JOIN players p ON dc.player_id = p.id
-    WHERE dc.team_id = ? AND dc.position_group = ? AND p.roster_status = 'active'
-    AND p.injury_status NOT IN ('out', 'ir')
-    ORDER BY dc.slot LIMIT ?
-  `).all(teamId, positionGroup, limit) as PlayerRow[];
-  if (rows.length > 0) return rows;
-  return db.prepare(`
-    SELECT id, overall_rating, speed, strength, awareness,
-      throw_accuracy, throw_power, catching, route_running,
-      tackle_rating, coverage, pass_rush
-    FROM players
-    WHERE team_id = ? AND position = ? AND roster_status = 'active'
-    AND injury_status NOT IN ('out', 'ir')
-    ORDER BY overall_rating DESC LIMIT ?
-  `).all(teamId, positionGroup, limit) as PlayerRow[];
-}
-
-// ─── Scheme Modifiers ─────────────────────────────────────────────────────────
-
-function getSchemeModifiers(teamId: number): { offMod: number; defMod: number } {
-  const scheme = db.prepare('SELECT offense_scheme, defense_scheme FROM team_schemes WHERE team_id = ?').get(teamId) as any;
-  if (!scheme) return { offMod: 0, defMod: 0 };
-
-  let offMod = 0;
-  let defMod = 0;
-
-  switch (scheme.offense_scheme) {
-    case 'West Coast': {
-      const qb = db.prepare("SELECT throw_accuracy FROM players WHERE team_id = ? AND position = 'QB' AND roster_status = 'active' ORDER BY overall_rating DESC LIMIT 1").get(teamId) as any;
-      const tes = db.prepare("SELECT overall_rating FROM players WHERE team_id = ? AND position = 'TE' AND roster_status = 'active' ORDER BY overall_rating DESC LIMIT 2").all(teamId) as any[];
-      const qbAcc = qb?.throw_accuracy ?? 70;
-      const teAvg = tes.length ? tes.reduce((s: number, t: any) => s + t.overall_rating, 0) / tes.length : 70;
-      offMod = ((qbAcc + teAvg) / 2 - 70) * 0.08;
-      break;
-    }
-    case 'Air Raid': {
-      const wrs = db.prepare("SELECT overall_rating FROM players WHERE team_id = ? AND position = 'WR' AND roster_status = 'active' ORDER BY overall_rating DESC LIMIT 3").all(teamId) as any[];
-      const wrAvg = wrs.length ? wrs.reduce((s: number, w: any) => s + w.overall_rating, 0) / wrs.length : 70;
-      offMod = (wrAvg - 70) * 0.14;
-      break;
-    }
-    case 'Power Run': {
-      const rbs = db.prepare("SELECT overall_rating FROM players WHERE team_id = ? AND position = 'RB' AND roster_status = 'active' ORDER BY overall_rating DESC LIMIT 2").all(teamId) as any[];
-      const ols = db.prepare("SELECT overall_rating FROM players WHERE team_id = ? AND position = 'OL' AND roster_status = 'active' ORDER BY overall_rating DESC LIMIT 5").all(teamId) as any[];
-      const rbAvg = rbs.length ? rbs.reduce((s: number, r: any) => s + r.overall_rating, 0) / rbs.length : 70;
-      const olAvg = ols.length ? ols.reduce((s: number, o: any) => s + o.overall_rating, 0) / ols.length : 70;
-      offMod = ((rbAvg + olAvg) / 2 - 70) * 0.12;
-      break;
-    }
-    case 'Spread': {
-      const qb = db.prepare("SELECT throw_accuracy, speed FROM players WHERE team_id = ? AND position = 'QB' AND roster_status = 'active' ORDER BY overall_rating DESC LIMIT 1").get(teamId) as any;
-      const qbCombo = qb ? ((qb.throw_accuracy ?? 70) + (qb.speed ?? 60)) / 2 : 65;
-      offMod = (qbCombo - 70) * 0.10;
-      break;
-    }
-    case 'Run & Gun': {
-      const off = db.prepare("SELECT overall_rating FROM players WHERE team_id = ? AND position IN ('QB','RB','WR','TE','OL') AND roster_status = 'active'").all(teamId) as any[];
-      const offAvg = off.length ? off.reduce((s: number, p: any) => s + p.overall_rating, 0) / off.length : 70;
-      offMod = (offAvg - 70) * 0.07;
-      break;
-    }
-  }
-
-  switch (scheme.defense_scheme) {
-    case '4-3': {
-      const dls = db.prepare("SELECT overall_rating FROM players WHERE team_id = ? AND position = 'DL' AND roster_status = 'active' ORDER BY overall_rating DESC LIMIT 4").all(teamId) as any[];
-      const dlAvg = dls.length ? dls.reduce((s: number, p: any) => s + p.overall_rating, 0) / dls.length : 70;
-      defMod = (dlAvg - 70) * 0.12;
-      break;
-    }
-    case '3-4': {
-      const lbs = db.prepare("SELECT overall_rating FROM players WHERE team_id = ? AND position = 'LB' AND roster_status = 'active' ORDER BY overall_rating DESC LIMIT 4").all(teamId) as any[];
-      const lbAvg = lbs.length ? lbs.reduce((s: number, p: any) => s + p.overall_rating, 0) / lbs.length : 70;
-      defMod = (lbAvg - 70) * 0.13;
-      break;
-    }
-    case 'Zone Cover 2': {
-      const cbs = db.prepare("SELECT coverage FROM players WHERE team_id = ? AND position = 'CB' AND roster_status = 'active' ORDER BY overall_rating DESC LIMIT 3").all(teamId) as any[];
-      const ss = db.prepare("SELECT coverage FROM players WHERE team_id = ? AND position = 'S' AND roster_status = 'active' ORDER BY overall_rating DESC LIMIT 2").all(teamId) as any[];
-      const dbAll = [...cbs, ...ss];
-      const covAvg = dbAll.length ? dbAll.reduce((s: number, p: any) => s + (p.coverage ?? 70), 0) / dbAll.length : 70;
-      defMod = (covAvg - 70) * 0.11;
-      break;
-    }
-    case 'Man Press': {
-      const cbs = db.prepare("SELECT overall_rating FROM players WHERE team_id = ? AND position = 'CB' AND roster_status = 'active' ORDER BY overall_rating DESC LIMIT 2").all(teamId) as any[];
-      const cbAvg = cbs.length ? cbs.reduce((s: number, p: any) => s + p.overall_rating, 0) / cbs.length : 70;
-      defMod = (cbAvg - 70) * 0.11;
-      break;
-    }
-    case 'Blitz Heavy': {
-      const rushers = db.prepare("SELECT pass_rush FROM players WHERE team_id = ? AND position IN ('DL','LB') AND roster_status = 'active' ORDER BY overall_rating DESC LIMIT 6").all(teamId) as any[];
-      const rushAvg = rushers.length ? rushers.reduce((s: number, p: any) => s + (p.pass_rush ?? 70), 0) / rushers.length : 70;
-      defMod = (rushAvg - 70) * 0.15;
-      break;
-    }
-  }
-
-  return { offMod, defMod };
-}
-
-function getTeamRatings(teamId: number): TeamRatings {
+function loadTeamData(teamId: number): TeamData {
   const players = db.prepare(`
-    SELECT position, overall_rating, COALESCE(morale, 75) as morale FROM players
-    WHERE team_id = ? AND injury_status NOT IN ('out', 'ir')
-  `).all(teamId) as { position: string; overall_rating: number; morale: number }[];
+    SELECT p.id, p.position,
+           p.overall_rating, COALESCE(p.morale, 75) AS morale,
+           p.speed, p.strength, p.awareness,
+           p.throw_accuracy, p.throw_power,
+           p.catching, p.route_running,
+           p.tackle_rating, p.coverage, p.pass_rush,
+           COALESCE(dc.slot, 999) AS depth_slot
+    FROM players p
+    LEFT JOIN depth_chart dc ON dc.player_id = p.id AND dc.team_id = ?
+    WHERE p.team_id = ? AND p.roster_status = 'active'
+      AND p.injury_status NOT IN ('out', 'ir')
+    ORDER BY
+      CASE p.position
+        WHEN 'QB' THEN 1 WHEN 'RB' THEN 2 WHEN 'WR' THEN 3 WHEN 'TE' THEN 4
+        WHEN 'OL' THEN 5 WHEN 'DL' THEN 6 WHEN 'LB' THEN 7
+        WHEN 'CB' THEN 8 WHEN 'S'  THEN 9 WHEN 'K'  THEN 10 ELSE 11
+      END, COALESCE(dc.slot, 999) ASC, p.overall_rating DESC
+  `).all(teamId, teamId) as PlayerRow[];
 
-  const effOvr = (p: { overall_rating: number; morale: number }) =>
-    p.overall_rating * (1 + (p.morale - 75) * 0.001);
+  let coaches: CoachRow[] = [];
+  try {
+    coaches = db.prepare(
+      "SELECT role, overall_rating, offense_rating, defense_rating FROM coaching_staff WHERE team_id = ? AND role IN ('HC','OC','DC')"
+    ).all(teamId) as CoachRow[];
+  } catch { /* coaching_staff not yet on this save */ }
+
+  let scheme: SchemeRow | null = null;
+  try {
+    scheme = db.prepare(
+      'SELECT offense_scheme, defense_scheme FROM team_schemes WHERE team_id = ?'
+    ).get(teamId) as SchemeRow ?? null;
+  } catch { /* team_schemes not yet on this save */ }
+
+  return { teamId, players, coaches, scheme };
+}
+
+// ─── In-Memory Position Filter (replaces all getHealthyByGroup DB calls) ──────
+
+function byPos(players: PlayerRow[], position: string, limit: number): PlayerRow[] {
+  return players
+    .filter(p => p.position === position)
+    .sort((a, b) => a.depth_slot - b.depth_slot || b.overall_rating - a.overall_rating)
+    .slice(0, limit);
+}
+
+// ─── Team Ratings (fully in-memory, zero additional DB calls) ─────────────────
+
+function computeTeamRatings(data: TeamData): TeamRatings {
+  const { players, coaches, scheme } = data;
+
+  const effOvr = (p: PlayerRow) => p.overall_rating * (1 + (p.morale - 75) * 0.001);
 
   const offense = players.filter(p => ['QB','RB','WR','TE','OL'].includes(p.position));
   const defense = players.filter(p => ['DL','LB','CB','S'].includes(p.position));
+
   let offenseRating = offense.reduce((s, p) => s + effOvr(p), 0) / (offense.length || 1);
   let defenseRating = defense.reduce((s, p) => s + effOvr(p), 0) / (defense.length || 1);
 
-  // Apply coordinator coaching modifiers
-  try {
-    const hc = db.prepare("SELECT overall_rating FROM coaching_staff WHERE team_id = ? AND role = 'HC'").get(teamId) as any;
-    const oc = db.prepare("SELECT offense_rating FROM coaching_staff WHERE team_id = ? AND role = 'OC'").get(teamId) as any;
-    const dc = db.prepare("SELECT defense_rating FROM coaching_staff WHERE team_id = ? AND role = 'DC'").get(teamId) as any;
-    if (hc) { offenseRating += (hc.overall_rating - 70) * 0.05; defenseRating += (hc.overall_rating - 70) * 0.05; }
-    if (oc) offenseRating += (oc.offense_rating - 70) * 0.15;
-    if (dc) defenseRating += (dc.defense_rating - 70) * 0.15;
-  } catch { /* coaching_staff table not yet created on this save */ }
+  // Coaching modifiers
+  const hc = coaches.find(c => c.role === 'HC');
+  const oc = coaches.find(c => c.role === 'OC');
+  const dc = coaches.find(c => c.role === 'DC');
+  if (hc) { offenseRating += (hc.overall_rating - 70) * 0.05; defenseRating += (hc.overall_rating - 70) * 0.05; }
+  if (oc) offenseRating += (oc.offense_rating - 70) * 0.15;
+  if (dc) defenseRating += (dc.defense_rating - 70) * 0.15;
 
-  // Apply scheme modifiers — fit bonus/penalty based on roster composition
-  try {
-    const { offMod, defMod } = getSchemeModifiers(teamId);
+  // Scheme modifiers — computed in-memory from pre-loaded players
+  if (scheme) {
+    const topN = (arr: PlayerRow[], n: number) =>
+      [...arr].sort((a, b) => b.overall_rating - a.overall_rating).slice(0, n);
+    const avg = (arr: PlayerRow[], key: keyof PlayerRow, fallback = 70): number =>
+      arr.length ? arr.reduce((s, p) => s + ((p[key] as number) ?? fallback), 0) / arr.length : fallback;
+
+    const qbs = players.filter(p => p.position === 'QB').sort((a, b) => b.overall_rating - a.overall_rating);
+    const rbs = players.filter(p => p.position === 'RB');
+    const wrs = players.filter(p => p.position === 'WR');
+    const tes = players.filter(p => p.position === 'TE');
+    const ols = players.filter(p => p.position === 'OL');
+    const dls = players.filter(p => p.position === 'DL');
+    const lbs = players.filter(p => p.position === 'LB');
+    const cbs = players.filter(p => p.position === 'CB');
+    const ss  = players.filter(p => p.position === 'S');
+
+    let offMod = 0, defMod = 0;
+
+    switch (scheme.offense_scheme) {
+      case 'West Coast': {
+        const qbAcc = qbs[0]?.throw_accuracy ?? 70;
+        const teAvg = avg(topN(tes, 2), 'overall_rating');
+        offMod = ((qbAcc + teAvg) / 2 - 70) * 0.08;
+        break;
+      }
+      case 'Air Raid':
+        offMod = (avg(topN(wrs, 3), 'overall_rating') - 70) * 0.14;
+        break;
+      case 'Power Run': {
+        const rbAvg = avg(topN(rbs, 2), 'overall_rating');
+        const olAvg = avg(topN(ols, 5), 'overall_rating');
+        offMod = ((rbAvg + olAvg) / 2 - 70) * 0.12;
+        break;
+      }
+      case 'Spread': {
+        const topQb = qbs[0];
+        const qbCombo = topQb ? ((topQb.throw_accuracy ?? 70) + (topQb.speed ?? 60)) / 2 : 65;
+        offMod = (qbCombo - 70) * 0.10;
+        break;
+      }
+      case 'Run & Gun':
+        offMod = (avg(offense, 'overall_rating') - 70) * 0.07;
+        break;
+    }
+
+    switch (scheme.defense_scheme) {
+      case '4-3':
+        defMod = (avg(topN(dls, 4), 'overall_rating') - 70) * 0.12;
+        break;
+      case '3-4':
+        defMod = (avg(topN(lbs, 4), 'overall_rating') - 70) * 0.13;
+        break;
+      case 'Zone Cover 2': {
+        const dbAll = [...topN(cbs, 3), ...topN(ss, 2)];
+        defMod = (avg(dbAll, 'coverage') - 70) * 0.11;
+        break;
+      }
+      case 'Man Press':
+        defMod = (avg(topN(cbs, 2), 'overall_rating') - 70) * 0.11;
+        break;
+      case 'Blitz Heavy': {
+        const rushers = [...dls, ...lbs].sort((a, b) => b.overall_rating - a.overall_rating).slice(0, 6);
+        defMod = (avg(rushers, 'pass_rush') - 70) * 0.15;
+        break;
+      }
+    }
+
     offenseRating += offMod;
     defenseRating += defMod;
-  } catch { /* team_schemes table not yet created on this save */ }
+  }
 
   return { offenseRating, defenseRating };
 }
@@ -211,7 +226,7 @@ function weatherMultipliers(w: WeatherType): WeatherMultipliers {
     case 'snow': return { score: 0.84, passYards: 0.74, compPct: -0.07, rushYards: 1.06, rushAttempts: 1.08 };
     case 'rain': return { score: 0.92, passYards: 0.87, compPct: -0.03, rushYards: 1.02, rushAttempts: 1.04 };
     case 'wind': return { score: 0.90, passYards: 0.80, compPct: -0.05, rushYards: 1.00, rushAttempts: 1.02 };
-    default:     return { score: 1.00, passYards: 1.00, compPct:  0.00, rushYards: 1.00, rushAttempts: 1.00 };
+    default:     return { score: 1.00, passYards: 1.00, compPct: 0.00,  rushYards: 1.00, rushAttempts: 1.00 };
   }
 }
 
@@ -247,7 +262,7 @@ function simulateOvertime(
   wx: WeatherMultipliers
 ): { homeOTScore: number; awayOTScore: number } {
   const homeFirst = Math.random() > 0.5;
-  const firstOff = homeFirst ? homeRatings : awayRatings;
+  const firstOff  = homeFirst ? homeRatings : awayRatings;
   const secondOff = homeFirst ? awayRatings : homeRatings;
 
   function possession(offR: number, defR: number): 'td' | 'fg' | 'none' {
@@ -257,51 +272,34 @@ function simulateOvertime(
   }
 
   const r1 = possession(firstOff.offenseRating, secondOff.defenseRating);
-
-  if (r1 === 'td') {
-    return homeFirst
-      ? { homeOTScore: 7, awayOTScore: 0 }
-      : { homeOTScore: 0, awayOTScore: 7 };
-  }
-
+  if (r1 === 'td') return homeFirst ? { homeOTScore: 7, awayOTScore: 0 } : { homeOTScore: 0, awayOTScore: 7 };
   if (r1 === 'fg') {
     const r2 = possession(secondOff.offenseRating, firstOff.defenseRating);
-    if (r2 === 'td') {
-      return homeFirst
-        ? { homeOTScore: 3, awayOTScore: 7 }
-        : { homeOTScore: 7, awayOTScore: 3 };
-    }
-    if (r2 === 'fg') {
-      return Math.random() > 0.5
-        ? (homeFirst ? { homeOTScore: 6, awayOTScore: 3 } : { homeOTScore: 3, awayOTScore: 6 })
-        : (homeFirst ? { homeOTScore: 3, awayOTScore: 6 } : { homeOTScore: 6, awayOTScore: 3 });
-    }
-    return homeFirst
-      ? { homeOTScore: 3, awayOTScore: 0 }
-      : { homeOTScore: 0, awayOTScore: 3 };
+    if (r2 === 'td') return homeFirst ? { homeOTScore: 3, awayOTScore: 7 } : { homeOTScore: 7, awayOTScore: 3 };
+    if (r2 === 'fg') return Math.random() > 0.5
+      ? (homeFirst ? { homeOTScore: 6, awayOTScore: 3 } : { homeOTScore: 3, awayOTScore: 6 })
+      : (homeFirst ? { homeOTScore: 3, awayOTScore: 6 } : { homeOTScore: 6, awayOTScore: 3 });
+    return homeFirst ? { homeOTScore: 3, awayOTScore: 0 } : { homeOTScore: 0, awayOTScore: 3 };
   }
-
   const r2 = possession(secondOff.offenseRating, firstOff.defenseRating);
   if (r2 !== 'none') {
     const pts = r2 === 'td' ? 7 : 3;
-    return homeFirst
-      ? { homeOTScore: 0, awayOTScore: pts }
-      : { homeOTScore: pts, awayOTScore: 0 };
+    return homeFirst ? { homeOTScore: 0, awayOTScore: pts } : { homeOTScore: pts, awayOTScore: 0 };
   }
-
   return { homeOTScore: 3, awayOTScore: 0 };
 }
 
 // ─── Offensive Stats ──────────────────────────────────────────────────────────
 
 function generatePlayerStats(
-  teamId: number,
+  data: TeamData,
   events: ScoringEvents,
   offenseRating: number,
   wx: WeatherMultipliers,
   isHome: boolean,
   scoreDiff: number
 ): GamePlayerStat[] {
+  const { teamId, players } = data;
   const stats: GamePlayerStat[] = [];
   const teamRatingFactor = offenseRating / 75;
 
@@ -311,11 +309,11 @@ function generatePlayerStats(
   const passTDs = clamp(Math.round(events.tds * 0.72), 0, events.tds);
   const rushTDs = events.tds - passTDs;
 
-  const qbs = getHealthyByGroup(teamId, 'QB', 1);
-  const rbs = getHealthyByGroup(teamId, 'RB', 3);
-  const wrs = getHealthyByGroup(teamId, 'WR', 4);
-  const tes = getHealthyByGroup(teamId, 'TE', 2);
-  const qb = qbs[0] ?? null;
+  const qbs = byPos(players, 'QB', 1);
+  const rbs = byPos(players, 'RB', 3);
+  const wrs = byPos(players, 'WR', 4);
+  const tes = byPos(players, 'TE', 2);
+  const qb  = qbs[0] ?? null;
 
   const defStatDefaults = {
     tackles: 0, assisted_tackles: 0, sacks: 0, tfl: 0,
@@ -448,17 +446,18 @@ function generatePlayerStats(
 // ─── Defensive Stats ──────────────────────────────────────────────────────────
 
 function generateDefensiveStats(
-  teamId: number,
+  data: TeamData,
   opponentQBInts: number,
   defenseRating: number
 ): GamePlayerStat[] {
+  const { teamId, players } = data;
   const stats: GamePlayerStat[] = [];
   const defFactor = defenseRating / 75;
 
-  const dls = getHealthyByGroup(teamId, 'DL', 4);
-  const lbs = getHealthyByGroup(teamId, 'LB', 4);
-  const cbs = getHealthyByGroup(teamId, 'CB', 3);
-  const ss  = getHealthyByGroup(teamId, 'S', 2);
+  const dls = byPos(players, 'DL', 4);
+  const lbs = byPos(players, 'LB', 4);
+  const cbs = byPos(players, 'CB', 3);
+  const ss  = byPos(players, 'S',  2);
   const dbs = [...cbs, ...ss];
   const allDef = [...dls, ...lbs, ...cbs, ...ss];
   if (allDef.length === 0) return [];
@@ -490,12 +489,12 @@ function generateDefensiveStats(
     { players: cbs, share: 0.22, max: 5 },
     { players: ss,  share: 0.15, max: 5 },
   ];
-  for (const { players, share, max } of tackleGroups) {
-    if (!players.length) continue;
+  for (const { players: grp, share, max } of tackleGroups) {
+    if (!grp.length) continue;
     const groupTotal = Math.round(totalTackles * share);
-    const weights = players.map(p => attr(p, 'tackle_rating') / 75);
+    const weights = grp.map(p => attr(p, 'tackle_rating') / 75);
     const wTotal = weights.reduce((a, b) => a + b, 0) || 1;
-    players.forEach((p, i) => {
+    grp.forEach((p, i) => {
       pTackles[p.id] = clamp(randomNormal((groupTotal * weights[i] / wTotal), 2), 0, max);
       pAssists[p.id] = clamp(randomNormal(pTackles[p.id] * 0.35, 1), 0, 4);
     });
@@ -509,7 +508,7 @@ function generateDefensiveStats(
     if (Math.random() < 0.32 + rushBonus) {
       const s = Math.min(remSacks, Math.random() < 0.12 ? 2 : Math.random() < 0.72 ? 1 : 0.5);
       pSacks[p.id] = s;
-      pTFL[p.id]   = s + (Math.random() < 0.35 ? 1 : 0);
+      pTFL[p.id] = s + (Math.random() < 0.35 ? 1 : 0);
       remSacks -= s;
     }
   });
@@ -573,11 +572,12 @@ function generateDefensiveStats(
 // ─── Kicker Stats ─────────────────────────────────────────────────────────────
 
 function generateKickerStats(
-  teamId: number,
+  data: TeamData,
   events: ScoringEvents,
   offensiveTDs: number
 ): GamePlayerStat | null {
-  const ks = getHealthyByGroup(teamId, 'K', 1);
+  const { teamId, players } = data;
+  const ks = byPos(players, 'K', 1);
   if (!ks.length) return null;
   const k = ks[0];
 
@@ -630,8 +630,12 @@ export function simulateGame(
   userTeamId: number = -1,
   difficultyFactor: number = 0
 ): SimResult {
-  const homeRatings = getTeamRatings(homeTeamId);
-  const awayRatings = getTeamRatings(awayTeamId);
+  // Load all team data upfront — 3 DB queries per team (6 total per game)
+  const homeData = loadTeamData(homeTeamId);
+  const awayData = loadTeamData(awayTeamId);
+
+  const homeRatings = computeTeamRatings(homeData);
+  const awayRatings = computeTeamRatings(awayData);
 
   if (difficultyFactor !== 0) {
     if (homeTeamId === userTeamId) {
@@ -651,27 +655,27 @@ export function simulateGame(
   const awayEvents = generateScoringEvents(awayRatings.offenseRating, homeRatings.defenseRating, wx, false);
 
   let homeScore = homeEvents.tds * 7 + homeEvents.fgs * 3;
-  let awayScore  = awayEvents.tds * 7 + awayEvents.fgs * 3;
+  let awayScore = awayEvents.tds * 7 + awayEvents.fgs * 3;
 
   const scoreDiff = homeScore - awayScore;
-  const homeOffStats = generatePlayerStats(homeTeamId, homeEvents, homeRatings.offenseRating, wx, true,  scoreDiff);
-  const awayOffStats = generatePlayerStats(awayTeamId, awayEvents, awayRatings.offenseRating, wx, false, -scoreDiff);
+  const homeOffStats = generatePlayerStats(homeData, homeEvents, homeRatings.offenseRating, wx, true, scoreDiff);
+  const awayOffStats = generatePlayerStats(awayData, awayEvents, awayRatings.offenseRating, wx, false, -scoreDiff);
 
   const homeQBInts = homeOffStats.find(s => s.pass_attempts > 0)?.interceptions ?? 0;
   const awayQBInts = awayOffStats.find(s => s.pass_attempts > 0)?.interceptions ?? 0;
 
-  const homeDefStats = generateDefensiveStats(homeTeamId, awayQBInts, homeRatings.defenseRating);
-  const awayDefStats = generateDefensiveStats(awayTeamId, homeQBInts, awayRatings.defenseRating);
+  const homeDefStats = generateDefensiveStats(homeData, awayQBInts, homeRatings.defenseRating);
+  const awayDefStats = generateDefensiveStats(awayData, homeQBInts, awayRatings.defenseRating);
 
   const homeDefTDs = homeDefStats.reduce((sum, s) => sum + (s.def_tds ?? 0), 0);
   const awayDefTDs = awayDefStats.reduce((sum, s) => sum + (s.def_tds ?? 0), 0);
   homeScore += homeDefTDs * 6;
-  awayScore  += awayDefTDs * 6;
+  awayScore += awayDefTDs * 6;
 
   if (homeScore === awayScore) {
     const ot = simulateOvertime(homeRatings, awayRatings, wx);
     homeScore += ot.homeOTScore;
-    awayScore  += ot.awayOTScore;
+    awayScore += ot.awayOTScore;
   }
 
   if (homeScore === awayScore) {
@@ -679,8 +683,8 @@ export function simulateGame(
     else awayScore += 3;
   }
 
-  const homeKickerStat = generateKickerStats(homeTeamId, homeEvents, homeEvents.tds);
-  const awayKickerStat = generateKickerStats(awayTeamId, awayEvents, awayEvents.tds);
+  const homeKickerStat = generateKickerStats(homeData, homeEvents, homeEvents.tds);
+  const awayKickerStat = generateKickerStats(awayData, awayEvents, awayEvents.tds);
 
   return {
     homeScore, awayScore,
