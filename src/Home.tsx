@@ -253,7 +253,12 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
   const handleAcceptOffer = async () => {
     if (!cpuOffer || offerWorking) return;
     setOfferWorking(true);
-    await window.api.acceptCpuTrade(cpuOffer.tradeId);
+    await window.api.acceptCpuTradeOffer({
+  myPlayerId: cpuOffer.requestedPlayer.id,
+  theirPlayerId: cpuOffer.offeredPlayer.id,
+  theirTeamId: cpuOffer.fromTeamId,
+  theirPickId: cpuOffer.offeredPick?.id ?? null,
+});
     setCpuOffer(null);
     setOfferHandled(true);
     setOfferWorking(false);
@@ -262,7 +267,6 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
   const handleDeclineOffer = async () => {
     if (!cpuOffer || offerWorking) return;
     setOfferWorking(true);
-    await window.api.declineCpuTrade(cpuOffer.tradeId);
     setCpuOffer(null);
     setOfferHandled(true);
     setOfferWorking(false);
