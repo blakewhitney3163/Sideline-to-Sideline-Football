@@ -110,6 +110,43 @@ HIGH PRIORITY
 
 IMPORTANT — Fix before next major feature
 ────────────────────────────────────────────────────────────────────────────────
+[DONE June 20, 2026] Contract Salary Market Calibration — Salary generation
+  in database.ts replaced with a position/OVR/dev-trait MARKET_RATE_TABLE
+  aligned with ContractService. Eliminates the "TEAM DEAL" badge incorrectly
+  appearing on nearly all contracts. Covers QB ($1.5–65M), WR ($1.5–45M),
+  DL ($1.5–38M), CB ($1.5–32M), OL ($1.5–36M), LB ($1.5–26M), TE ($1.5–24M),
+  S ($1.5–22M), RB ($1.2–18M), K ($1–8M). Schema migration v10 recalibrates
+  existing save files on next load.
+
+[DONE June 20, 2026] Cap-Balanced Dynasty Start — generateContracts() now
+  scales all 32 teams proportionally to 95% of the salary cap (~$265M) at
+  dynasty generation. Previously teams could start $90M+ over cap from
+  independent per-player salary generation with no team-level cap constraint.
+  Schema migration v11 normalizes existing save payrolls on next load.
+
+[DONE June 20, 2026] Contract Extension Pay-Cut Floor — extendPlayer() in
+  ContractService.ts enforces a hard 25% pay-cut floor: players reject any
+  extension offer below 75% of their current salary (when current salary >
+  $2M). Previously players accepted any salary decrease on extension.
+
+[DONE June 20, 2026] CPU Trade Accept/Decline Fix — Home.tsx accept handler
+  corrected from broken acceptCpuTrade(tradeId) to acceptCpuTradeOffer with
+  the correct payload ({ myPlayerId, theirPlayerId, theirTeamId, theirPickId }).
+  Decline handler simplified to UI-only dismiss. Resolves TypeScript errors
+  TS2339 on CpuOffer.tradeId.
+
+[DONE June 20, 2026] Save File Delete Resource Lock Fix — saveHandlers.ts
+  now calls closeDatabase() before unlinking a save file, releasing the SQLite
+  file lock that blocked deletion on Windows.
+
+[DONE June 20, 2026] My Team Player Clickability — Player names in
+  ActiveRosterTab.tsx now call onPlayerClick, opening the PlayerProfile panel.
+  Previously players in the My Team roster tab were not clickable.
+
+[DONE June 20, 2026] Double Game Record Fix — Sim Full Week button disabled
+  while a single game sim is in progress (simulatingGameId !== null), preventing
+  the double win/loss count caused by race condition between the two sim paths.
+
 [DONE June 20, 2026] Realistic Schedule Generation — division-based scheduling with proper
   home/away splits and divisional game weighting. Current schedule is fully
   random, making standings feel arbitrary. Also flagged as a scalability
