@@ -1,48 +1,20 @@
-import { ipcRenderer } from 'electron';
+import { contextBridge } from 'electron';
+import { coreApi }      from './preload/core';
+import { seasonApi }    from './preload/season';
+import { rosterApi }    from './preload/roster';
+import { contractsApi } from './preload/contracts';
+import { tradesApi }    from './preload/trades';
+import { draftApi }     from './preload/draft';
+import { statsApi }     from './preload/stats';
+import { coachingApi }  from './preload/coaching';
 
-export const statsApi = {
-  getStats: (season: number) =>
-    ipcRenderer.invoke('get-stats', season),
-
-  getPlayerStats: (playerId: number) =>
-    ipcRenderer.invoke('get-player-stats', playerId),
-
-  getPlayerCareerStats: (playerId: number) =>
-    ipcRenderer.invoke('get-player-career-stats', playerId),
-
-  getTeamStats: (teamId: number, season?: number) =>
-    ipcRenderer.invoke('get-team-stats', teamId, season),
-
-  getTeamSeasonStats: (season?: number) =>
-    ipcRenderer.invoke('get-team-season-stats', season),
-
-  getTeamNeeds: (teamId: number) =>
-    ipcRenderer.invoke('get-team-needs', teamId),
-
-  getNewsFeed: (opts?: { season?: number; category?: string; limit?: number }) =>
-    ipcRenderer.invoke('get-news-feed', opts),
-
-  getNewsSeasons: () =>
-    ipcRenderer.invoke('get-news-seasons'),
-
-  getHallOfFame: () =>
-    ipcRenderer.invoke('get-hall-of-fame'),
-
-  getAlltimeLeaders: () =>
-    ipcRenderer.invoke('get-alltime-leaders'),
-
-  getSeasonRecords: () =>
-    ipcRenderer.invoke('get-season-records'),
-
-  getFranchiseRecords: (teamId: number) =>
-    ipcRenderer.invoke('get-franchise-records', teamId),
-
-  importHistoricalRecords: (recordType: 'alltime' | 'season') =>
-    ipcRenderer.invoke('import-historical-records', recordType),
-
-  importCustomTeams: () =>
-    ipcRenderer.invoke('import-custom-teams'),
-
-  importCustomPlayers: () =>
-    ipcRenderer.invoke('import-custom-players'),
-};
+contextBridge.exposeInMainWorld('api', {
+  ...coreApi,
+  ...seasonApi,
+  ...rosterApi,
+  ...contractsApi,
+  ...tradesApi,
+  ...draftApi,
+  ...statsApi,
+  ...coachingApi,
+});
