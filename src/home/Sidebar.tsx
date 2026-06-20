@@ -109,7 +109,7 @@ export default function Sidebar({
           </button>
         )}
 
-        {hasSchedule && !allWeeksDone && currentWeek !== null && (
+        {hasSchedule && !allWeeksDone && currentWeek != null && (
           <div style={{ display: 'flex', gap: 6 }}>
             <button
               onClick={onSimulateWeek}
