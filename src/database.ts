@@ -355,7 +355,6 @@ export function initDatabase(dbPath: string): void {
     CREATE INDEX IF NOT EXISTS idx_players_status ON players(roster_status);
     CREATE INDEX IF NOT EXISTS idx_stats_season_playoff ON stats(season, is_playoff);
     CREATE INDEX IF NOT EXISTS idx_career_stats_season ON career_stats_history(player_id, season);
-    CREATE INDEX IF NOT EXISTS idx_career_stats_team ON career_stats_history(team_id);
     CREATE INDEX IF NOT EXISTS idx_news_season_cat ON news_events(season, category);
   `);
 
@@ -386,6 +385,8 @@ export function initDatabase(dbPath: string): void {
     _db!.prepare("INSERT INTO settings (key, value) VALUES ('current_season', '2025')").run();
 
   runMigrations();
+    // Must run after migrations — team_id is added by v9 on old saves
+  try { _db!.exec('CREATE INDEX IF NOT EXISTS idx_career_stats_team ON career_stats_history(team_id)'); } catch {}
 }
 
 // ─── Contract Generation ──────────────────────────────────────────────────────
