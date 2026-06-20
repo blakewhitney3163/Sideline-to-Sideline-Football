@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, Menu } from 'electron';
 import path from 'path';
 import { db, generateContracts, isDatabaseInitialized } from './database';
 import { registerSaveHandlers, setActiveSaveName } from './handlers/saveHandlers';
@@ -103,15 +103,25 @@ function bootstrapDatabase(isNew: boolean): void {
 // ─── App Window ───────────────────────────────────────────────────────────────
 
 const createWindow = (): void => {
+  Menu.setApplicationMenu(null);
+
   const mainWindow = new BrowserWindow({
     height: 700,
     width: 1200,
+    show: false,
     webPreferences: { preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY },
   });
+
   mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
+
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+    mainWindow.focus();
+  });
+
   if (process.env.NODE_ENV === 'development') {
-  mainWindow.webContents.openDevTools();
-}
+    mainWindow.webContents.openDevTools();
+  }
 };
 
 // ─── Register Handlers ────────────────────────────────────────────────────────
