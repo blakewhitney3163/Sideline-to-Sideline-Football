@@ -1,4 +1,4 @@
-export type RecordMode = 'alltime' | 'season' | 'awards' | 'hof';
+export type RecordMode = 'alltime' | 'season' | 'awards' | 'hof' | 'franchise';
 export type StatCategory = 'passing' | 'rushing' | 'receiving' | 'tds' | 'passTds' | 'tackles' | 'sacks' | 'defInts';
 
 export interface RecordRow {
