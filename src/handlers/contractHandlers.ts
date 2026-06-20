@@ -9,32 +9,33 @@ import {
 } from '../services/ContractService';
 import { logNewsEvent } from '../helpers/logNewsEvent';
 import { db } from '../database';
+import type { IpcEvent, PlayerWithPositionRow, PlayerWithTeamRow, TeamNameRow } from '../types/ipc';
 
 export { calcFairMarket };
 
 export function registerContractHandlers(): void {
 
-  ipcMain.handle('get-team-contracts', (_event: any, teamId: number) =>
+  ipcMain.handle('get-team-contracts', (_event: IpcEvent, teamId: number) =>
     contractRepo.getByTeam(teamId));
 
-  ipcMain.handle('get-practice-squad', (_event: any, teamId: number) =>
+  ipcMain.handle('get-practice-squad', (_event: IpcEvent, teamId: number) =>
     playerRepo.getPracticeSquad(teamId));
 
-  ipcMain.handle('get-cap-summary', (_event: any, teamId: number): CapSummary => {
+  ipcMain.handle('get-cap-summary', (_event: IpcEvent, teamId: number): CapSummary => {
     const usedCap = contractRepo.getCapUsage(teamId);
-    return { total_cap: SALARY_CAP, used_cap: usedCap, available_cap: Math.round((SALARY_CAP - usedCap) * 10) / 10 } as any;
+    return { total_cap: SALARY_CAP, used_cap: usedCap, available_cap: Math.round((SALARY_CAP - usedCap) * 10) / 10 };
   });
 
-  ipcMain.handle('get-roster-spots', (_event: any, teamId: number): RosterSpots => {
+  ipcMain.handle('get-roster-spots', (_event: IpcEvent, teamId: number): RosterSpots => {
     const { active, ps } = playerRepo.getCountByStatus(teamId);
-    return { active, ps, activeMax: MAX_ACTIVE_ROSTER, psMax: MAX_PRACTICE_SQUAD, activeFree: MAX_ACTIVE_ROSTER - active, psFree: MAX_PRACTICE_SQUAD - ps } as any;
+    return { active, ps, activeMax: MAX_ACTIVE_ROSTER, psMax: MAX_PRACTICE_SQUAD, activeFree: MAX_ACTIVE_ROSTER - active, psFree: MAX_PRACTICE_SQUAD - ps };
   });
 
-  ipcMain.handle('get-free-agents', (_event: any, position?: string) =>
+  ipcMain.handle('get-free-agents', (_event: IpcEvent, position?: string) =>
     playerRepo.getFreeAgents(position));
 
-   ipcMain.handle('get-franchise-health', (_event: any, teamId: number) =>
-   playerRepo.getFranchiseHealth(teamId));
+  ipcMain.handle('get-franchise-health', (_event: IpcEvent, teamId: number) =>
+    playerRepo.getFranchiseHealth(teamId));
 
   ipcMain.handle('get-expiring-contracts', () => {
     const teamId = settingsRepo.getUserTeamId();
@@ -42,37 +43,37 @@ export function registerContractHandlers(): void {
     return contractRepo.getExpiring(teamId);
   });
 
-  ipcMain.handle('sign-free-agent-to-ps', (_event: any, playerId: number) => {
+  ipcMain.handle('sign-free-agent-to-ps', (_event: IpcEvent, playerId: number) => {
     const teamId = settingsRepo.getUserTeamId();
     if (!teamId) return { success: false, reason: 'No franchise selected.' };
     return signFreeAgentToPS(playerId, teamId);
   });
 
-  ipcMain.handle('extend-player', (_event: any, { playerId, years, salary }: { playerId: number; years: number; salary: number }) =>
+  ipcMain.handle('extend-player', (_event: IpcEvent, { playerId, years, salary }: { playerId: number; years: number; salary: number }) =>
     extendPlayer(playerId, years, salary));
 
-  ipcMain.handle('restructure-player', (_event: any, { playerId, pct }: { playerId: number; pct: number }) =>
+  ipcMain.handle('restructure-player', (_event: IpcEvent, { playerId, pct }: { playerId: number; pct: number }) =>
     restructurePlayer(playerId, pct));
 
-  ipcMain.handle('release-player', (_event: any, playerId: number) =>
+  ipcMain.handle('release-player', (_event: IpcEvent, playerId: number) =>
     releasePlayer(playerId));
 
   ipcMain.handle('get-offseason-status', () =>
     getOffseasonStatus(settingsRepo.getUserTeamId()));
 
-  ipcMain.handle('promote-from-ps', (_event: any, playerId: number) => {
+  ipcMain.handle('promote-from-ps', (_event: IpcEvent, playerId: number) => {
     const teamId = settingsRepo.getUserTeamId();
     if (!teamId) return { success: false, reason: 'No franchise selected.' };
     return promoteFromPS(playerId, teamId);
   });
 
-  ipcMain.handle('sign-free-agent', (_event: any, { playerId, years, salary }: { playerId: number; years: number; salary: number }) => {
+  ipcMain.handle('sign-free-agent', (_event: IpcEvent, { playerId, years, salary }: { playerId: number; years: number; salary: number }) => {
     const teamId = settingsRepo.getUserTeamId();
     if (!teamId) return { success: false, reason: 'No franchise selected.' };
     const result = signFreeAgent(playerId, teamId, years, salary);
     if (result.success) {
-      const p = db.prepare('SELECT first_name, last_name, position FROM players WHERE id = ?').get(playerId) as any;
-      const t = db.prepare('SELECT city, name FROM teams WHERE id = ?').get(teamId) as any;
+      const p = db.prepare('SELECT first_name, last_name, position FROM players WHERE id = ?').get(playerId) as PlayerWithPositionRow | undefined;
+      const t = db.prepare('SELECT city, name FROM teams WHERE id = ?').get(teamId) as TeamNameRow | undefined;
       if (p && t) logNewsEvent({
         eventType: 'signing', category: 'transactions',
         headline: `${t.city} ${t.name} Sign ${p.first_name} ${p.last_name}`,
@@ -83,11 +84,11 @@ export function registerContractHandlers(): void {
     return result;
   });
 
-  ipcMain.handle('resign-player', (_event: any, { playerId, years, salary }: { playerId: number; years: number; salary: number }) => {
+  ipcMain.handle('resign-player', (_event: IpcEvent, { playerId, years, salary }: { playerId: number; years: number; salary: number }) => {
     const result = resignPlayer(playerId, years, salary);
     if (result?.success !== false) {
-      const p = db.prepare('SELECT first_name, last_name, position, team_id FROM players WHERE id = ?').get(playerId) as any;
-      const t = p?.team_id ? db.prepare('SELECT city, name FROM teams WHERE id = ?').get(p.team_id) as any : null;
+      const p = db.prepare('SELECT first_name, last_name, position, team_id FROM players WHERE id = ?').get(playerId) as PlayerWithTeamRow | undefined;
+      const t = p?.team_id ? db.prepare('SELECT city, name FROM teams WHERE id = ?').get(p.team_id) as TeamNameRow | undefined : undefined;
       if (p && t) logNewsEvent({
         eventType: 'resign', category: 'transactions',
         headline: `${t.city} ${t.name} Re-sign ${p.first_name} ${p.last_name}`,
@@ -101,19 +102,19 @@ export function registerContractHandlers(): void {
   ipcMain.handle('cpu-fa-signing', () =>
     cpuFASigning(settingsRepo.getUserTeamId() ?? -1));
 
-    ipcMain.handle('apply-franchise-tag', (_event: any, { playerId, tagType }: { playerId: number; tagType: 'franchise' | 'transition' }) => {
+  ipcMain.handle('apply-franchise-tag', (_event: IpcEvent, { playerId, tagType }: { playerId: number; tagType: 'franchise' | 'transition' }) => {
     const teamId = settingsRepo.getUserTeamId();
     if (!teamId) return { success: false, reason: 'No franchise selected.' };
     return applyFranchiseTag(playerId, teamId, tagType);
   });
 
-  ipcMain.handle('remove-franchise-tag', (_event: any, playerId: number) =>
+  ipcMain.handle('remove-franchise-tag', (_event: IpcEvent, playerId: number) =>
     removeFranchiseTag(playerId));
 
-    ipcMain.handle('accept-counter-offer', (_event: any, { playerId, years, salary }: { playerId: number; years: number; salary: number }) =>
+  ipcMain.handle('accept-counter-offer', (_event: IpcEvent, { playerId, years, salary }: { playerId: number; years: number; salary: number }) =>
     acceptCounterOffer(playerId, years, salary));
 
-  ipcMain.handle('get-dead-cap', (_event: any, teamId: number) => {
+  ipcMain.handle('get-dead-cap', (_event: IpcEvent, teamId: number) => {
     const { getCurrentSeason } = require('../helpers/getCurrentSeason');
     const season = getCurrentSeason();
     return {
