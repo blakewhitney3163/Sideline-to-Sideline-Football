@@ -130,9 +130,10 @@ const createWindow = (): void => {
     mainWindow.webContents.focus();
   });
 
-  if (process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV === 'development') {
     mainWindow.webContents.openDevTools();
   }
+};
 
 // ─── Register Handlers ────────────────────────────────────────────────────────
 
