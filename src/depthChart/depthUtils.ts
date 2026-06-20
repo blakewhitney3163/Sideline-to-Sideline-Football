@@ -4,7 +4,7 @@ export const POSITION_GROUPS = [
   'QB', 'RB', 'WR', 'TE',
   'LT', 'LG', 'C', 'RG', 'RT',
   'DE', 'DT',
-  'MLB', 'OLB', 'CB', 'S', 'K',
+  'MLB', 'OLB', 'CB', 'FS', 'SS', 'K',
 ];
 
 export const GROUP_LABELS: Record<string, string> = {
@@ -22,7 +22,8 @@ export const GROUP_LABELS: Record<string, string> = {
   MLB: 'Middle Linebacker',
   OLB: 'Outside Linebacker',
   CB:  'Cornerback',
-  S:   'Safety',
+  FS:  'Free Safety',
+  SS:  'Strong Safety',
   K:   'Kicker',
 };
 
