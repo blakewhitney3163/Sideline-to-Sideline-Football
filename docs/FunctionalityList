@@ -80,6 +80,14 @@ HOME TAB
     net value diff (green if in your favor, orange if against)
   - Accept Trade and Decline buttons work directly from Home
   - "Full Details →" navigates to the Trades tab
+- Franchise Health Monitor panel in sidebar (YOUR ROSTER block):
+  - Offense OVR, Defense OVR, Overall OVR — large color-coded tiles with
+    letter grades (A+ through D)
+  - 7 positional group tiles: QB, RB, WR/TE, OL, DL, LB, DB
+  - Color-coded green (80+), orange (70–79), red (<70)
+  - Updates live after every simulated week and individual game sim
+  - Backed by getFranchiseHealth() in PlayerRepository — single SQL query
+    grouping active roster players by position_label into positional buckets
 - Live standings snapshot (top AFC / NFC teams in sidebar)
 - Weekly stat leaders widget in sidebar (Pass Yds, Rush Yds, Rec Yds,
   Sacks, Tackles)
@@ -150,6 +158,8 @@ Waivers Tab:
 
 Free Agents Tab:
   - Browse FAs, filter by position, sort by OVR / age / value
+  - Query uses dual condition: (is_free_agent = 1 OR roster_status = 'free_agent')
+    AND team_id IS NULL — catches both generated free agents and released players
   - Cap impact preview; sign to active roster or practice squad
 
 Offseason Tab:
@@ -233,8 +243,8 @@ DRAFT COMBINE / DEEPER SCOUTING
 - Color thresholds in draftUtils.ts:
   fortyColor: gold ≤4.38s / green ≤4.50s / orange ≤4.65s
   benchColor: gold ≥28 reps / green ≥22 / orange ≥15
-  vertColor:  gold ≥40" / green ≥36" / orange ≥32"
-  coneColor:  gold ≤6.80s / green ≤7.10s / orange ≤7.40s
+  vertColor: gold ≥40" / green ≥36" / orange ≥32"
+  coneColor: gold ≤6.80s / green ≤7.10s / orange ≤7.40s
 - COMBINE_PRIMARY map in draftUtils.ts labels the most important measurable
   per position for quick reference
 
@@ -281,16 +291,16 @@ GAME SIMULATION ENGINE
   A 90-rated OC = +3.0 to offense; a 55-rated DC = −2.25 to defense
 - Scheme modifier (applied in getTeamRatings via getSchemeModifiers()):
   Each team's offense/defense rating adjusted based on roster fit to scheme:
-  West Coast: ((QB throw_acc + TE OVR avg) / 2 − 70) × 0.08
-  Air Raid:   (top-3 WR OVR avg − 70) × 0.14
-  Power Run:  ((top-2 RB avg + top-5 OL avg) / 2 − 70) × 0.12
-  Spread:     ((QB throw_acc + QB speed) / 2 − 70) × 0.10
-  Run & Gun:  (all offensive positions OVR avg − 70) × 0.07
-  4-3:        (top-4 DL OVR avg − 70) × 0.12
-  3-4:        (top-4 LB OVR avg − 70) × 0.13
+  West Coast:   ((QB throw_acc + TE OVR avg) / 2 − 70) × 0.08
+  Air Raid:     (top-3 WR OVR avg − 70) × 0.14
+  Power Run:    ((top-2 RB avg + top-5 OL avg) / 2 − 70) × 0.12
+  Spread:       ((QB throw_acc + QB speed) / 2 − 70) × 0.10
+  Run & Gun:    (all offensive positions OVR avg − 70) × 0.07
+  4-3:          (top-4 DL OVR avg − 70) × 0.12
+  3-4:          (top-4 LB OVR avg − 70) × 0.13
   Zone Cover 2: (CB+S coverage avg − 70) × 0.11
-  Man Press:  (top-2 CB OVR avg − 70) × 0.11
-  Blitz Heavy: (DL+LB pass_rush avg − 70) × 0.15
+  Man Press:    (top-2 CB OVR avg − 70) × 0.11
+  Blitz Heavy:  (DL+LB pass_rush avg − 70) × 0.15
 - Game script: trailing teams pass more; leading teams run more; desperation
   INTs increase when down 14+
 - Overtime: TD wins outright; FG gives opponent a chance; no ties
@@ -303,17 +313,17 @@ SCHEMES SYSTEM
 ────────────────────────────────────────────────────────────────────────────────
 - team_schemes table: team_id (PK), offense_scheme TEXT, defense_scheme TEXT
 - 5 offensive schemes with key position and fit formula:
-  West Coast  — QB throw_accuracy + TE OVR
-  Air Raid    — Top 3 WR OVR
-  Power Run   — Top 2 RB OVR + Top 5 OL OVR
-  Spread      — QB throw_accuracy + QB speed
-  Run & Gun   — All offensive position OVR average
+  West Coast — QB throw_accuracy + TE OVR
+  Air Raid — Top 3 WR OVR
+  Power Run — Top 2 RB OVR + Top 5 OL OVR
+  Spread — QB throw_accuracy + QB speed
+  Run & Gun — All offensive position OVR average
 - 5 defensive schemes with key position and fit formula:
-  4-3          — Top 4 DL OVR
-  3-4          — Top 4 LB OVR
+  4-3 — Top 4 DL OVR
+  3-4 — Top 4 LB OVR
   Zone Cover 2 — CB + S coverage rating
-  Man Press    — Top 2 CB OVR
-  Blitz Heavy  — DL + LB pass_rush rating
+  Man Press — Top 2 CB OVR
+  Blitz Heavy — DL + LB pass_rush rating
 - schemeHandlers.ts: get-team-scheme, get-scheme-options, set-team-scheme
 - get-scheme-options returns all 10 options with live fit values computed
   from current roster — powers the Schemes tab UI
@@ -339,6 +349,25 @@ COACHING STAFF SYSTEM
   - replenishCoachPool(): ensures minimum 3 coaches per role in pool
 - IPC handlers: get-coaching-staff, get-available-coaches, hire-coach,
   fire-coach (registered in coachingHandlers.ts)
+
+FRANCHISE HEALTH MONITOR
+────────────────────────────────────────────────────────────────────────────────
+- getFranchiseHealth(teamId) in PlayerRepository — single SQL query on
+  active roster players grouped by position_label into 7 buckets:
+  QB, RB (RB/FB), WR/TE (WR/TE/SWR), OL (LT/LG/C/RG/RT),
+  DL (DE/DT/NT), LB (MLB/OLB/ILB/EDGE/LB), DB (CB/SS/FS/SCB)
+- Returns: offense_ovr, defense_ovr, overall_ovr, groups[]
+  (avg_ovr + count per group)
+- IPC handler: get-franchise-health in contractHandlers.ts
+- Preload exposure: getFranchiseHealth(teamId) via contextBridge
+- Home.tsx: franchiseHealth state loaded in init() Promise.all,
+  refreshed after handleSimulateWeek and handleSimulateGame
+- Sidebar.tsx YOUR ROSTER block:
+  - Three summary tiles: OFF / DEF / OVR with large numeric + letter grade
+  - 4-column positional group grid with color-coded OVR badges
+  - ovrColor(): green ≥80, orange ≥70, red <70
+  - ovrGrade(): A+ / A / B+ / B / C+ / C / D thresholds
+  - FranchiseHealth type exported from home/types.ts
 
 CONTRACT NEGOTIATION DEPTH
 ────────────────────────────────────────────────────────────────────────────────
@@ -388,33 +417,34 @@ CPU GM INTELLIGENCE
 
 BACKEND IPC HANDLERS (full list)
 ────────────────────────────────────────────────────────────────────────────────
-balance-rosters get-waiver-wire claim-waiver
-get-standings get-teams get-roster
-get-player-stats get-player-career-stats get-schedule
-get-dashboard get-stats get-hall-of-fame
-get-team-season-stats simulate-playoffs get-playoffs
-get-champions get-seasons get-current-season
-advance-season generate-schedule get-current-week
-get-week-matchups simulate-week get-injury-report
-get-game-box-score reset-dynasty get-playoff-seeds
-get-user-team set-user-team get-team-status
-set-team-trade-status propose-trade get-tradeable-picks
-get-cpu-trade-offer accept-cpu-trade-offer get-team-contracts
-get-practice-squad get-cap-summary get-roster-spots
-sign-free-agent-to-ps get-free-agents extend-player
-restructure-player release-player get-team-stats
-promote-from-ps sign-free-agent get-expiring-contracts
-resign-player get-offseason-status cpu-fa-signing
-generate-draft-class get-draft-class get-draft-order
-get-round-pick-order make-draft-pick scout-prospect
-get-scout-count run-cpu-round complete-draft
-get-depth-chart set-depth-chart-order reset-depth-chart
-get-alltime-leaders get-season-records get-season-awards
-get-team-needs check-setup-done reset-save
-get-news-feed get-news-seasons simulate-game
-list-saves open-save delete-save
-edit-player apply-franchise-tag remove-franchise-tag
-accept-counter-offer get-dead-cap
-get-coaching-staff get-available-coaches hire-coach
+balance-rosters        get-waiver-wire        claim-waiver
+get-standings          get-teams              get-roster
+get-player-stats       get-player-career-stats get-schedule
+get-dashboard          get-stats              get-hall-of-fame
+get-team-season-stats  simulate-playoffs      get-playoffs
+get-champions          get-seasons            get-current-season
+advance-season         generate-schedule      get-current-week
+get-week-matchups      simulate-week          get-injury-report
+get-game-box-score     reset-dynasty          get-playoff-seeds
+get-user-team          set-user-team          get-team-status
+set-team-trade-status  propose-trade          get-tradeable-picks
+get-cpu-trade-offer    accept-cpu-trade-offer get-team-contracts
+get-practice-squad     get-cap-summary        get-roster-spots
+sign-free-agent-to-ps  get-free-agents        extend-player
+restructure-player     release-player         get-team-stats
+promote-from-ps        sign-free-agent        get-expiring-contracts
+resign-player          get-offseason-status   cpu-fa-signing
+generate-draft-class   get-draft-class        get-draft-order
+get-round-pick-order   make-draft-pick        scout-prospect
+get-scout-count        run-cpu-round          complete-draft
+get-depth-chart        set-depth-chart-order  reset-depth-chart
+get-alltime-leaders    get-season-records     get-season-awards
+get-team-needs         check-setup-done       reset-save
+get-news-feed          get-news-seasons       simulate-game
+list-saves             open-save              delete-save
+edit-player            apply-franchise-tag    remove-franchise-tag
+accept-counter-offer   get-dead-cap           open-free-agency
+get-coaching-staff     get-available-coaches  hire-coach
 fire-coach
-get-team-scheme get-scheme-options set-team-scheme
+get-team-scheme        get-scheme-options     set-team-scheme
+get-franchise-health
