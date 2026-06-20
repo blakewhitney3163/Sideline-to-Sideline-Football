@@ -2,6 +2,17 @@ import React from 'react';
 import { T } from '../theme';
 import { BoxScoreData, BoxScorePlayer } from './types';
 
+function SectionHeader({ cols }: { cols: string[] }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9,
+      color: T.textDim, letterSpacing: 1, padding: '0 0 3px 0',
+      borderBottom: `1px solid ${T.borderMid}`, marginBottom: 3 }}>
+      <span>PLAYER</span>
+      <span style={{ fontFamily: 'monospace' }}>{cols.join('  ')}</span>
+    </div>
+  );
+}
+
 function StatSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 8 }}>
@@ -21,35 +32,38 @@ function StatRow({ name, line }: { name: string; line: string }) {
 }
 
 function TeamStats({ teamName, players }: { teamName: string; players: BoxScorePlayer[] }) {
-  const passers    = players.filter(p => p.pass_attempts > 0).sort((a, b) => b.pass_yards - a.pass_yards);
-  const rushers    = players.filter(p => p.rush_attempts > 0).sort((a, b) => b.rush_yards - a.rush_yards).slice(0, 3);
-  const receivers  = players.filter(p => p.targets > 0).sort((a, b) => b.rec_yards - a.rec_yards).slice(0, 4);
-  const nickname   = teamName.split(' ').pop()?.toUpperCase() ?? teamName;
+  const passers   = players.filter(p => p.pass_attempts > 0).sort((a, b) => b.pass_yards - a.pass_yards);
+  const rushers   = players.filter(p => p.rush_attempts > 0).sort((a, b) => b.rush_yards - a.rush_yards).slice(0, 3);
+  const receivers = players.filter(p => p.targets > 0).sort((a, b) => b.rec_yards - a.rec_yards).slice(0, 4);
+  const nickname  = teamName.split(' ').pop()?.toUpperCase() ?? teamName;
 
   return (
     <div>
       <div style={{ color: T.textDim, fontSize: 10, letterSpacing: 1, marginBottom: 6 }}>{nickname}</div>
       {passers.length > 0 && (
         <StatSection title="PASSING">
+          <SectionHeader cols={['CMP/ATT', 'YDS', 'TD', 'INT']} />
           {passers.map((p, i) => (
             <StatRow key={i} name={p.player_name}
-              line={`${p.completions}/${p.pass_attempts} ${p.pass_yards}yd ${p.pass_tds}td ${p.interceptions}int`} />
+              line={`${p.completions}/${p.pass_attempts}  ${p.pass_yards}  ${p.pass_tds}  ${p.interceptions}`} />
           ))}
         </StatSection>
       )}
       {rushers.length > 0 && (
         <StatSection title="RUSHING">
+          <SectionHeader cols={['CAR', 'YDS', 'TD']} />
           {rushers.map((p, i) => (
             <StatRow key={i} name={p.player_name}
-              line={`${p.rush_attempts}car ${p.rush_yards}yd ${p.rush_tds}td`} />
+              line={`${p.rush_attempts}  ${p.rush_yards}  ${p.rush_tds}`} />
           ))}
         </StatSection>
       )}
       {receivers.length > 0 && (
         <StatSection title="RECEIVING">
+          <SectionHeader cols={['REC/TGT', 'YDS', 'TD']} />
           {receivers.map((p, i) => (
             <StatRow key={i} name={p.player_name}
-              line={`${p.receptions}/${p.targets} ${p.rec_yards}yd ${p.rec_tds}td`} />
+              line={`${p.receptions}/${p.targets}  ${p.rec_yards}  ${p.rec_tds}`} />
           ))}
         </StatSection>
       )}
@@ -65,7 +79,7 @@ export default function BoxScore({ data }: { data: BoxScoreData }) {
     <div style={{ padding: '12px 0' }}>
       <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
         {[
-          { name: game.home_team, score: game.home_score, won: homeWon, side: 'HOME' },
+          { name: game.home_team, score: game.home_score, won: homeWon,  side: 'HOME' },
           { name: game.away_team, score: game.away_score, won: !homeWon, side: 'AWAY' },
         ].map((t, i) => (
           <div key={i} style={{ flex: 1, background: T.bgCard, borderRadius: 6, padding: '8px 12px' }}>
