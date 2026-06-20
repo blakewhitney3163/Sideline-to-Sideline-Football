@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Contract, CapSummary, RosterSpots } from './types';
 import { POSITIONS, TRAIT_META, ratingColor, trajectory, fmtSalary, contractGrade } from './utils';
 
@@ -36,14 +36,16 @@ export default function ActiveRosterTab({
   releasingId, setReleasingId,
   handleExtend, handleRelease, working,
 }: Props) {
-  const [localSalary, setLocalSalary] = useState('');
+  const salaryInputRef = useRef<HTMLInputElement>(null);
+  const [capSalary, setCapSalary] = useState('');
 
   useEffect(() => {
     if (extendingId) {
       const c = contracts.find(x => x.id === extendingId);
-      setLocalSalary(c ? c.annual_salary.toFixed(1) : '');
+      setCapSalary(c ? c.annual_salary.toFixed(1) : '');
+      setTimeout(() => salaryInputRef.current?.focus(), 60);
     } else {
-      setLocalSalary('');
+      setCapSalary('');
     }
   }, [extendingId]);
 
@@ -63,8 +65,8 @@ export default function ActiveRosterTab({
     });
 
   const currentExtend = extendingId ? contracts.find(c => c.id === extendingId) : null;
-  const localSalaryNum = parseFloat(localSalary) || 0;
-  const capDelta = currentExtend ? localSalaryNum - currentExtend.annual_salary : 0;
+  const capSalaryNum = parseFloat(capSalary) || 0;
+  const capDelta = currentExtend ? capSalaryNum - currentExtend.annual_salary : 0;
   const newAvailable = cap ? cap.available_cap - capDelta : 0;
 
   return (
@@ -196,7 +198,9 @@ export default function ActiveRosterTab({
               {/* Action buttons */}
               <div style={{ display: 'flex', gap: 4 }}>
                 <button
-                  onClick={() => isExtending ? setExtendingId(null) : (setExtendingId(contract.id), setReleasingId(null), setExtendYears(Math.min(contract.years_remaining + 2, 5)))}
+                  onClick={() => isExtending
+                    ? setExtendingId(null)
+                    : (setExtendingId(contract.id), setReleasingId(null), setExtendYears(Math.min(contract.years_remaining + 2, 5)))}
                   style={{ padding: '4px 10px', background: isExtending ? '#1a3a1a' : '#141414', border: `1px solid ${isExtending ? '#4caf50' : '#2a2a2a'}`, borderRadius: 4, color: isExtending ? '#4caf50' : '#555', fontSize: 11, cursor: 'pointer' }}>
                   {isExtending ? 'Cancel' : 'Extend'}
                 </button>
@@ -227,11 +231,16 @@ export default function ActiveRosterTab({
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                       <span style={{ color: '#444' }}>$</span>
                       <input
+                        key={`salary-${extendingId}`}
+                        ref={salaryInputRef}
                         type="text"
-                        value={localSalary}
-                        onChange={e => setLocalSalary(e.target.value)}
-                        onKeyDown={e => e.stopPropagation()}
-                        autoFocus
+                        inputMode="decimal"
+                        defaultValue={currentExtend.annual_salary.toFixed(1)}
+                        onInput={e => setCapSalary((e.target as HTMLInputElement).value)}
+                        onKeyDown={e => {
+                          e.stopPropagation();
+                          e.nativeEvent.stopImmediatePropagation();
+                        }}
                         placeholder="0.0"
                         style={{ background: '#141414', border: '1px solid #2a2a2a', borderRadius: 4, color: '#ccc', padding: '6px 10px', fontSize: 13, width: 80 }}
                       />
@@ -245,7 +254,10 @@ export default function ActiveRosterTab({
                   </div>
                 </div>
                 <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <button onClick={() => handleExtend(localSalary)} disabled={working || newAvailable < 0} style={{ padding: '7px 18px', background: newAvailable < 0 ? '#141414' : '#4caf50', border: 'none', borderRadius: 4, color: newAvailable < 0 ? '#333' : '#000', fontWeight: 700, fontSize: 12, cursor: newAvailable < 0 ? 'not-allowed' : 'pointer' }}>
+                  <button
+                    onClick={() => handleExtend(salaryInputRef.current?.value ?? capSalary)}
+                    disabled={working || newAvailable < 0}
+                    style={{ padding: '7px 18px', background: newAvailable < 0 ? '#141414' : '#4caf50', border: 'none', borderRadius: 4, color: newAvailable < 0 ? '#333' : '#000', fontWeight: 700, fontSize: 12, cursor: newAvailable < 0 ? 'not-allowed' : 'pointer' }}>
                     {working ? '...' : 'Confirm Extension'}
                   </button>
                   {newAvailable < 0 && <span style={{ color: '#e57373', fontSize: 11 }}>Over cap by {fmtSalary(Math.abs(newAvailable))} — reduce salary or cut a player first.</span>}
