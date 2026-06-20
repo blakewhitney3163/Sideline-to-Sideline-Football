@@ -1,6 +1,6 @@
 import React from 'react';
 import { T } from '../theme';
-import { StandingEntry, Champion, InjuredPlayer, Matchup, UserTeam, FranchiseHealth } from './types';
+import { StandingEntry, Champion, InjuredPlayer, Matchup, UserTeam } from './types';
 import { STATUS_META } from '../trades/tradeUtils';
 
 function injuryBadge(status: string): { label: string; color: string; bg: string } {
@@ -33,14 +33,8 @@ const actionBtn = (bg: string, fg: string, disabled: boolean): React.CSSProperti
   borderRadius: 4, color: disabled ? T.textMuted : fg, fontWeight: 'bold',
   cursor: disabled ? 'not-allowed' : 'pointer', fontSize: 12, flex: 1,
 });
-const ovrColor = (ovr: number): string =>
-  ovr >= 80 ? '#4caf50' : ovr >= 70 ? '#FF8740' : '#e57373';
-
-const ovrGrade = (ovr: number): string =>
-  ovr >= 90 ? 'A+' : ovr >= 85 ? 'A' : ovr >= 80 ? 'B+' : ovr >= 75 ? 'B' : ovr >= 70 ? 'C+' : ovr >= 65 ? 'C' : 'D';
 
 interface Props {
-  // Season controls
   userTeam: UserTeam;
   currentSeason: number;
   userRecord: { wins: number; losses: number } | null;
@@ -63,7 +57,6 @@ interface Props {
   onConfirm?: () => void;
   onCancelConfirm?: () => void;
   onAdvance?: () => void;
-  // Sidebar content
   injuryReport: InjuredPlayer[];
   topAFC: StandingEntry[];
   topNFC: StandingEntry[];
@@ -72,19 +65,18 @@ interface Props {
   userTradeStatus?: any;
   onSetTradeStatus?: (status: string) => void;
   settingStatus?: boolean;
-  franchiseHealth?: FranchiseHealth | null;
 }
 
 export default function Sidebar({
   userTeam, currentSeason, userRecord,
   hasSchedule, allWeeksDone, isPlayoffsComplete,
-  currentWeek, matchups = [], simulating, simulatingPlayoffs,
+  currentWeek, simulating, simulatingPlayoffs,
   generatingSchedule, advancing, confirming, pendingResigns = 0,
   retiredPlayers = [], setRetiredPlayers,
   onGenerateSchedule, onSimulateWeek, onSimulatePlayoffs,
   onConfirm, onCancelConfirm, onAdvance,
   injuryReport, topAFC, topNFC, champions, statLeaders,
-  userTradeStatus, onSetTradeStatus, settingStatus, franchiseHealth,
+  userTradeStatus, onSetTradeStatus, settingStatus,
 }: Props) {
 
   const subtitle = !hasSchedule
@@ -96,9 +88,8 @@ export default function Sidebar({
     : currentWeek != null ? `Week ${currentWeek} of 18` : 'Season ready';
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 0, minWidth: 220 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 0, minWidth: 220, maxWidth: 220, borderLeft: `1px solid ${T.borderFaint}`, padding: '16px 14px', overflowY: 'auto', background: T.bgDark }}>
 
-      {/* Team + Season Status */}
       <SidebarBlock title="YOUR SEASON">
         <div style={{ color: '#ddd', fontWeight: 700, fontSize: 13 }}>{userTeam.city} {userTeam.name}</div>
         <div style={{ color: T.textDim, fontSize: 11, marginBottom: 6 }}>{currentSeason} · {subtitle}</div>
@@ -108,7 +99,6 @@ export default function Sidebar({
           </div>
         )}
 
-        {/* Action buttons */}
         {!hasSchedule && onGenerateSchedule && (
           <button onClick={onGenerateSchedule} disabled={!!generatingSchedule} style={actionBtn(T.bgGreen, '#4caf50', !!generatingSchedule)}>
             {generatingSchedule ? 'Generating...' : `▶ Start ${currentSeason} Season`}
@@ -117,12 +107,8 @@ export default function Sidebar({
 
         {hasSchedule && !allWeeksDone && currentWeek != null && (
           <div style={{ display: 'flex', gap: 6 }}>
-            <button
-              onClick={onSimulateWeek}
-              disabled={!!simulating}
-              style={actionBtn(T.bgGreen, '#4caf50', !!simulating)}
-            >
-              {simulating ? `Simulating...` : `▶ Sim Week ${currentWeek}`}
+            <button onClick={onSimulateWeek} disabled={!!simulating} style={actionBtn(T.bgGreen, '#4caf50', !!simulating)}>
+              {simulating ? 'Simulating...' : `▶ Sim Week ${currentWeek}`}
             </button>
           </div>
         )}
@@ -152,37 +138,6 @@ export default function Sidebar({
         )}
       </SidebarBlock>
 
-      {/* Franchise Health */}
-{franchiseHealth && franchiseHealth.overall_ovr > 0 && (
-  <div style={{ marginBottom: 16 }}>
-    <div style={{ fontSize: 9, letterSpacing: 1.5, color: '#444', marginBottom: 6, textTransform: 'uppercase' }}>
-      YOUR ROSTER
-    </div>
-    <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
-      {[
-        { label: 'OFF', value: franchiseHealth.offense_ovr },
-        { label: 'DEF', value: franchiseHealth.defense_ovr },
-        { label: 'OVR', value: franchiseHealth.overall_ovr },
-      ].map(({ label, value }) => (
-        <div key={label} style={{ flex: 1, textAlign: 'center', background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: 4, padding: '4px 0' }}>
-          <div style={{ fontSize: 8, color: '#444', letterSpacing: 1 }}>{label}</div>
-          <div style={{ fontSize: 15, fontWeight: 'bold', color: ovrColor(value) }}>{value}</div>
-          <div style={{ fontSize: 8, color: ovrColor(value), opacity: 0.7 }}>{ovrGrade(value)}</div>
-        </div>
-      ))}
-    </div>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 3 }}>
-      {franchiseHealth.groups.map(g => (
-        <div key={g.group} style={{ textAlign: 'center', background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: 3, padding: '3px 0' }}>
-          <div style={{ fontSize: 7, color: '#444', letterSpacing: 0.5 }}>{g.group}</div>
-          <div style={{ fontSize: 12, fontWeight: 'bold', color: ovrColor(g.avg_ovr) }}>{g.avg_ovr}</div>
-        </div>
-      ))}
-    </div>
-  </div>
-)}
-
-      {/* Retirements banner */}
       {retiredPlayers.length > 0 && (
         <SidebarBlock title={`RETIREMENTS — ${currentSeason - 1} OFFSEASON`}>
           <button onClick={() => setRetiredPlayers && setRetiredPlayers([])}
@@ -199,20 +154,15 @@ export default function Sidebar({
         </SidebarBlock>
       )}
 
-      {/* Injury Report */}
       {injuryReport.length > 0 && (
         <SidebarBlock title="INJURY REPORT">
           {injuryReport.map(p => {
             const badge = injuryBadge(p.injury_status);
             return (
-              <div key={p.id ?? `${p.first_name}${p.last_name}`} style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '4px 0', borderBottom: `1px solid ${T.borderFaint}`,
-              }}>
-                <span style={{
-                  fontSize: 9, fontWeight: 700, padding: '1px 4px', borderRadius: 3,
-                  background: badge.bg, color: badge.color, minWidth: 24, textAlign: 'center',
-                }}>{badge.label}</span>
+              <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 0', borderBottom: `1px solid ${T.borderFaint}` }}>
+                <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 4px', borderRadius: 3, background: badge.bg, color: badge.color, minWidth: 24, textAlign: 'center' }}>
+                  {badge.label}
+                </span>
                 <div style={{ flex: 1 }}>
                   <div style={{ color: '#ccc', fontSize: 11 }}>{p.first_name[0]}. {p.last_name}</div>
                   <div style={{ color: T.textDim, fontSize: 10 }}>{(p as any).position_label || p.position}</div>
@@ -227,7 +177,6 @@ export default function Sidebar({
         </SidebarBlock>
       )}
 
-      {/* AFC Standings */}
       {topAFC.length > 0 && (
         <SidebarBlock title="AFC TOP 5">
           {topAFC.map((t, i) => (
@@ -236,7 +185,6 @@ export default function Sidebar({
         </SidebarBlock>
       )}
 
-      {/* NFC Standings */}
       {topNFC.length > 0 && (
         <SidebarBlock title="NFC TOP 5">
           {topNFC.map((t, i) => (
@@ -245,7 +193,6 @@ export default function Sidebar({
         </SidebarBlock>
       )}
 
-      {/* Champions */}
       {champions.length > 0 && (
         <SidebarBlock title="GRIDIRON CUP CHAMPIONS">
           {champions.slice(0, 5).map((c, i) => (
@@ -254,7 +201,6 @@ export default function Sidebar({
         </SidebarBlock>
       )}
 
-      {/* Stat Leaders */}
       {statLeaders && (statLeaders.passing?.length > 0 || statLeaders.rushing?.length > 0) && (
         <SidebarBlock title="STAT LEADERS">
           {[
@@ -273,7 +219,6 @@ export default function Sidebar({
         </SidebarBlock>
       )}
 
-      {/* Trade Status */}
       {userTradeStatus && onSetTradeStatus && (
         <SidebarBlock title="YOUR TRADE STATUS">
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
@@ -290,12 +235,10 @@ export default function Sidebar({
                 ? !userTradeStatus.isOverridden
                 : userTradeStatus.isOverridden && userTradeStatus.status === opt;
               return (
-                <button key={opt} onClick={() => onSetTradeStatus(opt)}
-                  disabled={settingStatus || isCurrent}
+                <button key={opt} onClick={() => onSetTradeStatus(opt)} disabled={settingStatus || isCurrent}
                   style={{
                     padding: '3px 8px', fontSize: 9, borderRadius: 3,
-                    cursor: isCurrent ? 'default' : 'pointer',
-                    fontFamily: 'monospace', letterSpacing: 0.5,
+                    cursor: isCurrent ? 'default' : 'pointer', fontFamily: 'monospace', letterSpacing: 0.5,
                     background: isCurrent ? (STATUS_META[opt]?.bg ?? '#1a1a1a') : '#0f0f0f',
                     border: `1px solid ${isCurrent ? (STATUS_META[opt]?.color ?? '#555') : '#1e1e1e'}`,
                     color: isCurrent ? (STATUS_META[opt]?.color ?? '#aaa') : '#444',
