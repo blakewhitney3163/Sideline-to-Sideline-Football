@@ -77,7 +77,7 @@ export default function Records() {
   return (
     <div style={{ padding: 24, maxWidth: 1100, margin: '0 auto' }}>
       <div style={{ marginBottom: 24 }}>
-        <div style={{ color: T.text, fontSize: 20, fontWeight: 800, letterSpacing: 1, marginBottom: 4 }}>
+        <div style={{ color: T.textPrimary, fontSize: 20, fontWeight: 800, letterSpacing: 1, marginBottom: 4 }}>
           Historical Records
         </div>
         <div style={{ color: '#555', fontSize: 12 }}>
@@ -115,7 +115,7 @@ export default function Records() {
         </div>
       </div>
 
-      {mode === 'hof' && <HallOfFame data={hofData} />}
+      {mode === 'hof' && <HallOfFame hofData={hofData} />}
 
       {mode === 'franchise' && (
         <FranchiseRecords defaultTeamId={userTeam?.id} />
@@ -138,7 +138,7 @@ export default function Records() {
         </div>
       )}
 
-      {mode === 'awards' && <AwardsView awards={awards} season={currentSeason} />}
+      {mode === 'awards' && <AwardsView awards={awards} />}
 
       {mode !== 'awards' && mode !== 'hof' && mode !== 'franchise' && (
         <LeaderboardTable
