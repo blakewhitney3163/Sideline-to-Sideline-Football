@@ -101,7 +101,7 @@ export default function Sidebar({
 
         {!hasSchedule && onGenerateSchedule && (
           <button onClick={onGenerateSchedule} disabled={!!generatingSchedule} style={actionBtn(T.bgGreen, '#4caf50', !!generatingSchedule)}>
-            {generatingSchedule ? 'Generating...' : `▶ Start ${currentSeason} Season`}
+            {simulating ? 'Simulating Week...' : '▶ Sim Rest of Week'}
           </button>
         )}
 
