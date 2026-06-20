@@ -1,3 +1,6 @@
+import type { IpcEvent } from '../types/ipc';
+import type { InjuredPlayer } from '../types';
+import type { GamePlayerStat } from './sim/types';
 import { ipcMain } from 'electron';
 import { db, getDbPath } from '../database';
 import { simulateGame } from '../simulateGame';
@@ -18,11 +21,11 @@ interface GameSummary {
   awayTeamId: number;
   homeScore: number;
   awayScore: number;
-  stats: any[];
+  stats: GamePlayerStat[];
 }
 
 function getTeamName(teamId: number): string {
-  const t = db.prepare('SELECT city, name FROM teams WHERE id = ?').get(teamId) as any;
+  const t = db.prepare('SELECT city, name FROM teams WHERE id = ?').get(teamId) as { city: string; name: string } | undefined;
   return t ? `${t.city} ${t.name}` : 'Unknown Team';
 }
 
@@ -62,7 +65,7 @@ function logGameNews(season: number, game: GameSummary, userTeamId: number): voi
     const isWRStar = stat.rec_yards >= 120 || stat.rec_tds >= 2;
     if (!isQBStar && !isRBStar && !isWRStar) continue;
 
-    const p = db.prepare('SELECT first_name, last_name FROM players WHERE id = ?').get(stat.player_id) as any;
+    const p = db.prepare('SELECT first_name, last_name FROM players WHERE id = ?').get(stat.player_id) as { first_name: string; last_name: string } | undefined;
     if (!p) continue;
     const teamName = getTeamName(stat.team_id);
 
@@ -86,7 +89,7 @@ function logGameNews(season: number, game: GameSummary, userTeamId: number): voi
   }
 }
 
-function logInjuryNews(season: number, newlyInjured: any[], userTeamId: number): void {
+function logInjuryNews(season: number, newlyInjured: InjuredPlayer[], userTeamId: number): void {
   for (const p of newlyInjured) {
     if (p.team_id !== userTeamId) continue;
     const weeksOut = p.weeks_out
@@ -119,7 +122,7 @@ export function registerSimHandlers(): void {
   ipcMain.handle('get-waiver-wire', () =>
     playerRepo.getOnWaivers(settingsRepo.getUserTeamId() ?? -1));
 
-  ipcMain.handle('claim-waiver', (_event: any, playerId: number) => {
+  ipcMain.handle('claim-waiver', (_event: IpcEvent, playerId: number) => {
     const teamId = settingsRepo.getUserTeamId();
     if (!teamId) return { success: false, reason: 'No franchise selected.' };
     if (playerRepo.getActiveCount(teamId) >= MAX_ACTIVE_ROSTER)
@@ -134,7 +137,7 @@ export function registerSimHandlers(): void {
     return { success: true, name: `${player.first_name} ${player.last_name}` };
   });
 
-  ipcMain.handle('simulate-playoffs', (_event: any, season?: number) => {
+  ipcMain.handle('simulate-playoffs', (_event: IpcEvent, season?: number) => {
     const s = season ?? getCurrentSeason();
     db.prepare(`DELETE FROM stats WHERE game_id IN (SELECT id FROM games WHERE season = ? AND is_playoff = 1)`).run(s);
     db.prepare(`DELETE FROM games WHERE season = ? AND is_playoff = 1`).run(s);
@@ -323,7 +326,7 @@ export function registerSimHandlers(): void {
     return { hasSchedule: true, currentWeek: gameRepo.getCurrentWeek(season) };
   });
 
-  ipcMain.handle('get-week-matchups', (_event: any, week: number) => {
+  ipcMain.handle('get-week-matchups', (_event: IpcEvent, week: number) => {
     const season = getCurrentSeason();
     return db.prepare(`
       SELECT g.id, g.week, g.home_score, g.away_score, g.is_simulated,
@@ -337,7 +340,7 @@ export function registerSimHandlers(): void {
     `).all(season, week);
   });
 
-  ipcMain.handle('simulate-week', async (_event: any, week: number) => {
+  ipcMain.handle('simulate-week', async (_event: IpcEvent, week: number) => {
     const season = getCurrentSeason();
     const games = gameRepo.getPendingByWeek(season, week);
     if (games.length === 0) return { week, season, gamesSimulated: 0 };
@@ -353,7 +356,7 @@ export function registerSimHandlers(): void {
     });
   });
 
-  ipcMain.handle('simulate-game', (_event: any, gameId: number) => {
+  ipcMain.handle('simulate-game', (_event: IpcEvent, gameId: number) => {
     const game = db.prepare(`SELECT * FROM games WHERE id = ?`).get(gameId) as any;
     if (!game) return { success: false, reason: 'Game not found.' };
     if (game.is_simulated) return { success: false, reason: 'Game already simulated.' };
@@ -410,7 +413,7 @@ export function registerSimHandlers(): void {
     };
   });
 
-  ipcMain.handle('get-injury-report', (_event: any, teamId: number) =>
+  ipcMain.handle('get-injury-report', (_event: IpcEvent, teamId: number) =>
     db.prepare(`
       SELECT p.id, p.first_name, p.last_name, p.position, p.position_label,
              p.overall_rating, p.age, p.dev_trait, p.injury_status, p.weeks_out, p.injury_type
@@ -419,7 +422,7 @@ export function registerSimHandlers(): void {
       ORDER BY CASE p.injury_status WHEN 'ir' THEN 1 WHEN 'out' THEN 2 ELSE 3 END, p.overall_rating DESC
     `).all(teamId));
 
-  ipcMain.handle('get-game-box-score', (_event: any, gameId: number) => {
+  ipcMain.handle('get-game-box-score', (_event: IpcEvent, gameId: number) => {
     const game = db.prepare(`
       SELECT g.id, g.week, g.home_score, g.away_score,
              g.home_q1, g.home_q2, g.home_q3, g.home_q4,
