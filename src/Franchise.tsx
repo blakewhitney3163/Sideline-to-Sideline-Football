@@ -8,6 +8,7 @@ import FreeAgentsTab from './franchise/FreeAgentsTab';
 import OffseasonTab from './franchise/OffseasonTab';
 import CoachingTab from './franchise/CoachingTab';
 import SchemesTab from './franchise/SchemesTab';
+import SalariesTab from './franchise/SalariesTab';
 import PlayerProfile from './teams/PlayerProfile';
 import { Player, PlayerStats, CareerSeasonStats } from './teams/types';
 
@@ -24,7 +25,7 @@ export default function Franchise() {
   const [expiringPlayers, setExpiringPlayers] = useState<Contract[]>([]);
   const [cap, setCap] = useState<CapSummary | null>(null);
   const [rosterSpots, setRosterSpots] = useState<RosterSpots | null>(null);
-  const [activeTab, setActiveTab] = useState<'roster' | 'ps' | 'fa' | 'offseason' | 'coaching' | 'schemes'>('roster');
+  const [activeTab, setActiveTab] = useState<'roster' | 'ps' | 'fa' | 'offseason' | 'coaching' | 'schemes' | 'salaries'>('roster');
   const [working, setWorking] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [teamNeeds, setTeamNeeds] = useState<string[]>([]);
@@ -297,6 +298,7 @@ export default function Franchise() {
 
   const tabs = [
     { key: 'roster'   as const, label: `ACTIVE ROSTER (${contracts.length})`, warn: false },
+    { key: 'salaries' as const, label: 'SALARIES', warn: false },
     { key: 'ps'       as const, label: `PRACTICE SQUAD (${practiceSquad.length})`, warn: false },
     { key: 'fa'       as const, label: 'FREE AGENTS', warn: false },
     { key: 'coaching' as const, label: 'COACHING STAFF', warn: false },
@@ -449,6 +451,10 @@ export default function Franchise() {
           onToast={showToast}
         />
       )}
+
+      {activeTab === 'salaries' && (
+  <SalariesTab contracts={contracts} cap={cap} />
+)}
 
       {selectedPlayer && (
         <div style={{
