@@ -40,39 +40,28 @@ export default function TeamSelection({ onSelect }: Props) {
   return (
     <div style={{
       position: 'fixed', inset: 0,
-      background: '#080808',
+      background: 'linear-gradient(160deg, #0f1f35 0%, #1a2a44 50%, #0f1f35 100%)',
       display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center',
       padding: 32, color: '#fff', fontFamily: 'sans-serif',
       overflowY: 'auto',
     }}>
-      {/* Title */}
       <div style={{ marginBottom: 28, textAlign: 'center' }}>
         <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: 6, color: '#4FC3F7' }}>GRIDIRON DYNASTY</div>
-<div style={{ fontSize: 13, color: T.textMuted, marginBottom: 8 }}>Choose Your Franchise</div>
-        <div style={{ fontSize: 12, color: T.borderStrong }}>
-          You'll manage this team throughout the dynasty
-        </div>
+        <div style={{ fontSize: 13, color: T.textSecondary, marginBottom: 8 }}>Choose Your Franchise</div>
+        <div style={{ fontSize: 12, color: T.textMuted }}>You'll manage this team throughout the dynasty</div>
       </div>
 
-      {/* Team grid: AFC | NFC */}
       <div style={{ display: 'flex', gap: 32, marginBottom: 28 }}>
         {(['AFC', 'NFC'] as const).map(conf => (
           <div key={conf}>
-            <div style={{
-              fontSize: 11, fontWeight: 'bold', color: '#FF8740',
-              letterSpacing: 2, marginBottom: 10, textAlign: 'center',
-            }}>
+            <div style={{ fontSize: 11, fontWeight: 'bold', color: '#FF8740', letterSpacing: 2, marginBottom: 10, textAlign: 'center' }}>
               {conf}
             </div>
-
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
               {DIVISION_ORDER.map(div => (
                 <div key={div}>
-                  <div style={{
-                    fontSize: 9, color: '#2e2e2e', letterSpacing: 1,
-                    marginBottom: 6, textAlign: 'center',
-                  }}>
+                  <div style={{ fontSize: 9, color: T.textMuted, letterSpacing: 1, marginBottom: 6, textAlign: 'center', fontFamily: 'monospace' }}>
                     {div.toUpperCase()}
                   </div>
                   {getTeamsFor(conf, div).map(team => {
@@ -83,22 +72,29 @@ export default function TeamSelection({ onSelect }: Props) {
                         onClick={() => setSelected(team)}
                         style={{
                           padding: '7px 10px', marginBottom: 4,
-                          background: isSelected ? T.bgOrange : T.bgPage,
-                          border: `1px solid ${isSelected ? '#FF8740' : T.bgCard}`,
+                          background: isSelected ? 'rgba(255,135,64,0.18)' : 'rgba(255,255,255,0.05)',
+                          border: `1px solid ${isSelected ? '#FF8740' : 'rgba(255,255,255,0.12)'}`,
                           borderRadius: 5, cursor: 'pointer',
                           transition: 'border-color 0.1s, background 0.1s',
+                          boxShadow: isSelected ? '0 0 8px rgba(255,135,64,0.3)' : 'none',
                         }}
                         onMouseEnter={e => {
-                          if (!isSelected) (e.currentTarget as HTMLElement).style.borderColor = T.borderStrong;
+                          if (!isSelected) {
+                            (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.35)';
+                            (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.09)';
+                          }
                         }}
                         onMouseLeave={e => {
-                          if (!isSelected) (e.currentTarget as HTMLElement).style.borderColor = T.bgCard;
+                          if (!isSelected) {
+                            (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.12)';
+                            (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)';
+                          }
                         }}
                       >
-                        <div style={{ fontSize: 11, color: isSelected ? '#fff' : '#bbb', fontWeight: isSelected ? '700' : '400' }}>
+                        <div style={{ fontSize: 11, color: isSelected ? '#fff' : T.textSecondary, fontWeight: isSelected ? '700' : '400' }}>
                           {team.city}
                         </div>
-                        <div style={{ fontSize: 10, color: isSelected ? '#FF8740' : T.textDim }}>
+                        <div style={{ fontSize: 10, color: isSelected ? '#FF8740' : T.textMuted }}>
                           {team.name}
                         </div>
                       </div>
@@ -111,13 +107,10 @@ export default function TeamSelection({ onSelect }: Props) {
         ))}
       </div>
 
-      {/* Confirm */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, minHeight: 44 }}>
         {selected ? (
           <>
-            <span style={{ fontSize: 14, color: T.textMuted }}>
-              {selected.city} {selected.name}
-            </span>
+            <span style={{ fontSize: 14, color: T.textSecondary }}>{selected.city} {selected.name}</span>
             <button
               onClick={handleConfirm}
               disabled={saving}
@@ -134,9 +127,7 @@ export default function TeamSelection({ onSelect }: Props) {
             </button>
           </>
         ) : (
-          <span style={{ fontSize: 13, color: T.borderMid }}>
-            Select a team above to begin
-          </span>
+          <span style={{ fontSize: 13, color: T.textMuted }}>Select a team above to begin</span>
         )}
       </div>
     </div>
