@@ -246,7 +246,7 @@ export function registerSimHandlers(): void {
       return games;
     };
 
-    // Cross-conference: each team skips one opponent → 3 games per team, 12 per div matchup
+    // Cross-conference: each team skips one opponent → 3 games/team, 12 per div matchup
     const divMatchupCross = (keyA: string, keyB: string, offset: number): { home: number; away: number }[] => {
       const a = divMap[keyA] ?? [];
       const b = divMap[keyB] ?? [];
@@ -281,44 +281,48 @@ export function registerSimHandlers(): void {
       allMatchups.push(...divMatchup(nfcDivs[di], nfcDivs[dj], season));
     }
 
-    // Cross-conference: 3 games/team (reduced from 4) = 48 total
+    // Cross-conference: 3 games/team = 48 total
     // Grand total: 96 + 128 + 48 = 272 games → 17 per team, 1 bye week per team
     for (let i = 0; i < 4; i++) {
       allMatchups.push(...divMatchupCross(afcDivs[i], nfcDivs[(i + season) % 4], season + 1));
     }
 
+    // Week-by-week greedy matching — build each full week before moving to the next.
+    // This avoids the "painted into a corner" failure of game-by-game greedy.
     let weeks: { home: number; away: number }[][] = [];
     let scheduled = false;
 
-    for (let attempt = 0; attempt < 100 && !scheduled; attempt++) {
-      const shuffled = [...allMatchups].sort(() => Math.random() - 0.5);
+    for (let attempt = 0; attempt < 30 && !scheduled; attempt++) {
+      // Randomize game priority for this attempt
+      const order = Array.from({ length: allMatchups.length }, (_, i) => i)
+        .sort(() => Math.random() - 0.5);
+
+      const weekOf = new Array(allMatchups.length).fill(-1);
       const tryWeeks: { home: number; away: number }[][] = Array.from({ length: 18 }, () => []);
-      const tryUsed: Set<number>[] = Array.from({ length: 18 }, () => new Set());
-      let failed = false;
 
-      for (const game of shuffled) {
-        let placed = false;
-        const weekOrder = Array.from({ length: 18 }, (_, i) => i)
-          .sort((a, b) => tryWeeks[a].length - tryWeeks[b].length);
-
-        for (const w of weekOrder) {
-          if (tryWeeks[w].length >= 16) continue;
-          if (tryUsed[w].has(game.home) || tryUsed[w].has(game.away)) continue;
-          tryWeeks[w].push(game);
-          tryUsed[w].add(game.home);
-          tryUsed[w].add(game.away);
-          placed = true;
-          break;
+      for (let w = 0; w < 18; w++) {
+        const usedTeams = new Set<number>();
+        for (const idx of order) {
+          if (tryWeeks[w].length >= 16) break;
+          if (weekOf[idx] !== -1) continue;
+          const game = allMatchups[idx];
+          if (!usedTeams.has(game.home) && !usedTeams.has(game.away)) {
+            tryWeeks[w].push(game);
+            usedTeams.add(game.home);
+            usedTeams.add(game.away);
+            weekOf[idx] = w;
+          }
         }
-
-        if (!placed) { failed = true; break; }
       }
 
-      if (!failed) { weeks = tryWeeks; scheduled = true; }
+      if (weekOf.every(w => w !== -1)) {
+        weeks = tryWeeks;
+        scheduled = true;
+      }
     }
 
     if (!scheduled) {
-      return { season, created: false, error: 'Could not generate a valid schedule after 100 attempts' };
+      return { season, created: false, error: 'Could not generate a valid schedule after 30 attempts' };
     }
 
     const insertGame = db.prepare(
