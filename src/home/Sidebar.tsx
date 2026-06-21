@@ -105,14 +105,6 @@ export default function Sidebar({
           </button>
         )}
 
-        {hasSchedule && !allWeeksDone && currentWeek != null && (
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={onSimulateWeek} disabled={!!simulating} style={actionBtn(T.bgGreen, '#4caf50', !!simulating)}>
-              {simulating ? 'Simulating...' : `▶ Sim Rest of Week ${currentWeek}`}
-            </button>
-          </div>
-        )}
-
         {allWeeksDone && !isPlayoffsComplete && onSimulatePlayoffs && (
           <button onClick={onSimulatePlayoffs} disabled={!!simulatingPlayoffs} style={actionBtn(T.bgGreen, '#4caf50', !!simulatingPlayoffs)}>
             {simulatingPlayoffs ? 'Simulating...' : '▶ Simulate Playoffs'}
