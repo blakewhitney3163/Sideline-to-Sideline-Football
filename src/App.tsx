@@ -58,6 +58,7 @@ export default function App() {
   const [setupSteps, setSetupSteps] = useState<SetupStep[]>([]);
   const [setupComplete, setSetupComplete] = useState(false);
   const [dynastyName, setDynastyName] = useState('');
+const [dynastyNameFocused, setDynastyNameFocused] = useState(false);
   const [importTeams, setImportTeams] = useState<ImportState>(IDLE);
   const [importPlayers, setImportPlayers] = useState<ImportState>(IDLE);
 
@@ -189,20 +190,26 @@ export default function App() {
         <div style={{ fontSize: 36, fontWeight: 900, letterSpacing: 6, color: '#FF8740', fontFamily: 'monospace', marginBottom: 32 }}>DYNASTY</div>
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, marginBottom: 24 }}>
-          <div style={{ fontSize: 9, letterSpacing: 2, color: T.textDim, fontFamily: 'monospace' }}>DYNASTY NAME</div>
-          <input
-            value={dynastyName}
-            onChange={e => setDynastyName(e.target.value)}
-            placeholder="Dynasty"
-            maxLength={40}
-            style={{
-              background: T.bgCard, border: `1px solid ${T.borderFaint}`,
-              color: '#fff', fontFamily: 'monospace', fontSize: 14,
-              padding: '10px 16px', borderRadius: 4, outline: 'none',
-              width: 240, textAlign: 'center', letterSpacing: 1,
-            }}
-          />
-        </div>
+  <div style={{ fontSize: 9, letterSpacing: 2, color: T.textMuted, fontFamily: 'monospace' }}>DYNASTY NAME</div>
+  <input
+    value={dynastyName}
+    onChange={e => setDynastyName(e.target.value)}
+    onFocus={() => setDynastyNameFocused(true)}
+    onBlur={() => setDynastyNameFocused(false)}
+    placeholder="My Dynasty"
+    maxLength={40}
+    style={{
+      background: T.bgCard,
+      border: `1px solid ${dynastyNameFocused ? '#FF8740' : T.borderStrong}`,
+      boxShadow: dynastyNameFocused ? '0 0 0 2px rgba(255,135,64,0.25)' : 'none',
+      color: '#fff', fontFamily: 'monospace', fontSize: 14,
+      padding: '10px 16px', borderRadius: 4, outline: 'none',
+      width: 240, textAlign: 'center', letterSpacing: 1,
+      transition: 'border-color 0.15s, box-shadow 0.15s',
+    }}
+  />
+  <div style={{ fontSize: 9, color: T.textDim, fontFamily: 'monospace' }}>name your save file</div>
+</div>
 
         <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
           <MenuButton label="NEW DYNASTY" sub="Standard start" color="#4caf50" onClick={() => handleNewGame('standard')} />
