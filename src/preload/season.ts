@@ -46,6 +46,15 @@ export const seasonApi = {
   getPlayoffSeeds: () =>
     ipcRenderer.invoke('get-playoff-seeds'),
 
+  getAnnouncingRetirements: () =>
+  ipcRenderer.invoke('get-announcing-retirements'),
+
+makeRetentionOffer: (playerId: number) =>
+  ipcRenderer.invoke('make-retention-offer', playerId),
+
+dismissRetirement: (playerId: number) =>
+  ipcRenderer.invoke('dismiss-retirement', playerId),
+
   getChampions: () =>
     ipcRenderer.invoke('get-champions'),
 
