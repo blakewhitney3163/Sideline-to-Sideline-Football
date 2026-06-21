@@ -224,7 +224,28 @@ export function registerSimHandlers(): void {
 
     const afcDivs = ['AFC-North', 'AFC-South', 'AFC-East', 'AFC-West'];
     const nfcDivs = ['NFC-North', 'NFC-South', 'NFC-East', 'NFC-West'];
+    const allDivs = [...afcDivs, ...nfcDivs];
 
+    // ── PHASE 1: Intra-division games, weeks 1–6 (DETERMINISTIC) ─────────────
+    // Each 4-team division has 6 round-robin rounds (2 games each, perfect matching).
+    // All 8 divisions share the same round per week → 16 games/week, all 32 teams.
+    const divWeeks: { home: number; away: number }[][] = Array.from({ length: 6 }, () => []);
+
+    for (const divKey of allDivs) {
+      const [t0, t1, t2, t3] = divMap[divKey] ?? [];
+      const rounds: { home: number; away: number }[][] = [
+        [{ home: t0, away: t1 }, { home: t2, away: t3 }],
+        [{ home: t0, away: t2 }, { home: t1, away: t3 }],
+        [{ home: t0, away: t3 }, { home: t1, away: t2 }],
+        [{ home: t1, away: t0 }, { home: t3, away: t2 }],
+        [{ home: t2, away: t0 }, { home: t3, away: t1 }],
+        [{ home: t3, away: t0 }, { home: t2, away: t1 }],
+      ];
+      for (let r = 0; r < 6; r++) divWeeks[r].push(...rounds[r]);
+    }
+
+    // ── PHASE 2: Non-division games, weeks 7–17 ───────────────────────────────
+    // 128 inter-conf + 48 cross-conf = 176 games across 11 weeks (16/week).
     const intraPairings: [number, number][][] = [
       [[0,1],[2,3],[0,2],[1,3]],
       [[0,2],[1,3],[0,3],[1,2]],
@@ -232,21 +253,17 @@ export function registerSimHandlers(): void {
     ];
     const confPairs = intraPairings[season % 3];
 
-    // Full home+away between two divisions: 4×4 = 16 games
     const divMatchup = (keyA: string, keyB: string, offset: number): { home: number; away: number }[] => {
       const a = divMap[keyA] ?? [];
       const b = divMap[keyB] ?? [];
       const games: { home: number; away: number }[] = [];
-      for (let i = 0; i < a.length; i++) {
-        for (let j = 0; j < b.length; j++) {
+      for (let i = 0; i < a.length; i++)
+        for (let j = 0; j < b.length; j++)
           if ((i + j + offset) % 2 === 0) games.push({ home: a[i], away: b[j] });
           else games.push({ home: b[j], away: a[i] });
-        }
-      }
       return games;
     };
 
-    // Cross-conference: each team skips one opponent → 3 games/team, 12 per div matchup
     const divMatchupCross = (keyA: string, keyB: string, offset: number): { home: number; away: number }[] => {
       const a = divMap[keyA] ?? [];
       const b = divMap[keyB] ?? [];
@@ -262,75 +279,55 @@ export function registerSimHandlers(): void {
       return games;
     };
 
-    const allMatchups: { home: number; away: number }[] = [];
-
-    // Intra-division: 6 games/team (home + away vs each of 3 div opponents) = 96 total
-    for (const divKey of [...afcDivs, ...nfcDivs]) {
-      const teams = divMap[divKey] ?? [];
-      for (let i = 0; i < teams.length; i++) {
-        for (let j = i + 1; j < teams.length; j++) {
-          allMatchups.push({ home: teams[i], away: teams[j] });
-          allMatchups.push({ home: teams[j], away: teams[i] });
-        }
-      }
-    }
-
-    // Intra-conference cross-division: 8 games/team = 128 total
+    const nonDivMatchups: { home: number; away: number }[] = [];
     for (const [di, dj] of confPairs) {
-      allMatchups.push(...divMatchup(afcDivs[di], afcDivs[dj], season));
-      allMatchups.push(...divMatchup(nfcDivs[di], nfcDivs[dj], season));
+      nonDivMatchups.push(...divMatchup(afcDivs[di], afcDivs[dj], season));
+      nonDivMatchups.push(...divMatchup(nfcDivs[di], nfcDivs[dj], season));
     }
-
-    // Cross-conference: 3 games/team = 48 total
-    // Grand total: 96 + 128 + 48 = 272 games → 17 per team, 1 bye week per team
     for (let i = 0; i < 4; i++) {
-      allMatchups.push(...divMatchupCross(afcDivs[i], nfcDivs[(i + season) % 4], season + 1));
+      nonDivMatchups.push(...divMatchupCross(afcDivs[i], nfcDivs[(i + season) % 4], season + 1));
     }
+    // nonDivMatchups = 128 + 48 = 176 games
 
-    // Week-by-week greedy matching — build each full week before moving to the next.
-    // This avoids the "painted into a corner" failure of game-by-game greedy.
-    let weeks: { home: number; away: number }[][] = [];
-    let scheduled = false;
+    let nonDivWeeks: { home: number; away: number }[][] | null = null;
 
-    for (let attempt = 0; attempt < 30 && !scheduled; attempt++) {
-      // Randomize game priority for this attempt
-      const order = Array.from({ length: allMatchups.length }, (_, i) => i)
+    for (let attempt = 0; attempt < 100 && !nonDivWeeks; attempt++) {
+      const order = Array.from({ length: nonDivMatchups.length }, (_, i) => i)
         .sort(() => Math.random() - 0.5);
+      const weekOf = new Array(nonDivMatchups.length).fill(-1);
+      const tryWeeks: { home: number; away: number }[][] = Array.from({ length: 11 }, () => []);
 
-      const weekOf = new Array(allMatchups.length).fill(-1);
-      const tryWeeks: { home: number; away: number }[][] = Array.from({ length: 18 }, () => []);
-
-      for (let w = 0; w < 18; w++) {
-        const usedTeams = new Set<number>();
+      for (let w = 0; w < 11; w++) {
+        const used = new Set<number>();
         for (const idx of order) {
           if (tryWeeks[w].length >= 16) break;
           if (weekOf[idx] !== -1) continue;
-          const game = allMatchups[idx];
-          if (!usedTeams.has(game.home) && !usedTeams.has(game.away)) {
-            tryWeeks[w].push(game);
-            usedTeams.add(game.home);
-            usedTeams.add(game.away);
+          const g = nonDivMatchups[idx];
+          if (!used.has(g.home) && !used.has(g.away)) {
+            tryWeeks[w].push(g);
+            used.add(g.home);
+            used.add(g.away);
             weekOf[idx] = w;
           }
         }
       }
 
-      if (weekOf.every(w => w !== -1)) {
-        weeks = tryWeeks;
-        scheduled = true;
-      }
+      if (weekOf.every(w => w !== -1)) nonDivWeeks = tryWeeks;
     }
 
-    if (!scheduled) {
-      return { season, created: false, error: 'Could not generate a valid schedule after 30 attempts' };
+    if (!nonDivWeeks) {
+      return { season, created: false, error: 'Could not schedule non-division games after 100 attempts' };
     }
+
+    // Weeks 1–6: div games. Weeks 7–17: non-div games.
+    const allWeeks = [...divWeeks, ...nonDivWeeks];
 
     const insertGame = db.prepare(
       'INSERT INTO games (season, week, home_team_id, away_team_id, is_simulated) VALUES (?, ?, ?, ?, 0)'
     );
     db.transaction(() => {
-      for (let w = 0; w < 18; w++) {
-        for (const g of weeks[w]) {
+      for (let w = 0; w < 17; w++) {
+        for (const g of allWeeks[w]) {
           insertGame.run(season, w + 1, g.home, g.away);
         }
       }
