@@ -27,4 +27,7 @@ export const rosterApi = {
 
   getFranchiseHealth: (teamId: number) =>
     ipcRenderer.invoke('get-franchise-health', teamId),
+  
+  getTeamScheme: (teamId: number) =>
+  ipcRenderer.invoke('get-team-scheme', teamId),
 };
