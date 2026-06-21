@@ -10,6 +10,7 @@ import GamePreview from './home/GamePreview';
 import { useGameStore } from './store/gameStore';
 import TradeOfferCard from './home/TradeOfferCard';
 import { CpuOffer } from './trades/types';
+import { NewsEvent } from './newsCenter/types';
 
 declare const window: any;
 
@@ -41,6 +42,16 @@ interface AnnouncingRetirement {
 
 const ovrColor = (v: number) => v >= 80 ? '#4caf50' : v >= 70 ? '#FF8740' : '#e57373';
 const ovrGrade = (v: number) => v >= 90 ? 'A+' : v >= 85 ? 'A' : v >= 80 ? 'B+' : v >= 75 ? 'B' : v >= 70 ? 'C+' : v >= 65 ? 'C' : 'D';
+
+const NEWS_ICON: Record<string, string> = {
+  retirement: '🏁', hof: '🏛', signing: '✍️', resign: '🔄', release: '✂️',
+  trade: '🤝', injury: '🩹', draft_pick: '📋', cpu_signing: '✍️',
+  champion: '🏆', milestone: '⭐', award: '🏅', contract: '📝',
+  contract_demand: '💰',
+};
+const newsIcon = (type: string) => NEWS_ICON[type] ?? '📰';
+const newsWeekLabel = (week: number) =>
+  week === 0 ? 'Offseason' : week >= 19 ? 'Playoffs' : `Wk ${week}`;
 
 export default function Home({ onSeasonAdvance, onNavigate }: Props) {
   const { userTeam, currentSeason, setPlayoffsComplete, incrementSimCount } = useGameStore();
@@ -75,8 +86,7 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
   const [psPromotionAlerts, setPSPromotionAlerts] = useState<PSPromotionAlert[]>([]);
   const [announcingRetirements, setAnnouncingRetirements] = useState<AnnouncingRetirement[]>([]);
   const [seasonAwards, setSeasonAwards] = useState<any>(null);
-  const [cpuOffer, setCpuOffer] = useState<CpuOffer | null>(null);
-  const [offerHandled, setOfferHandled] = useState(false);
+  const [cpuOffers, setCpuOffers] = useState<CpuOffer[]>([]);
   const [offerWorking, setOfferWorking] = useState(false);
   const [userTradeStatus, setUserTradeStatus] = useState<any>(null);
   const [settingStatus, setSettingStatus] = useState(false);
@@ -85,6 +95,12 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
   const [oppScheme, setOppScheme] = useState<{ offenseScheme: string; defenseScheme: string } | null>(null);
   const [userScheme, setUserScheme] = useState<{ offenseScheme: string; defenseScheme: string } | null>(null);
   const [allStandings, setAllStandings] = useState<{ id: number; wins: number; losses: number }[]>([]);
+  const [recentNews, setRecentNews] = useState<NewsEvent[]>([]);
+
+  const fetchRecentNews = async () => {
+    const news = await window.api.getNewsFeed({ season: currentSeason, limit: 6 });
+    setRecentNews(news ?? []);
+  };
 
   useEffect(() => {
     if (!userTeam) return;
@@ -95,7 +111,7 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
       setPlayoffResults(null); setUserRecord(null); setInjuryReport([]);
       setSeasonAwards(null);
 
-      const [status, dashboard, champs, standings, offseason, injuries, leaders, tradeOffer, tradeStatus, spots, health, psAlerts, announcingRets] = await Promise.all([
+      const [status, dashboard, champs, standings, offseason, injuries, leaders, tradeOffers, tradeStatus, spots, health, psAlerts, announcingRets, news] = await Promise.all([
         window.api.getCurrentWeek(),
         window.api.getDashboard(currentSeason),
         window.api.getChampions(),
@@ -103,12 +119,13 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
         window.api.getOffseasonStatus(),
         window.api.getInjuryReport(userTeam.id),
         window.api.getStats(currentSeason),
-        window.api.getCpuTradeOffer(),
+        window.api.getCpuTradeOffers(),
         window.api.getTeamStatus(userTeam.id),
         window.api.getRosterSpots(userTeam.id),
         window.api.getFranchiseHealth(userTeam.id),
         window.api.getPSPromotionAlerts(userTeam.id),
         window.api.getAnnouncingRetirements(),
+        window.api.getNewsFeed({ season: currentSeason, limit: 6 }),
       ]);
       if (cancelled) return;
 
@@ -127,12 +144,12 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
       setRosterSize(spots?.active ?? 0);
       setInjuryReport(injuries ?? []);
       setStatLeaders(leaders);
-      setCpuOffer(tradeOffer ?? null);
-      setOfferHandled(false);
+      setCpuOffers(Array.isArray(tradeOffers) ? tradeOffers : tradeOffers ? [tradeOffers] : []);
       setUserTradeStatus(tradeStatus ?? null);
       setFranchiseHealth(health ?? null);
       setPSPromotionAlerts(psAlerts ?? []);
       setAnnouncingRetirements(announcingRets ?? []);
+      setRecentNews(news ?? []);
 
       if (offseason.playoffsComplete) setPlayoffsComplete(true);
 
@@ -201,9 +218,8 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
       setHasSchedule(status.hasSchedule);
       setCurrentWeek(status.currentWeek);
       if (status.currentWeek !== null) setMatchups(await window.api.getWeekMatchups(status.currentWeek));
-      const tradeOffer = await window.api.getCpuTradeOffer();
-      setCpuOffer(tradeOffer ?? null);
-      setOfferHandled(false);
+      const offers = await window.api.getCpuTradeOffers();
+      setCpuOffers(Array.isArray(offers) ? offers : offers ? [offers] : []);
     } catch (err) {
       alert(`Error generating schedule: ${err}`);
     } finally {
@@ -215,15 +231,17 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
     if (currentWeek === null || !userTeam) return;
     setSimulating(true);
     const weekResult = await window.api.simulateWeek(currentWeek);
-    const [status, dashboard, standings, injuries, psAlerts] = await Promise.all([
+    const [status, dashboard, standings, injuries, psAlerts, news] = await Promise.all([
       window.api.getCurrentWeek(), window.api.getDashboard(currentSeason),
       window.api.getStandings(currentSeason), window.api.getInjuryReport(userTeam.id),
       window.api.getPSPromotionAlerts(userTeam.id),
+      window.api.getNewsFeed({ season: currentSeason, limit: 6 }),
     ]);
     setCurrentWeek(status.currentWeek);
     setTopAFC(dashboard.topAFC); setTopNFC(dashboard.topNFC);
     setInjuryReport(injuries ?? []);
     setPSPromotionAlerts(psAlerts ?? []);
+    setRecentNews(news ?? []);
     const mine = standings.find((t: any) => t.id === userTeam.id);
     if (mine) setUserRecord({ wins: mine.wins, losses: mine.losses });
     setAllStandings(standings);
@@ -247,14 +265,16 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
     setSimulatingGameId(gameId);
     const result = await window.api.simulateOneGame(gameId);
     if (!result?.success) { setSimulatingGameId(null); return; }
-    const [status, dashboard, standings, injuries, psAlerts] = await Promise.all([
+    const [status, dashboard, standings, injuries, psAlerts, news] = await Promise.all([
       window.api.getCurrentWeek(), window.api.getDashboard(currentSeason),
       window.api.getStandings(currentSeason), window.api.getInjuryReport(userTeam.id),
       window.api.getPSPromotionAlerts(userTeam.id),
+      window.api.getNewsFeed({ season: currentSeason, limit: 6 }),
     ]);
     setCurrentWeek(status.currentWeek); setTopAFC(dashboard.topAFC); setTopNFC(dashboard.topNFC);
     setInjuryReport(injuries ?? []);
     setPSPromotionAlerts(psAlerts ?? []);
+    setRecentNews(news ?? []);
     const mine = standings.find((t: any) => t.id === userTeam.id);
     if (mine) setUserRecord({ wins: mine.wins, losses: mine.losses });
     setAllStandings(standings);
@@ -284,6 +304,7 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
       setPlayoffsComplete(true);
       setSeasonAwards(await window.api.getSeasonAwards(currentSeason));
     }
+    await fetchRecentNews();
     setSimulatingPlayoffs(false);
   };
 
@@ -315,22 +336,21 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
     setAnnouncingRetirements(fresh ?? []);
   };
 
-  const handleAcceptOffer = async () => {
-    if (!cpuOffer || offerWorking) return;
+  const handleAcceptOffer = async (offer: CpuOffer) => {
+    if (offerWorking) return;
     setOfferWorking(true);
     await window.api.acceptCpuTradeOffer({
-      myPlayerId: cpuOffer.requestedPlayer.id,
-      theirPlayerId: cpuOffer.offeredPlayer.id,
-      theirTeamId: cpuOffer.fromTeamId,
-      theirPickId: cpuOffer.offeredPick?.id ?? null,
+      myPlayerId: offer.requestedPlayer.id,
+      theirPlayerId: offer.offeredPlayer.id,
+      theirTeamId: offer.fromTeamId,
+      theirPickId: offer.offeredPick?.id ?? null,
     });
-    setCpuOffer(null); setOfferHandled(true); setOfferWorking(false);
+    setCpuOffers(prev => prev.filter(o => o.requestedPlayer.id !== offer.requestedPlayer.id));
+    setOfferWorking(false);
   };
 
-  const handleDeclineOffer = async () => {
-    if (!cpuOffer || offerWorking) return;
-    setOfferWorking(true);
-    setCpuOffer(null); setOfferHandled(true); setOfferWorking(false);
+  const handleDeclineOffer = (offer: CpuOffer) => {
+    setCpuOffers(prev => prev.filter(o => o.requestedPlayer.id !== offer.requestedPlayer.id));
   };
 
   const handleSetTradeStatus = async (status: string) => {
@@ -363,13 +383,18 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-        {cpuOffer && !offerHandled && (
+        {/* Pending Trade Offers */}
+        {cpuOffers.map((offer, i) => (
           <TradeOfferCard
-            offer={cpuOffer} currentSeason={currentSeason} working={offerWorking}
-            onAccept={handleAcceptOffer} onDecline={handleDeclineOffer}
+            key={i}
+            offer={offer}
+            currentSeason={currentSeason}
+            working={offerWorking}
+            onAccept={() => handleAcceptOffer(offer)}
+            onDecline={() => handleDeclineOffer(offer)}
             onViewDetails={() => onNavigate('trades')}
           />
-        )}
+        ))}
 
         {hasSchedule && !allWeeksDone && userGame && (
           <div style={{ background: T.bgPanel, border: `1px solid ${T.borderMid}`, borderRadius: 8, padding: '16px 20px' }}>
@@ -591,6 +616,42 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
             <PlayoffResultsView results={playoffResults} champion={currentChampion} />
           </>
         )}
+
+        {/* Recent News */}
+        <div style={{ background: T.bgPanel, border: `1px solid ${T.borderMid}`, borderRadius: 8, padding: '14px 20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={{ fontSize: 9, letterSpacing: 2, color: T.textMuted, textTransform: 'uppercase' }}>Recent News</div>
+            <button
+              onClick={() => onNavigate('news')}
+              style={{ fontSize: 9, color: '#FF8740', background: 'none', border: 'none', cursor: 'pointer', letterSpacing: 0.5 }}
+            >
+              → News Center
+            </button>
+          </div>
+          {recentNews.length === 0 ? (
+            <div style={{ fontSize: 10, color: T.textDim, textAlign: 'center', padding: '10px 0' }}>
+              No news yet — simulate games to generate events.
+            </div>
+          ) : (
+            recentNews.map(event => (
+              <div key={event.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '6px 0', borderBottom: `1px solid ${T.borderFaint}` }}>
+                <span style={{ fontSize: 14, lineHeight: 1.2, flexShrink: 0 }}>{newsIcon(event.event_type)}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 11, color: T.textSecondary, lineHeight: 1.3 }}>{event.headline}</div>
+                  {event.detail && (
+                    <div style={{ fontSize: 9, color: T.textDim, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {event.detail}
+                    </div>
+                  )}
+                </div>
+                <span style={{ fontSize: 9, color: T.textDim, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                  {newsWeekLabel(event.week)}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+
       </div>
 
       <Sidebar
