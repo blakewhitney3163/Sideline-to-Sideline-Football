@@ -1,9 +1,8 @@
 GRIDIRON DYNASTY — ROADMAP
-Last Updated: June 20, 2026
+Last Updated: June 21, 2026
 Repository: https://github.com/blakewhitney3163/Gridiron-Dynasty
 ================================================================================
 
-(Done) new add: when looking at sim game against opponenent, have a quick game previewd
 Full player editor - maybe Editor has its own tab?
 What does in-season progression look like?
 
@@ -55,13 +54,6 @@ Injury History / Injury-Prone Trait — track career injury history per player.
   in-game injury probability and lowers market value. Builds on existing injury
   system.
 
-Practice Squad Promotion Alerts — when a practice squad player's OVR surpasses
-  the corresponding starter's OVR on the active depth chart, surface an alert
-  on the Home page alongside existing injury alerts. Ties directly into the
-  existing PS accelerated development bonus (+3 OVR for players 23 and under)
-  and the current PS promotion UI. Prevents burying a better player on the PS
-  by accident.
-
 Draft Class Pre-Season Generation + In-Season Scouting — auto-generate the
   full draft class at season start (Week 1) instead of waiting until the
   offseason. Prospects are visible on the Draft board immediately but ratings
@@ -77,16 +69,6 @@ Scouting Department — hire scouts with regional specialties that improve
 
 SIMULATION & SCHEDULE
 ────────────────────────────────────────────────────────────────────────────────
-Position-Weighted Team Ratings — current sim averages OVR equally across all
-  offensive and defensive players. OL ratings are already included and do
-  affect team strength (and get an explicit bonus under Power Run scheme), but
-  in the flat average a great QB can mask a terrible OL. Enhance
-  computeTeamRatings() to weight positions by realistic impact: QB ~25%,
-  OL group ~20%, skill positions sharing the remainder. On defense, weight
-  DL/LB heavier in run defense contexts and CB/S heavier in pass defense.
-  Makes OL rebuilds and line depth feel distinctly different from WR corps
-  upgrades.
-
 Multi-Season Batch Simulation — "Sim N seasons" with a progress bar. Critical
   for dynasty feel — users should be able to fast-forward through rebuilds.
 
@@ -190,6 +172,33 @@ MAINTENANCE — Address before extended dynasty saves become common
 ================================================================================
 COMPLETED ITEMS
 ================================================================================
+
+[DONE June 21, 2026] Game Preview / Head-to-Head — Pre-sim matchup card on
+  the Home screen now shows a full head-to-head preview before simming a game:
+  both teams' W-L records, mirrored Offense/Defense/Overall OVR bars, each
+  team's offensive and defensive scheme, and a win probability bar derived from
+  the team strength delta. Backed by GamePreview.tsx, getFranchiseHealth() and
+  getTeamScheme() fetched in parallel for both teams via a new useEffect.
+  getTeamScheme exposed in preload/roster.ts. Falls back to the simple VS
+  display while data loads.
+
+[DONE June 21, 2026] Practice Squad Promotion Alerts — Active Alerts panel on
+  the Home screen now surfaces a PS↑ badge whenever a practice squad player's
+  OVR exceeds the lowest active roster player at the same position. Sorted by
+  gap descending (biggest mismatches first). Each alert shows player name,
+  position, their OVR vs lowest active OVR, and a Promote button that navigates
+  directly to the My Team tab. Backed by getPSPromotionAlerts() in
+  PlayerRepository.ts, get-ps-promotion-alerts IPC handler in simHandlers.ts,
+  and preload/roster.ts exposure. Refreshed after every game and week sim.
+
+[DONE June 21, 2026] Position-Weighted Team Ratings — computeTeamRatings() in
+  src/sim/ratings.ts overhauled from a flat average to a position-weighted
+  model. Offense: QB 28%, OL 20%, WR 18%, RB 14%, TE 10%. Defense: DL 28%,
+  LB 24%, CB 20%, S 18%. A franchise QB now drives roughly 28% of offensive
+  strength — signing an elite QB matters more than adding a WR1. OL rebuilds
+  and line depth feel meaningfully different from skill position upgrades.
+  Scheme and coaching modifiers are unchanged and stack on top of the weighted
+  base.
 
 [DONE June 20, 2026] Salaries Tab — New SalariesTab.tsx sub-tab added to the
   Franchise screen (7th tab). Shows full salary + contract detail for every
