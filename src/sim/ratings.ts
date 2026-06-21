@@ -76,50 +76,75 @@ export function computeTeamRatings(data: TeamData): TeamRatings {
 
   const effOvr = (p: PlayerRow) => p.overall_rating * (1 + (p.morale - 75) * 0.001);
 
-  const offense = players.filter(p => ['QB','RB','WR','TE','OL'].includes(p.position));
-  const defense = players.filter(p => ['DL','LB','CB','S'].includes(p.position));
+  // ── Position buckets ──────────────────────────────────────────────────────
+  const qbs  = players.filter(p => p.position === 'QB');
+  const rbs  = players.filter(p => p.position === 'RB');
+  const wrs  = players.filter(p => p.position === 'WR');
+  const tes  = players.filter(p => p.position === 'TE');
+  const ols  = players.filter(p => p.position === 'OL');
+  const dls  = players.filter(p => p.position === 'DL');
+  const lbs  = players.filter(p => p.position === 'LB');
+  const cbs  = players.filter(p => p.position === 'CB');
+  const ss   = players.filter(p => p.position === 'S');
 
-  let offenseRating = offense.reduce((s, p) => s + effOvr(p), 0) / (offense.length || 1);
-  let defenseRating = defense.reduce((s, p) => s + effOvr(p), 0) / (defense.length || 1);
+  const avg = (arr: PlayerRow[], limit?: number) => {
+    const pool = limit ? [...arr].sort((a, b) => effOvr(b) - effOvr(a)).slice(0, limit) : arr;
+    return pool.length ? pool.reduce((s, p) => s + effOvr(p), 0) / pool.length : 70;
+  };
 
+  // ── Weighted offense rating ───────────────────────────────────────────────
+  // QB(28%) · OL(20%) · WR(18%) · RB(14%) · TE(10%) · fallback blend(10%)
+  const offParts = [
+    { val: avg(qbs, 1),  w: 0.28 },
+    { val: avg(ols, 5),  w: 0.20 },
+    { val: avg(wrs, 3),  w: 0.18 },
+    { val: avg(rbs, 2),  w: 0.14 },
+    { val: avg(tes, 2),  w: 0.10 },
+  ];
+  const offWeightUsed = offParts.reduce((s, p) => s + (p.val > 0 ? p.w : 0), 0) || 1;
+  let offenseRating = offParts.reduce((s, p) => s + p.val * p.w, 0) / offWeightUsed;
+
+  // ── Weighted defense rating ───────────────────────────────────────────────
+  // DL(28%) · LB(24%) · CB(20%) · S(18%) · fallback blend(10%)
+  const defParts = [
+    { val: avg(dls, 4),  w: 0.28 },
+    { val: avg(lbs, 4),  w: 0.24 },
+    { val: avg(cbs, 3),  w: 0.20 },
+    { val: avg(ss,  2),  w: 0.18 },
+  ];
+  const defWeightUsed = defParts.reduce((s, p) => s + (p.val > 0 ? p.w : 0), 0) || 1;
+  let defenseRating = defParts.reduce((s, p) => s + p.val * p.w, 0) / defWeightUsed;
+
+  // ── Coaching modifiers ────────────────────────────────────────────────────
   const hc = coaches.find(c => c.role === 'HC');
   const oc = coaches.find(c => c.role === 'OC');
   const dc = coaches.find(c => c.role === 'DC');
   if (hc) { offenseRating += (hc.overall_rating - 70) * 0.05; defenseRating += (hc.overall_rating - 70) * 0.05; }
-  if (oc) offenseRating += (oc.offense_rating - 70) * 0.15;
-  if (dc) defenseRating += (dc.defense_rating - 70) * 0.15;
+  if (oc)   offenseRating += (oc.offense_rating - 70) * 0.15;
+  if (dc)   defenseRating += (dc.defense_rating - 70) * 0.15;
 
+  // ── Scheme modifiers (unchanged) ──────────────────────────────────────────
   if (scheme) {
     const topN = (arr: PlayerRow[], n: number) =>
       [...arr].sort((a, b) => b.overall_rating - a.overall_rating).slice(0, n);
-    const avg = (arr: PlayerRow[], key: keyof PlayerRow, fallback = 70): number =>
+    const avgAttr = (arr: PlayerRow[], key: keyof PlayerRow, fallback = 70): number =>
       arr.length ? arr.reduce((s, p) => s + ((p[key] as number) ?? fallback), 0) / arr.length : fallback;
-
-    const qbs = players.filter(p => p.position === 'QB').sort((a, b) => b.overall_rating - a.overall_rating);
-    const rbs = players.filter(p => p.position === 'RB');
-    const wrs = players.filter(p => p.position === 'WR');
-    const tes = players.filter(p => p.position === 'TE');
-    const ols = players.filter(p => p.position === 'OL');
-    const dls = players.filter(p => p.position === 'DL');
-    const lbs = players.filter(p => p.position === 'LB');
-    const cbs = players.filter(p => p.position === 'CB');
-    const ss  = players.filter(p => p.position === 'S');
 
     let offMod = 0, defMod = 0;
 
     switch (scheme.offense_scheme) {
       case 'West Coast': {
         const qbAcc = qbs[0]?.throw_accuracy ?? 70;
-        const teAvg = avg(topN(tes, 2), 'overall_rating');
+        const teAvg = avg(topN(tes, 2));
         offMod = ((qbAcc + teAvg) / 2 - 70) * 0.08;
         break;
       }
       case 'Air Raid':
-        offMod = (avg(topN(wrs, 3), 'overall_rating') - 70) * 0.14;
+        offMod = (avg(topN(wrs, 3)) - 70) * 0.14;
         break;
       case 'Power Run': {
-        const rbAvg = avg(topN(rbs, 2), 'overall_rating');
-        const olAvg = avg(topN(ols, 5), 'overall_rating');
+        const rbAvg = avg(topN(rbs, 2));
+        const olAvg = avg(topN(ols, 5));
         offMod = ((rbAvg + olAvg) / 2 - 70) * 0.12;
         break;
       }
@@ -130,28 +155,28 @@ export function computeTeamRatings(data: TeamData): TeamRatings {
         break;
       }
       case 'Run & Gun':
-        offMod = (avg(offense, 'overall_rating') - 70) * 0.07;
+        offMod = (avg([...qbs, ...rbs, ...wrs, ...tes, ...ols]) - 70) * 0.07;
         break;
     }
 
     switch (scheme.defense_scheme) {
       case '4-3':
-        defMod = (avg(topN(dls, 4), 'overall_rating') - 70) * 0.12;
+        defMod = (avg(topN(dls, 4)) - 70) * 0.12;
         break;
       case '3-4':
-        defMod = (avg(topN(lbs, 4), 'overall_rating') - 70) * 0.13;
+        defMod = (avg(topN(lbs, 4)) - 70) * 0.13;
         break;
       case 'Zone Cover 2': {
         const dbAll = [...topN(cbs, 3), ...topN(ss, 2)];
-        defMod = (avg(dbAll, 'coverage') - 70) * 0.11;
+        defMod = (avgAttr(dbAll, 'coverage') - 70) * 0.11;
         break;
       }
       case 'Man Press':
-        defMod = (avg(topN(cbs, 2), 'overall_rating') - 70) * 0.11;
+        defMod = (avg(topN(cbs, 2)) - 70) * 0.11;
         break;
       case 'Blitz Heavy': {
         const rushers = [...dls, ...lbs].sort((a, b) => b.overall_rating - a.overall_rating).slice(0, 6);
-        defMod = (avg(rushers, 'pass_rush') - 70) * 0.15;
+        defMod = (avgAttr(rushers, 'pass_rush') - 70) * 0.15;
         break;
       }
     }
