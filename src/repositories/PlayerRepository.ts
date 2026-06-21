@@ -115,6 +115,33 @@ class PlayerRepository {
     return (db.prepare("SELECT COUNT(*) as count FROM players WHERE team_id = ? AND roster_status = 'practice_squad'").get(teamId) as any).count;
   }
 
+  getPSPromotionAlerts(teamId: number): {
+  id: number; first_name: string; last_name: string;
+  position: string; position_label: string;
+  ps_ovr: number; lowest_active_ovr: number;
+}[] {
+  return db.prepare(`
+    SELECT
+      ps.id,
+      ps.first_name,
+      ps.last_name,
+      ps.position,
+      ps.position_label,
+      ps.overall_rating AS ps_ovr,
+      MIN(a.overall_rating) AS lowest_active_ovr
+    FROM players ps
+    JOIN players a
+      ON a.team_id = ps.team_id
+      AND a.position = ps.position
+      AND a.roster_status = 'active'
+    WHERE ps.team_id = ?
+      AND ps.roster_status = 'practice_squad'
+    GROUP BY ps.id
+    HAVING ps.overall_rating > MIN(a.overall_rating)
+    ORDER BY (ps.overall_rating - MIN(a.overall_rating)) DESC
+  `).all(teamId) as any[];
+}
+
   getCountByStatus(teamId: number): { active: number; ps: number } {
     const counts = db.prepare(`SELECT roster_status, COUNT(*) as count FROM players WHERE team_id = ? GROUP BY roster_status`).all(teamId) as any[];
     const active = counts.find((r: any) => r.roster_status === 'active')?.count ?? 0;
