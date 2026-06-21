@@ -31,12 +31,21 @@ export interface BoxScorePlayer {
 export interface BoxScoreData {
   game: {
     id: number;
+    week: number;
     home_score: number;
     away_score: number;
     home_team: string;
     away_team: string;
     home_team_id: number;
     away_team_id: number;
+    home_q1: number | null;
+    home_q2: number | null;
+    home_q3: number | null;
+    home_q4: number | null;
+    away_q1: number | null;
+    away_q2: number | null;
+    away_q3: number | null;
+    away_q4: number | null;
   };
   players: BoxScorePlayer[];
 }
