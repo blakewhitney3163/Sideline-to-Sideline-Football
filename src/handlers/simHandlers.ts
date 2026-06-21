@@ -207,133 +207,133 @@ export function registerSimHandlers(): void {
   });
 
   ipcMain.handle('generate-schedule', () => {
-  const season = getCurrentSeason();
-  if (gameRepo.countBySeason(season) > 0) return { alreadyExists: true, season };
+    const season = getCurrentSeason();
+    if (gameRepo.countBySeason(season) > 0) return { alreadyExists: true, season };
 
-  interface TeamRow { id: number; conference: string; division: string; }
-  const teamRows = db.prepare(
-    'SELECT id, conference, division FROM teams ORDER BY conference, division, id'
-  ).all() as TeamRow[];
+    interface TeamRow { id: number; conference: string; division: string; }
+    const teamRows = db.prepare(
+      'SELECT id, conference, division FROM teams ORDER BY conference, division, id'
+    ).all() as TeamRow[];
 
-  const divMap: Record<string, number[]> = {};
-  for (const t of teamRows) {
-    const key = `${t.conference}-${t.division}`;
-    if (!divMap[key]) divMap[key] = [];
-    divMap[key].push(t.id);
-  }
-
-  const afcDivs = ['AFC-North', 'AFC-South', 'AFC-East', 'AFC-West'];
-  const nfcDivs = ['NFC-North', 'NFC-South', 'NFC-East', 'NFC-West'];
-
-  const intraPairings: [number, number][][] = [
-    [[0,1],[2,3],[0,2],[1,3]],
-    [[0,2],[1,3],[0,3],[1,2]],
-    [[0,3],[1,2],[0,1],[2,3]],
-  ];
-  const confPairs = intraPairings[season % 3];
-
-  // Full home+away between two divisions: 4×4 = 16 games
-  const divMatchup = (keyA: string, keyB: string, offset: number): { home: number; away: number }[] => {
-    const a = divMap[keyA] ?? [];
-    const b = divMap[keyB] ?? [];
-    const games: { home: number; away: number }[] = [];
-    for (let i = 0; i < a.length; i++) {
-      for (let j = 0; j < b.length; j++) {
-        if ((i + j + offset) % 2 === 0) games.push({ home: a[i], away: b[j] });
-        else games.push({ home: b[j], away: a[i] });
-      }
-    }
-    return games;
-  };
-
-  // Cross-conference: each team skips one opponent → 3 games per team, 12 per div matchup
-  const divMatchupCross = (keyA: string, keyB: string, offset: number): { home: number; away: number }[] => {
-    const a = divMap[keyA] ?? [];
-    const b = divMap[keyB] ?? [];
-    const games: { home: number; away: number }[] = [];
-    for (let i = 0; i < a.length; i++) {
-      const skip = (i + offset) % b.length;
-      for (let j = 0; j < b.length; j++) {
-        if (j === skip) continue;
-        if ((i + j + offset) % 2 === 0) games.push({ home: a[i], away: b[j] });
-        else games.push({ home: b[j], away: a[i] });
-      }
-    }
-    return games;
-  };
-
-  const allMatchups: { home: number; away: number }[] = [];
-
-  // Intra-division: 6 games/team (home + away vs each of 3 div opponents) = 96 total
-  for (const divKey of [...afcDivs, ...nfcDivs]) {
-    const teams = divMap[divKey] ?? [];
-    for (let i = 0; i < teams.length; i++) {
-      for (let j = i + 1; j < teams.length; j++) {
-        allMatchups.push({ home: teams[i], away: teams[j] });
-        allMatchups.push({ home: teams[j], away: teams[i] });
-      }
-    }
-  }
-
-  // Intra-conference cross-division: 8 games/team = 128 total
-  for (const [di, dj] of confPairs) {
-    allMatchups.push(...divMatchup(afcDivs[di], afcDivs[dj], season));
-    allMatchups.push(...divMatchup(nfcDivs[di], nfcDivs[dj], season));
-  }
-
-  // Cross-conference: 3 games/team (reduced from 4) = 48 total
-  // Grand total: 96 + 128 + 48 = 272 games → 17 per team, 1 bye week per team
-  for (let i = 0; i < 4; i++) {
-    allMatchups.push(...divMatchupCross(afcDivs[i], nfcDivs[(i + season) % 4], season + 1));
-  }
-
-  let weeks: { home: number; away: number }[][] = [];
-  let scheduled = false;
-
-  for (let attempt = 0; attempt < 100 && !scheduled; attempt++) {
-    const shuffled = [...allMatchups].sort(() => Math.random() - 0.5);
-    const tryWeeks: { home: number; away: number }[][] = Array.from({ length: 18 }, () => []);
-    const tryUsed: Set<number>[] = Array.from({ length: 18 }, () => new Set());
-    let failed = false;
-
-    for (const game of shuffled) {
-      let placed = false;
-      const weekOrder = Array.from({ length: 18 }, (_, i) => i)
-        .sort((a, b) => tryWeeks[a].length - tryWeeks[b].length);
-
-      for (const w of weekOrder) {
-        if (tryWeeks[w].length >= 16) continue;
-        if (tryUsed[w].has(game.home) || tryUsed[w].has(game.away)) continue;
-        tryWeeks[w].push(game);
-        tryUsed[w].add(game.home);
-        tryUsed[w].add(game.away);
-        placed = true;
-        break;
-      }
-
-      if (!placed) { failed = true; break; }
+    const divMap: Record<string, number[]> = {};
+    for (const t of teamRows) {
+      const key = `${t.conference}-${t.division}`;
+      if (!divMap[key]) divMap[key] = [];
+      divMap[key].push(t.id);
     }
 
-    if (!failed) { weeks = tryWeeks; scheduled = true; }
-  }
+    const afcDivs = ['AFC-North', 'AFC-South', 'AFC-East', 'AFC-West'];
+    const nfcDivs = ['NFC-North', 'NFC-South', 'NFC-East', 'NFC-West'];
 
-  if (!scheduled) {
-    return { season, created: false, error: 'Could not generate a valid schedule after 100 attempts' };
-  }
+    const intraPairings: [number, number][][] = [
+      [[0,1],[2,3],[0,2],[1,3]],
+      [[0,2],[1,3],[0,3],[1,2]],
+      [[0,3],[1,2],[0,1],[2,3]],
+    ];
+    const confPairs = intraPairings[season % 3];
 
-  const insertGame = db.prepare(
-    'INSERT INTO games (season, week, home_team_id, away_team_id, is_simulated) VALUES (?, ?, ?, ?, 0)'
-  );
-  db.transaction(() => {
-    for (let w = 0; w < 18; w++) {
-      for (const g of weeks[w]) {
-        insertGame.run(season, w + 1, g.home, g.away);
+    // Full home+away between two divisions: 4×4 = 16 games
+    const divMatchup = (keyA: string, keyB: string, offset: number): { home: number; away: number }[] => {
+      const a = divMap[keyA] ?? [];
+      const b = divMap[keyB] ?? [];
+      const games: { home: number; away: number }[] = [];
+      for (let i = 0; i < a.length; i++) {
+        for (let j = 0; j < b.length; j++) {
+          if ((i + j + offset) % 2 === 0) games.push({ home: a[i], away: b[j] });
+          else games.push({ home: b[j], away: a[i] });
+        }
+      }
+      return games;
+    };
+
+    // Cross-conference: each team skips one opponent → 3 games per team, 12 per div matchup
+    const divMatchupCross = (keyA: string, keyB: string, offset: number): { home: number; away: number }[] => {
+      const a = divMap[keyA] ?? [];
+      const b = divMap[keyB] ?? [];
+      const games: { home: number; away: number }[] = [];
+      for (let i = 0; i < a.length; i++) {
+        const skip = (i + offset) % b.length;
+        for (let j = 0; j < b.length; j++) {
+          if (j === skip) continue;
+          if ((i + j + offset) % 2 === 0) games.push({ home: a[i], away: b[j] });
+          else games.push({ home: b[j], away: a[i] });
+        }
+      }
+      return games;
+    };
+
+    const allMatchups: { home: number; away: number }[] = [];
+
+    // Intra-division: 6 games/team (home + away vs each of 3 div opponents) = 96 total
+    for (const divKey of [...afcDivs, ...nfcDivs]) {
+      const teams = divMap[divKey] ?? [];
+      for (let i = 0; i < teams.length; i++) {
+        for (let j = i + 1; j < teams.length; j++) {
+          allMatchups.push({ home: teams[i], away: teams[j] });
+          allMatchups.push({ home: teams[j], away: teams[i] });
+        }
       }
     }
-  })();
 
-  return { season, created: true, alreadyExists: false };
-});
+    // Intra-conference cross-division: 8 games/team = 128 total
+    for (const [di, dj] of confPairs) {
+      allMatchups.push(...divMatchup(afcDivs[di], afcDivs[dj], season));
+      allMatchups.push(...divMatchup(nfcDivs[di], nfcDivs[dj], season));
+    }
+
+    // Cross-conference: 3 games/team (reduced from 4) = 48 total
+    // Grand total: 96 + 128 + 48 = 272 games → 17 per team, 1 bye week per team
+    for (let i = 0; i < 4; i++) {
+      allMatchups.push(...divMatchupCross(afcDivs[i], nfcDivs[(i + season) % 4], season + 1));
+    }
+
+    let weeks: { home: number; away: number }[][] = [];
+    let scheduled = false;
+
+    for (let attempt = 0; attempt < 100 && !scheduled; attempt++) {
+      const shuffled = [...allMatchups].sort(() => Math.random() - 0.5);
+      const tryWeeks: { home: number; away: number }[][] = Array.from({ length: 18 }, () => []);
+      const tryUsed: Set<number>[] = Array.from({ length: 18 }, () => new Set());
+      let failed = false;
+
+      for (const game of shuffled) {
+        let placed = false;
+        const weekOrder = Array.from({ length: 18 }, (_, i) => i)
+          .sort((a, b) => tryWeeks[a].length - tryWeeks[b].length);
+
+        for (const w of weekOrder) {
+          if (tryWeeks[w].length >= 16) continue;
+          if (tryUsed[w].has(game.home) || tryUsed[w].has(game.away)) continue;
+          tryWeeks[w].push(game);
+          tryUsed[w].add(game.home);
+          tryUsed[w].add(game.away);
+          placed = true;
+          break;
+        }
+
+        if (!placed) { failed = true; break; }
+      }
+
+      if (!failed) { weeks = tryWeeks; scheduled = true; }
+    }
+
+    if (!scheduled) {
+      return { season, created: false, error: 'Could not generate a valid schedule after 100 attempts' };
+    }
+
+    const insertGame = db.prepare(
+      'INSERT INTO games (season, week, home_team_id, away_team_id, is_simulated) VALUES (?, ?, ?, ?, 0)'
+    );
+    db.transaction(() => {
+      for (let w = 0; w < 18; w++) {
+        for (const g of weeks[w]) {
+          insertGame.run(season, w + 1, g.home, g.away);
+        }
+      }
+    })();
+
+    return { season, created: true, alreadyExists: false };
+  });
 
   ipcMain.handle('get-current-week', () => {
     const season = getCurrentSeason();
