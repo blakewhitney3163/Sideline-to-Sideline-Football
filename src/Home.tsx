@@ -119,7 +119,7 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
         window.api.getOffseasonStatus(),
         window.api.getInjuryReport(userTeam.id),
         window.api.getStats(currentSeason),
-        window.api.getCpuTradeOffers(),
+        window.api.getCpuTradeOffer(),
         window.api.getTeamStatus(userTeam.id),
         window.api.getRosterSpots(userTeam.id),
         window.api.getFranchiseHealth(userTeam.id),
@@ -218,7 +218,7 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
       setHasSchedule(status.hasSchedule);
       setCurrentWeek(status.currentWeek);
       if (status.currentWeek !== null) setMatchups(await window.api.getWeekMatchups(status.currentWeek));
-      const offers = await window.api.getCpuTradeOffers();
+      const offers = await window.api.getCpuTradeOffer();
       setCpuOffers(Array.isArray(offers) ? offers : offers ? [offers] : []);
     } catch (err) {
       alert(`Error generating schedule: ${err}`);
