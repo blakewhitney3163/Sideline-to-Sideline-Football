@@ -189,6 +189,52 @@ MAINTENANCE — Address before extended dynasty saves become common
 COMPLETED ITEMS
 ================================================================================
 
+[DONE June 20, 2026] Salaries Tab — New SalariesTab.tsx sub-tab added to the
+  Franchise screen (7th tab). Shows full salary + contract detail for every
+  active roster player: position filter, name search, sortable columns (salary,
+  years remaining, OVR, name), cap summary bar, contract grade badges (TEAM
+  DEAL / FAIR / OVERPAID), guaranteed %, years-remaining pips, and A–D value
+  grades derived from OVR vs. salary percentile.
+
+[DONE June 20, 2026] Contract Extension — Add Years (not Overwrite) —
+  extendPlayer() in ContractService.ts now adds extension years to the player's
+  existing remaining years instead of overwriting them. ActiveRosterTab.tsx
+  extend dialog updated: button labels read "+1 yr", "+2 yrs" etc., and a live
+  preview shows the new total years on contract. Default dialog opens at 2
+  additional years.
+
+[DONE June 20, 2026] Box Score Q1–Q4 + Team Names — Box score modal (Home.tsx)
+  now shows a quarter-by-quarter scoring grid (Q1–Q4 + final) for both teams.
+  Each stat leader row shows the player's name on line 1 and their team name
+  on line 2 in color-coded text. BoxScoreData interface (home/types.ts) updated
+  to include home_q1–home_q4 and away_q1–away_q4 fields.
+
+[DONE June 20, 2026] "End Regular Season" Button Label — Advance Week button
+  in Home.tsx is context-aware: weeks 1–16 read "▶ Advance to Week N"; week 17
+  reads "▶ End Regular Season", correctly signalling that clicking advances
+  into playoff seeding rather than a Week 18.
+
+[DONE June 20, 2026] Standings Page Scrollable — League.tsx container changed
+  from overflow: hidden to overflow: auto. Standings, conference, and division
+  views are now fully scrollable when content exceeds viewport height.
+
+[DONE June 20, 2026] Wider Sidebar + Stat Leaders with Team Names — Home.tsx
+  sidebar width increased from 220px to 260px. Weekly stat leaders widget now
+  displays each leader's player name and team name on separate lines, giving
+  full context for every leaderboard entry.
+
+[DONE June 20, 2026] Dynasty Name Input Visibility (App.tsx) — The dynasty
+  name input on the main menu screen now has a clearly visible white border and
+  an orange focus glow. A helper label below the field reads "Enter a name for
+  your dynasty." Previously the field blended into the background and looked
+  non-interactive.
+
+[DONE June 20, 2026] Team Selection Screen Readability (TeamSelection.tsx) —
+  Replaced the near-black background with a blue-navy gradient. Division
+  header cards and team cards updated to lighter, visually distinct colors with
+  improved hover states. Conference and team labels are readable in all lighting
+  conditions.
+
 [DONE June 20, 2026] Position Filter Bug Fix (Roster + Free Agents) —
   ActiveRosterTab.tsx and FreeAgentsTab.tsx filter logic changed from
   (position_label || position) === filter to
