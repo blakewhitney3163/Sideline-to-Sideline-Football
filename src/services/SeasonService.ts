@@ -46,6 +46,21 @@ export async function advanceSeason(): Promise<AdvanceSeasonResult> {
   const next = current + 1;
   const userTeamId = settingsRepo.getUserTeamId() ?? -1;
 
+  // Force-retire any announcing_retirement players not resolved last offseason
+for (const p of db.prepare(`
+  SELECT id, first_name, last_name, position, age, overall_rating
+  FROM players WHERE roster_status = 'announcing_retirement'
+`).all() as any[]) {
+  db.prepare("UPDATE players SET roster_status = 'retired', team_id = NULL, is_free_agent = 0 WHERE id = ?").run(p.id);
+  contractRepo.delete(p.id);
+  logNewsEvent({
+    eventType: 'retirement', category: 'season',
+    headline: `${p.first_name} ${p.last_name} Retires`,
+    detail: `${p.position} · Age ${p.age} · ${p.overall_rating} OVR — a career comes to an end.`,
+    playerId: p.id, season: current,
+  });
+}
+
   // ── Age all active players ─────────────────────────────────────────────────
   db.prepare("UPDATE players SET age = age + 1 WHERE roster_status != 'retired'").run();
 
@@ -174,27 +189,36 @@ export async function advanceSeason(): Promise<AdvanceSeasonResult> {
   })();
 
   // ── Retirement ────────────────────────────────────────────────────────────
-  const retired: { id: number; name: string; position: string; age: number; ovr: number }[] = [];
-  db.transaction(() => {
-    for (const p of db.prepare(`
-      SELECT id, first_name, last_name, position, age, overall_rating
-      FROM players WHERE age >= 33 AND roster_status != 'retired'
-    `).all() as any[]) {
-      let chance = p.age >= 40 ? 0.95 : p.age >= 38 ? 0.75 : p.age >= 36 ? 0.40 : p.age >= 34 ? 0.18 : 0.07;
-      if (p.overall_rating < 72) chance = Math.min(0.95, chance * 1.5);
-      if (Math.random() < chance) {
+const retired: { id: number; name: string; position: string; age: number; ovr: number }[] = [];
+const announcingRetirements: { id: number; name: string; position: string; age: number; ovr: number }[] = [];
+db.transaction(() => {
+  for (const p of db.prepare(`
+    SELECT id, first_name, last_name, position, age, overall_rating, team_id
+    FROM players WHERE age >= 33 AND roster_status NOT IN ('retired', 'announcing_retirement')
+  `).all() as any[]) {
+    let chance = p.age >= 40 ? 0.95 : p.age >= 38 ? 0.75 : p.age >= 36 ? 0.40 : p.age >= 34 ? 0.18 : 0.07;
+    if (p.overall_rating < 72) chance = Math.min(0.95, chance * 1.5);
+    if (Math.random() < chance) {
+      const fullName = `${p.first_name} ${p.last_name}`;
+      if (p.team_id === userTeamId) {
+        // User's player — announce instead of immediately retiring
+        db.prepare("UPDATE players SET roster_status = 'announcing_retirement' WHERE id = ?").run(p.id);
+        announcingRetirements.push({ id: p.id, name: fullName, position: p.position, age: p.age, ovr: p.overall_rating });
+      } else {
+        // CPU player — retire immediately
         db.prepare("UPDATE players SET roster_status = 'retired', team_id = NULL, is_free_agent = 0 WHERE id = ?").run(p.id);
         contractRepo.delete(p.id);
-        retired.push({ id: p.id, name: `${p.first_name} ${p.last_name}`, position: p.position, age: p.age, ovr: p.overall_rating });
+        retired.push({ id: p.id, name: fullName, position: p.position, age: p.age, ovr: p.overall_rating });
         logNewsEvent({
           eventType: 'retirement', category: 'season',
-          headline: `${p.first_name} ${p.last_name} Retires`,
+          headline: `${fullName} Retires`,
           detail: `${p.position} · Age ${p.age} · ${p.overall_rating} OVR — a career comes to an end.`,
           playerId: p.id, season: next,
         });
       }
     }
-  })();
+  }
+})();
 
   // ── Morale Update ─────────────────────────────────────────────────────────
   const teamWinPcts: Record<number, number> = {};
