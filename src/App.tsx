@@ -4,22 +4,23 @@ import { useGameStore, UserTeam } from './store/gameStore';
 
 declare const window: any;
 
-const Home    = lazy(() => import('./Home'));
-const MyTeam  = lazy(() => import('./MyTeam'));
-const League  = lazy(() => import('./League'));
-const Trades  = lazy(() => import('./Trades'));
-const Draft   = lazy(() => import('./Draft'));
-const NewsFeed = lazy(() => import('./newsCenter/NewsFeed'));
-const Import  = lazy(() => import('./Import'));
-const TeamSelection = lazy(() => import('./TeamSelection'));
-const SavePicker    = lazy(() => import('./SavePicker'));
-const MeetTheTeam   = lazy(() => import('./MeetTheTeam'));
+const Home         = lazy(() => import('./Home'));
+const MyTeam       = lazy(() => import('./MyTeam'));
+const League       = lazy(() => import('./League'));
+const Trades       = lazy(() => import('./Trades'));
+const Draft        = lazy(() => import('./Draft'));
+const NewsFeed     = lazy(() => import('./newsCenter/NewsFeed'));
+const Import       = lazy(() => import('./Import'));
+const TeamSelection= lazy(() => import('./TeamSelection'));
+const SavePicker   = lazy(() => import('./SavePicker'));
+const MeetTheTeam  = lazy(() => import('./MeetTheTeam'));
+const PlayerEditor = lazy(() => import('./PlayerEditor'));
 
-type Tab = 'home' | 'myteam' | 'league' | 'trades' | 'draft' | 'news' | 'import';
+type Tab    = 'home' | 'myteam' | 'league' | 'trades' | 'draft' | 'news' | 'import' | 'editor';
 type Screen = 'main-menu' | 'loading' | 'custom-setup' | 'save-picker' | 'team-select' | 'setup' | 'meet-team' | 'game';
 
-interface SetupStep { label: string; done: boolean; }
-type ImportStatus = 'idle' | 'running' | 'done' | 'error';
+interface SetupStep  { label: string; done: boolean; }
+type ImportStatus    = 'idle' | 'running' | 'done' | 'error';
 interface ImportState { status: ImportStatus; message: string; }
 const IDLE: ImportState = { status: 'idle', message: '' };
 
@@ -40,26 +41,27 @@ const BASE_TABS: { id: Tab; label: string }[] = [
   { id: 'league', label: 'League' },
   { id: 'trades', label: 'Trades' },
   { id: 'news',   label: '📰 News' },
+  { id: 'editor', label: '✏ Editor' },
   { id: 'import', label: 'Import' },
 ];
 
 function TabFallback() {
   return (
-    <div style={{ color: T.textMuted, padding: 40, textAlign: 'center', fontFamily: 'monospace' }}>
+    <div style={{ padding: 40, textAlign: 'center', color: T.textDim, fontFamily: 'monospace', fontSize: 12 }}>
       Loading...
     </div>
   );
 }
 
 export default function App() {
-  const [screen, setScreen] = useState<Screen>('main-menu');
-  const [activeTab, setActiveTab] = useState<Tab>('home');
-  const [mountedTabs, setMountedTabs] = useState<Set<Tab>>(new Set(['home']));
-  const [setupSteps, setSetupSteps] = useState<SetupStep[]>([]);
+  const [screen, setScreen]             = useState<Screen>('main-menu');
+  const [activeTab, setActiveTab]       = useState<Tab>('home');
+  const [mountedTabs, setMountedTabs]   = useState<Set<Tab>>(new Set(['home']));
+  const [setupSteps, setSetupSteps]     = useState<SetupStep[]>([]);
   const [setupComplete, setSetupComplete] = useState(false);
-  const [dynastyName, setDynastyName] = useState('');
-const [dynastyNameFocused, setDynastyNameFocused] = useState(false);
-  const [importTeams, setImportTeams] = useState<ImportState>(IDLE);
+  const [dynastyName, setDynastyName]   = useState('');
+  const [dynastyNameFocused, setDynastyNameFocused] = useState(false);
+  const [importTeams,   setImportTeams]   = useState<ImportState>(IDLE);
   const [importPlayers, setImportPlayers] = useState<ImportState>(IDLE);
 
   const {
@@ -173,47 +175,57 @@ const [dynastyNameFocused, setDynastyNameFocused] = useState(false);
     ? [
         ...BASE_TABS.filter(t => t.id !== 'news' && t.id !== 'import'),
         { id: 'draft' as Tab, label: '⚡ Draft' },
-        { id: 'news'   as Tab, label: '📰 News' },
-        { id: 'import' as Tab, label: 'Import' },
+        { id: 'news'  as Tab, label: '📰 News' },
+        { id: 'import'as Tab, label: 'Import' },
       ]
     : BASE_TABS;
 
   const isMounted = (id: Tab) => mountedTabs.has(id);
-  const tabStyle = (id: Tab): React.CSSProperties => activeTab === id ? {} : { display: 'none' };
+  const tabStyle  = (id: Tab): React.CSSProperties => activeTab === id ? {} : { display: 'none' };
 
   // ── Main Menu ─────────────────────────────────────────────────────────────
   if (screen === 'main-menu') {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: T.bgDark, gap: 8 }}>
-        <div style={{ fontSize: 10, letterSpacing: 4, color: T.textDim, marginBottom: 4, fontFamily: 'monospace' }}>DYNASTY SIMULATOR</div>
-        <div style={{ fontSize: 36, fontWeight: 900, letterSpacing: 6, color: '#fff', fontFamily: 'monospace' }}>GRIDIRON</div>
-        <div style={{ fontSize: 36, fontWeight: 900, letterSpacing: 6, color: '#FF8740', fontFamily: 'monospace', marginBottom: 32 }}>DYNASTY</div>
+      <div style={{
+        minHeight: '100vh', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        background: T.bg, fontFamily: 'monospace',
+      }}>
+        <div style={{ fontSize: 10, color: T.textDim, letterSpacing: 3, marginBottom: 8 }}>
+          DYNASTY SIMULATOR
+        </div>
+        <div style={{ fontSize: 40, fontWeight: 900, color: '#fff', letterSpacing: 6, lineHeight: 1 }}>
+          GRIDIRON
+        </div>
+        <div style={{ fontSize: 40, fontWeight: 900, color: '#FF8740', letterSpacing: 6, marginBottom: 36 }}>
+          DYNASTY
+        </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, marginBottom: 24 }}>
-  <div style={{ fontSize: 9, letterSpacing: 2, color: T.textMuted, fontFamily: 'monospace' }}>DYNASTY NAME</div>
-  <input
-    value={dynastyName}
-    onChange={e => setDynastyName(e.target.value)}
-    onFocus={() => setDynastyNameFocused(true)}
-    onBlur={() => setDynastyNameFocused(false)}
-    placeholder="My Dynasty"
-    maxLength={40}
-    style={{
-      background: T.bgCard,
-      border: `1px solid ${dynastyNameFocused ? '#FF8740' : T.borderStrong}`,
-      boxShadow: dynastyNameFocused ? '0 0 0 2px rgba(255,135,64,0.25)' : 'none',
-      color: '#fff', fontFamily: 'monospace', fontSize: 14,
-      padding: '10px 16px', borderRadius: 4, outline: 'none',
-      width: 240, textAlign: 'center', letterSpacing: 1,
-      transition: 'border-color 0.15s, box-shadow 0.15s',
-    }}
-  />
-  <div style={{ fontSize: 9, color: T.textDim, fontFamily: 'monospace' }}>name your save file</div>
-</div>
+        <div style={{ marginBottom: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+          <div style={{ fontSize: 9, color: T.textDim, letterSpacing: 2, marginBottom: 4 }}>DYNASTY NAME</div>
+          <input
+            value={dynastyName}
+            onChange={e => setDynastyName(e.target.value)}
+            onFocus={() => setDynastyNameFocused(true)}
+            onBlur={() => setDynastyNameFocused(false)}
+            placeholder="My Dynasty"
+            maxLength={40}
+            style={{
+              background: T.bgCard,
+              border: `1px solid ${dynastyNameFocused ? '#FF8740' : T.borderStrong}`,
+              boxShadow: dynastyNameFocused ? '0 0 0 2px rgba(255,135,64,0.25)' : 'none',
+              color: '#fff', fontFamily: 'monospace', fontSize: 14,
+              padding: '10px 16px', borderRadius: 4, outline: 'none',
+              width: 240, textAlign: 'center', letterSpacing: 1,
+              transition: 'border-color 0.15s, box-shadow 0.15s',
+            }}
+          />
+          <div style={{ fontSize: 9, color: T.textDim, letterSpacing: 1 }}>name your save file</div>
+        </div>
 
-        <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
-          <MenuButton label="NEW DYNASTY" sub="Standard start" color="#4caf50" onClick={() => handleNewGame('standard')} />
-          <MenuButton label="CUSTOM DYNASTY" sub="Import teams & rosters" color="#4FC3F7" onClick={() => handleNewGame('custom')} />
+        <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+          <MenuButton label="NEW GAME"    sub="standard rosters"    color="#FF8740" onClick={() => handleNewGame('standard')} />
+          <MenuButton label="CUSTOM GAME" sub="import your own data" color="#4FC3F7" onClick={() => handleNewGame('custom')} />
         </div>
 
         <button
@@ -227,14 +239,19 @@ const [dynastyNameFocused, setDynastyNameFocused] = useState(false);
         >
           LOAD DYNASTY
         </button>
-        <div style={{ fontSize: 10, color: T.textDim, fontFamily: 'monospace' }}>Continue a saved game</div>
+        <div style={{ fontSize: 10, color: T.textDim, marginTop: 6, letterSpacing: 1 }}>
+          Continue a saved game
+        </div>
       </div>
     );
   }
 
   if (screen === 'loading') {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: T.bgDark, color: T.textMuted, fontFamily: 'monospace', fontSize: 14, letterSpacing: 3 }}>
+      <div style={{
+        minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: T.bg, fontFamily: 'monospace', color: T.textDim, fontSize: 13, letterSpacing: 2,
+      }}>
         LOADING...
       </div>
     );
@@ -242,22 +259,33 @@ const [dynastyNameFocused, setDynastyNameFocused] = useState(false);
 
   if (screen === 'custom-setup') {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: T.bgDark, gap: 16, padding: 32 }}>
-        <div style={{ fontSize: 11, letterSpacing: 3, color: T.textDim, fontFamily: 'monospace' }}>CUSTOM DYNASTY SETUP</div>
-        <div style={{ fontSize: 22, fontWeight: 700, color: '#fff', fontFamily: 'monospace' }}>{dynastyName.trim() || 'Dynasty'}</div>
-        <div style={{ fontSize: 12, color: T.textMuted, textAlign: 'center', maxWidth: 420, lineHeight: 1.6 }}>
+      <div style={{
+        minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center',
+        justifyContent: 'center', background: T.bg, fontFamily: 'monospace', gap: 16, padding: 32,
+      }}>
+        <div style={{ fontSize: 10, color: T.textDim, letterSpacing: 3 }}>CUSTOM DYNASTY SETUP</div>
+        <div style={{ fontSize: 22, fontWeight: 700, color: '#fff', letterSpacing: 2 }}>
+          {dynastyName.trim() || 'Dynasty'}
+        </div>
+        <div style={{ fontSize: 11, color: T.textMuted, textAlign: 'center', maxWidth: 420, lineHeight: 1.6 }}>
           Optionally import custom teams and players before you pick your team.
           Both imports are optional — skip either to use the default generated content.
         </div>
-        <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
           <SetupImportCard
-            step="1" title="Custom Teams" description="Import team names, cities, and conferences." warning="Replaces all 32 default teams."
+            step="1"
+            title="Custom Teams"
+            description="Import a CSV with your own team names, cities, and divisions."
+            warning="This will reset all existing teams and players."
             state={importTeams}
             onImport={() => runImport(() => window.api.importCustomTeams(), setImportTeams)}
             onReset={() => setImportTeams(IDLE)}
           />
           <SetupImportCard
-            step="2" title="Custom Players" description="Import a full roster for every team." warning="Replaces all generated players."
+            step="2"
+            title="Custom Players"
+            description="Import a CSV with your own player roster."
+            warning="This will replace all existing players."
             state={importPlayers}
             onImport={() => runImport(() => window.api.importCustomPlayers(), setImportPlayers)}
             onReset={() => setImportPlayers(IDLE)}
@@ -286,7 +314,7 @@ const [dynastyNameFocused, setDynastyNameFocused] = useState(false);
   if (screen === 'save-picker') {
     return (
       <Suspense fallback={<TabFallback />}>
-        <SavePicker onSaveLoaded={handleSaveLoaded} onBack={() => setScreen('main-menu')} />
+        <SavePicker onBack={() => setScreen('main-menu')} onLoad={handleSaveLoaded} />
       </Suspense>
     );
   }
@@ -301,21 +329,26 @@ const [dynastyNameFocused, setDynastyNameFocused] = useState(false);
 
   if (screen === 'setup') {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: T.bgDark, gap: 12 }}>
-        <div style={{ fontSize: 10, letterSpacing: 4, color: T.textDim, fontFamily: 'monospace' }}>GRIDIRON DYNASTY</div>
+      <div style={{
+        minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center',
+        justifyContent: 'center', background: T.bg, fontFamily: 'monospace', gap: 16,
+      }}>
+        <div style={{ fontSize: 10, color: T.textDim, letterSpacing: 3 }}>GRIDIRON DYNASTY</div>
         {userTeam && (
-          <div style={{ fontSize: 20, fontWeight: 700, color: '#fff', fontFamily: 'monospace', marginBottom: 8 }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: '#fff', letterSpacing: 2 }}>
             {userTeam.city} {userTeam.name}
           </div>
         )}
-        <div style={{ fontSize: 9, letterSpacing: 3, color: T.textDim, fontFamily: 'monospace', marginBottom: 16 }}>SETTING UP YOUR DYNASTY</div>
+        <div style={{ fontSize: 12, color: T.textMuted, letterSpacing: 2, marginBottom: 8 }}>
+          SETTING UP YOUR DYNASTY
+        </div>
         {setupSteps.map((step, i) => (
-          <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 12, color: step.done ? '#4caf50' : T.textMuted, fontFamily: 'monospace' }}>
-            <span>{step.done ? '✓' : '…'}</span>
-            <span>{step.label}</span>
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
+            <span style={{ color: step.done ? '#4caf50' : T.textDim }}>{step.done ? '✓' : '…'}</span>
+            <span style={{ color: step.done ? '#4caf50' : T.textMuted }}>{step.label}</span>
           </div>
         ))}
-        <div style={{ fontSize: 9, color: T.textDim, fontFamily: 'monospace', marginTop: 24, letterSpacing: 2 }}>
+        <div style={{ fontSize: 10, color: T.textDim, marginTop: 16, letterSpacing: 2 }}>
           {setupComplete ? 'DYNASTY READY — LOADING...' : 'PLEASE WAIT'}
         </div>
       </div>
@@ -325,14 +358,17 @@ const [dynastyNameFocused, setDynastyNameFocused] = useState(false);
   if (screen === 'meet-team') {
     return (
       <Suspense fallback={<TabFallback />}>
-        <MeetTheTeam team={userTeam!} season={currentSeason} onStart={() => setScreen('game')} />
+        <MeetTheTeam onContinue={() => setScreen('game')} />
       </Suspense>
     );
   }
 
   if (!userTeam) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: T.bgDark, color: T.textMuted, fontFamily: 'monospace', letterSpacing: 3 }}>
+      <div style={{
+        minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: T.bg, fontFamily: 'monospace', color: T.textDim, fontSize: 13, letterSpacing: 2,
+      }}>
         LOADING...
       </div>
     );
@@ -340,16 +376,20 @@ const [dynastyNameFocused, setDynastyNameFocused] = useState(false);
 
   // ── Main Game ─────────────────────────────────────────────────────────────
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: T.bgDark, overflow: 'hidden' }}>
+    <div style={{ minHeight: '100vh', background: T.bg, display: 'flex', flexDirection: 'column' }}>
 
       {/* Top bar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 20px', borderBottom: `1px solid ${T.borderFaint}`, background: T.bgDark, flexShrink: 0 }}>
-        <span style={{ fontFamily: 'monospace', fontWeight: 900, fontSize: 13, color: '#FF8740', letterSpacing: 2 }}>GID</span>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 12,
+        padding: '8px 16px', borderBottom: `1px solid ${T.borderFaint}`,
+        background: T.bgCard, fontFamily: 'monospace', fontSize: 11,
+      }}>
+        <span style={{ color: '#FF8740', fontWeight: 700, letterSpacing: 2, fontSize: 12 }}>GID</span>
         <span style={{ color: T.borderFaint }}>|</span>
-        <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#ccc', fontWeight: 700 }}>
+        <span style={{ color: '#fff', fontWeight: 600, letterSpacing: 1 }}>
           {userTeam.city} {userTeam.name}
         </span>
-        <span style={{ flex: 1 }} />
+        <div style={{ flex: 1 }} />
         <button
           onClick={() => {
             if (window.confirm('Return to the main menu? Unsaved progress this week may be lost.')) {
@@ -380,11 +420,14 @@ const [dynastyNameFocused, setDynastyNameFocused] = useState(false);
             {d}
           </button>
         ))}
-        <span style={{ fontSize: 11, color: T.textDim, fontFamily: 'monospace', marginLeft: 8 }}>{currentSeason}</span>
+        <span style={{ fontSize: 12, color: T.textMuted, letterSpacing: 1, marginLeft: 4 }}>{currentSeason}</span>
       </div>
 
       {/* Tab bar */}
-      <div style={{ display: 'flex', borderBottom: `1px solid ${T.borderMid}`, background: T.bgDark, flexShrink: 0, overflowX: 'auto' }}>
+      <div style={{
+        display: 'flex', borderBottom: `1px solid ${T.borderFaint}`,
+        background: T.bgCard, overflowX: 'auto',
+      }}>
         {tabs.map(tab => (
           <button key={tab.id} onClick={() => handleTabChange(tab.id)} style={{
             padding: '11px 22px', background: 'none', border: 'none', cursor: 'pointer',
@@ -402,38 +445,43 @@ const [dynastyNameFocused, setDynastyNameFocused] = useState(false);
       <div style={{ flex: 1, overflow: 'hidden' }}>
         <Suspense fallback={<TabFallback />}>
           {isMounted('home') && (
-            <div style={{ ...tabStyle('home'), height: '100%' }}>
-              <Home onNavigate={handleTabChange} onSeasonAdvance={handleSeasonAdvance} />
+            <div style={tabStyle('home')}>
+              <Home onSeasonAdvance={handleSeasonAdvance} onTabChange={handleTabChange} />
             </div>
           )}
           {isMounted('myteam') && (
-            <div style={{ ...tabStyle('myteam'), height: '100%' }}>
-              <MyTeam />
+            <div style={tabStyle('myteam')}>
+              <MyTeam onTabChange={handleTabChange} />
             </div>
           )}
           {isMounted('league') && (
-            <div style={{ ...tabStyle('league'), height: '100%' }}>
-              <League />
+            <div style={tabStyle('league')}>
+              <League onTabChange={handleTabChange} />
             </div>
           )}
           {isMounted('trades') && (
-            <div style={{ ...tabStyle('trades'), height: '100%' }}>
-              <Trades isActive={activeTab === 'trades'} />
+            <div style={tabStyle('trades')}>
+              <Trades />
             </div>
           )}
           {isMounted('news') && (
-            <div style={{ ...tabStyle('news'), height: '100%' }}>
+            <div style={tabStyle('news')}>
               <NewsFeed />
             </div>
           )}
+          {isMounted('editor') && (
+            <div style={tabStyle('editor')}>
+              <PlayerEditor />
+            </div>
+          )}
           {isMounted('import') && (
-            <div style={{ ...tabStyle('import'), height: '100%' }}>
+            <div style={tabStyle('import')}>
               <Import />
             </div>
           )}
           {isMounted('draft') && (
-            <div style={{ ...tabStyle('draft'), height: '100%' }}>
-              <Draft onDraftComplete={() => handleTabChange('home')} />
+            <div style={tabStyle('draft')}>
+              <Draft onComplete={() => handleTabChange('home')} />
             </div>
           )}
         </Suspense>
@@ -444,16 +492,20 @@ const [dynastyNameFocused, setDynastyNameFocused] = useState(false);
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function MenuButton({ label, sub, color, onClick }: { label: string; sub: string; color: string; onClick: () => void }) {
+function MenuButton({ label, sub, color, onClick }: {
+  label: string; sub: string; color: string; onClick: () => void;
+}) {
   return (
-    <button onClick={onClick} style={{
-      padding: '16px 28px', background: 'transparent',
-      border: `1px solid ${color}`, borderRadius: 4, cursor: 'pointer',
-      color, fontFamily: 'monospace', fontWeight: 'bold', fontSize: 12,
-      letterSpacing: 2, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-    }}>
-      <span>{label}</span>
-      <span style={{ fontSize: 9, opacity: 0.6, fontWeight: 'normal', letterSpacing: 1 }}>{sub}</span>
+    <button
+      onClick={onClick}
+      style={{
+        padding: '14px 22px', background: 'transparent',
+        border: `1px solid ${color}`, borderRadius: 4,
+        cursor: 'pointer', fontFamily: 'monospace', textAlign: 'center', minWidth: 140,
+      }}
+    >
+      <div style={{ fontSize: 12, fontWeight: 700, color, letterSpacing: 2, marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 10, color: T.textDim }}>{sub}</div>
     </button>
   );
 }
@@ -463,27 +515,40 @@ function SetupImportCard({ step, title, description, warning, state, onImport, o
   state: ImportState; onImport: () => void; onReset: () => void;
 }) {
   return (
-    <div style={{ background: T.bgCard, border: `1px solid ${T.borderFaint}`, borderRadius: 8, padding: 20, width: 220 }}>
-      <div style={{ fontSize: 9, color: '#FF8740', letterSpacing: 2, marginBottom: 4, fontFamily: 'monospace' }}>STEP {step}</div>
-      <div style={{ fontWeight: 700, color: '#fff', marginBottom: 6, fontSize: 14 }}>{title}</div>
-      <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 4, lineHeight: 1.5 }}>{description}</div>
-      <div style={{ fontSize: 10, color: '#FF8740', marginBottom: 12 }}>⚠ {warning}</div>
+    <div style={{
+      background: T.bgCard, border: `1px solid ${T.borderFaint}`,
+      borderRadius: 6, padding: 20, width: 280, fontFamily: 'monospace',
+    }}>
+      <div style={{ fontSize: 9, color: T.textDim, letterSpacing: 2, marginBottom: 4 }}>STEP {step}</div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', marginBottom: 6 }}>{title}</div>
+      <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 8, lineHeight: 1.5 }}>{description}</div>
+      <div style={{ fontSize: 10, color: '#e57373', marginBottom: 12 }}>⚠ {warning}</div>
       {state.status === 'idle' && (
-        <button onClick={onImport} style={{ padding: '8px 16px', background: '#1a1a1a', border: `1px solid ${T.borderFaint}`, borderRadius: 4, color: T.textMuted, cursor: 'pointer', fontFamily: 'monospace', fontSize: 11 }}>
+        <button onClick={onImport} style={{
+          padding: '8px 16px', fontSize: 11, fontWeight: 700, letterSpacing: 1,
+          background: '#FF8740', color: '#000', border: 'none', borderRadius: 4,
+          cursor: 'pointer', fontFamily: 'monospace',
+        }}>
           SELECT CSV
         </button>
       )}
-      {state.status === 'running' && <div style={{ color: '#4FC3F7', fontSize: 11, fontFamily: 'monospace' }}>IMPORTING...</div>}
+      {state.status === 'running' && (
+        <span style={{ fontSize: 11, color: T.textDim }}>IMPORTING...</span>
+      )}
       {state.status === 'done' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <div style={{ color: '#4caf50', fontSize: 11 }}>✓ {state.message}</div>
-          <button onClick={onReset} style={{ fontSize: 10, color: T.textDim, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textAlign: 'left' }}>import again</button>
+        <div>
+          <div style={{ fontSize: 11, color: '#4caf50', marginBottom: 6 }}>✓ {state.message}</div>
+          <button onClick={onReset} style={{ fontSize: 10, color: T.textDim, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', fontFamily: 'monospace' }}>
+            import again
+          </button>
         </div>
       )}
       {state.status === 'error' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <div style={{ color: '#e57373', fontSize: 11 }}>✗ {state.message}</div>
-          <button onClick={onReset} style={{ fontSize: 10, color: T.textDim, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textAlign: 'left' }}>try again</button>
+        <div>
+          <div style={{ fontSize: 11, color: '#e57373', marginBottom: 6 }}>✗ {state.message}</div>
+          <button onClick={onReset} style={{ fontSize: 10, color: T.textDim, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', fontFamily: 'monospace' }}>
+            try again
+          </button>
         </div>
       )}
     </div>
