@@ -72,3 +72,19 @@ export interface Coach {
   salary: number;
   years_remaining: number;
 }
+
+export interface WaiverPlayer {
+  id: number;
+  first_name: string;
+  last_name: string;
+  position: string;
+  position_label: string;
+  overall_rating: number;
+  age: number;
+  dev_trait: string;
+  speed: number;
+  strength: number;
+  awareness: number;
+  waived_by_team_id: number | null;
+  canClaim: boolean;
+}
