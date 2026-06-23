@@ -10,6 +10,7 @@ import {
 import { logNewsEvent } from '../helpers/logNewsEvent';
 import { db } from '../database';
 import type { IpcEvent, PlayerWithPositionRow, PlayerWithTeamRow, TeamNameRow } from '../types/ipc';
+import { replenishFAPool } from '../generatePlayers';
 
 export { calcFairMarket };
 
@@ -99,8 +100,11 @@ export function registerContractHandlers(): void {
     return result;
   });
 
-  ipcMain.handle('cpu-fa-signing', () =>
-    cpuFASigning(settingsRepo.getUserTeamId() ?? -1));
+  ipcMain.handle('cpu-fa-signing', () => {
+  const result = cpuFASigning(settingsRepo.getUserTeamId() ?? -1);
+  replenishFAPool();
+  return result;
+});
 
   ipcMain.handle('apply-franchise-tag', (_event: IpcEvent, { playerId, tagType }: { playerId: number; tagType: 'franchise' | 'transition' }) => {
     const teamId = settingsRepo.getUserTeamId();
