@@ -7,10 +7,16 @@ class ContractRepository {
   getByTeam(teamId: number): any[] {
     return db.prepare(`
       SELECT p.id, p.first_name, p.last_name, p.position, p.position_label,
-             p.overall_rating, p.age, p.dev_trait, p.roster_status,
-             COALESCE(p.morale, 75) as morale,
-             c.annual_salary, c.years_remaining, c.years_total,
-             c.guaranteed_amount, c.guaranteed_pct, c.id as contract_id
+        p.overall_rating, p.age, p.dev_trait, p.roster_status,
+        COALESCE(p.morale, 75) as morale,
+        p.speed, p.strength, p.awareness,
+        p.throw_accuracy, p.throw_power,
+        p.catching, p.route_running,
+        p.tackle_rating, p.coverage, p.pass_rush,
+        p.kickpower, p.kickaccuracy,
+        p.runblocking, p.passblocking,
+        c.annual_salary, c.years_remaining, c.years_total,
+        c.guaranteed_amount, c.guaranteed_pct, c.id as contract_id
       FROM contracts c
       JOIN players p ON c.player_id = p.id
       WHERE c.team_id = ? AND p.roster_status = 'active'
@@ -43,11 +49,11 @@ class ContractRepository {
   getExpiring(teamId: number): any[] {
     return db.prepare(`
       SELECT p.id, p.first_name, p.last_name, p.position, p.position_label,
-             p.overall_rating, p.age, p.dev_trait,
-             COALESCE(p.morale, 75) as morale,
-             COALESCE(p.franchise_tagged, 0) as franchise_tagged,
-             c.annual_salary, c.years_remaining, c.years_total,
-             c.guaranteed_amount, c.guaranteed_pct, c.id as contract_id
+        p.overall_rating, p.age, p.dev_trait,
+        COALESCE(p.morale, 75) as morale,
+        COALESCE(p.franchise_tagged, 0) as franchise_tagged,
+        c.annual_salary, c.years_remaining, c.years_total,
+        c.guaranteed_amount, c.guaranteed_pct, c.id as contract_id
       FROM contracts c
       JOIN players p ON c.player_id = p.id
       WHERE c.team_id = ? AND p.roster_status = 'active' AND c.years_remaining = 1
@@ -63,7 +69,7 @@ class ContractRepository {
     `).get(teamId) as any).count;
   }
 
-  // ── Dead Cap ────────────────────────────────────────────────────────────
+  // ── Dead Cap ──────────────────────────────────────────────────────────────
 
   getDeadCap(teamId: number, season: number): number {
     const result = db.prepare(`
@@ -90,7 +96,7 @@ class ContractRepository {
     `).run(teamId, playerId, playerName, position, season, amount);
   }
 
-  // ── Standard CRUD ───────────────────────────────────────────────────────
+  // ── Standard CRUD ─────────────────────────────────────────────────────────
 
   create(playerId: number, teamId: number, years: number, salary: number, guaranteed: number, gtdPct: number): void {
     db.prepare(`INSERT INTO contracts (player_id, team_id, years_total, years_remaining, annual_salary, guaranteed_amount, guaranteed_pct) VALUES (?, ?, ?, ?, ?, ?, ?)`)
