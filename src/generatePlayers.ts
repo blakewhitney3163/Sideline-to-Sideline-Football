@@ -296,3 +296,50 @@ export function generatePlayers(): void {
 
   console.log(`${total} players generated (${teams.length * 53} rostered, ${FA_SLOTS.reduce((s, g) => s + g.count, 0)} free agents)`);
 }
+
+const MIN_FA_PER_POSITION: Record<string, number> = {
+  QB: 5, RB: 12, WR: 14, TE: 7, OL: 16, DL: 14, LB: 14, CB: 14, S: 10, K: 4,
+};
+
+export function replenishFAPool(): void {
+  const insert = db.prepare(`
+    INSERT INTO players (
+      first_name, last_name, position, position_label, age, overall_rating,
+      speed, strength, awareness, dev_trait,
+      throw_accuracy, throw_power, catching, route_running,
+      tackle_rating, coverage, pass_rush,
+      kickpower, kickaccuracy, runblocking, passblocking,
+      team_id, is_free_agent, roster_status
+    ) VALUES (
+      @first_name, @last_name, @position, @position_label, @age, @overall_rating,
+      @speed, @strength, @awareness, @dev_trait,
+      @throw_accuracy, @throw_power, @catching, @route_running,
+      @tackle_rating, @coverage, @pass_rush,
+      @kickpower, @kickaccuracy, @runblocking, @passblocking,
+      NULL, 1, 'free_agent'
+    )
+  `);
+
+  db.transaction(() => {
+    for (const [position, min] of Object.entries(MIN_FA_PER_POSITION)) {
+      const current = (db.prepare(
+        "SELECT COUNT(*) as cnt FROM players WHERE is_free_agent = 1 AND position = ?"
+      ).get(position) as any).cnt as number;
+      const toGenerate = Math.max(0, min - current);
+      const labels = POSITION_LABEL_POOLS[position] ?? [position];
+      for (let i = 0; i < toGenerate; i++) {
+        const ovr = getFaOverall();
+        const attrs = genAttrs(position, ovr);
+        insert.run({
+          ...genName(),
+          position,
+          position_label: labels[i % labels.length],
+          age: ri(21, 31),
+          overall_rating: ovr,
+          ...attrs,
+          dev_trait: devTrait(ovr),
+        });
+      }
+    }
+  })();
+}
