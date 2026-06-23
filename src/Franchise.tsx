@@ -474,8 +474,11 @@ export default function Franchise() {
           handleApplyTag={handleApplyTag}
           handleRemoveTag={handleRemoveTag}
           handleCpuFa={handleCpuFa}
-          cpuFaResult={cpuFaResult}
+                    cpuFaResult={cpuFaResult}
           cpuFaDone={cpuFaDone}
+          setCpuFaDone={setCpuFaDone}
+          setCpuFaResult={setCpuFaResult}
+          setPlayerDecisions={setPlayerDecisions}
           working={working || tagWorking}
         />
       )}
