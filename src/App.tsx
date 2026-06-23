@@ -189,7 +189,7 @@ export default function App() {
       <div style={{
         minHeight: '100vh', display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
-        background: T.bg, fontFamily: 'monospace',
+        background: T.bgPage, fontFamily: 'monospace',
       }}>
         <div style={{ fontSize: 10, color: T.textDim, letterSpacing: 3, marginBottom: 8 }}>
           DYNASTY SIMULATOR
@@ -250,7 +250,7 @@ export default function App() {
     return (
       <div style={{
         minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: T.bg, fontFamily: 'monospace', color: T.textDim, fontSize: 13, letterSpacing: 2,
+        background: T.bgPage, fontFamily: 'monospace', color: T.textDim, fontSize: 13, letterSpacing: 2,
       }}>
         LOADING...
       </div>
@@ -261,7 +261,7 @@ export default function App() {
     return (
       <div style={{
         minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center',
-        justifyContent: 'center', background: T.bg, fontFamily: 'monospace', gap: 16, padding: 32,
+        justifyContent: 'center', background: T.bgPage, fontFamily: 'monospace', gap: 16, padding: 32,
       }}>
         <div style={{ fontSize: 10, color: T.textDim, letterSpacing: 3 }}>CUSTOM DYNASTY SETUP</div>
         <div style={{ fontSize: 22, fontWeight: 700, color: '#fff', letterSpacing: 2 }}>
@@ -314,7 +314,7 @@ export default function App() {
   if (screen === 'save-picker') {
     return (
       <Suspense fallback={<TabFallback />}>
-        <SavePicker onBack={() => setScreen('main-menu')} onLoad={handleSaveLoaded} />
+        <SavePicker onBack={() => setScreen('main-menu')} onSaveLoaded={handleSaveLoaded} />
       </Suspense>
     );
   }
@@ -331,7 +331,7 @@ export default function App() {
     return (
       <div style={{
         minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center',
-        justifyContent: 'center', background: T.bg, fontFamily: 'monospace', gap: 16,
+        justifyContent: 'center', background: T.bgPage, fontFamily: 'monospace', gap: 16,
       }}>
         <div style={{ fontSize: 10, color: T.textDim, letterSpacing: 3 }}>GRIDIRON DYNASTY</div>
         {userTeam && (
@@ -358,7 +358,11 @@ export default function App() {
   if (screen === 'meet-team') {
     return (
       <Suspense fallback={<TabFallback />}>
-        <MeetTheTeam onContinue={() => setScreen('game')} />
+        <MeetTheTeam
+          team={userTeam as any}
+          season={currentSeason}
+          onStart={() => setScreen('game')}
+        />
       </Suspense>
     );
   }
@@ -367,7 +371,7 @@ export default function App() {
     return (
       <div style={{
         minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: T.bg, fontFamily: 'monospace', color: T.textDim, fontSize: 13, letterSpacing: 2,
+        background: T.bgPage, fontFamily: 'monospace', color: T.textDim, fontSize: 13, letterSpacing: 2,
       }}>
         LOADING...
       </div>
@@ -376,7 +380,7 @@ export default function App() {
 
   // ── Main Game ─────────────────────────────────────────────────────────────
   return (
-    <div style={{ minHeight: '100vh', background: T.bg, display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100vh', background: T.bgPage, display: 'flex', flexDirection: 'column' }}>
 
       {/* Top bar */}
       <div style={{
@@ -446,17 +450,17 @@ export default function App() {
         <Suspense fallback={<TabFallback />}>
           {isMounted('home') && (
             <div style={tabStyle('home')}>
-              <Home onSeasonAdvance={handleSeasonAdvance} onTabChange={handleTabChange} />
+              <Home onSeasonAdvance={handleSeasonAdvance} />
             </div>
           )}
           {isMounted('myteam') && (
             <div style={tabStyle('myteam')}>
-              <MyTeam onTabChange={handleTabChange} />
+              <MyTeam />
             </div>
           )}
           {isMounted('league') && (
             <div style={tabStyle('league')}>
-              <League onTabChange={handleTabChange} />
+              <League />
             </div>
           )}
           {isMounted('trades') && (
@@ -481,7 +485,7 @@ export default function App() {
           )}
           {isMounted('draft') && (
             <div style={tabStyle('draft')}>
-              <Draft onComplete={() => handleTabChange('home')} />
+              <Draft onDraftComplete={() => handleTabChange('home')} />
             </div>
           )}
         </Suspense>
