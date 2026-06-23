@@ -294,19 +294,22 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
   };
 
   const handleSimulatePlayoffs = async () => {
-    setSimulatingPlayoffs(true);
-    const results = await window.api.simulatePlayoffs(currentSeason);
-    setPlayoffResults(results);
-    const champs = await window.api.getChampions();
-    setChampions(champs);
-    const champForSeason = champs.find((c: Champion) => c.season === currentSeason);
-    if (champForSeason) {
-      setPlayoffsComplete(true);
-      setSeasonAwards(await window.api.getSeasonAwards(currentSeason));
-    }
-    await fetchRecentNews();
-    setSimulatingPlayoffs(false);
-  };
+  setSimulatingPlayoffs(true);
+  await window.api.simulatePlayoffs(currentSeason);
+  const [results, champs] = await Promise.all([
+    window.api.getPlayoffs(currentSeason),
+    window.api.getChampions(),
+  ]);
+  setPlayoffResults(results);
+  setChampions(champs);
+  const champForSeason = champs.find((c: Champion) => c.season === currentSeason);
+  if (champForSeason) {
+    setPlayoffsComplete(true);
+    setSeasonAwards(await window.api.getSeasonAwards(currentSeason));
+  }
+  await fetchRecentNews();
+  setSimulatingPlayoffs(false);
+};
 
   const handleAdvance = async () => {
     setAdvancing(true);
