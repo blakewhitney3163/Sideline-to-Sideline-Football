@@ -4,11 +4,9 @@ Repository: https://github.com/blakewhitney3163/Gridiron-Dynasty
 ================================================================================
 UPCOMING — Next to build
 ────────────────────────────────────────────────────────────────────────────────
-Full Player Editor — dedicated tab for editing player attributes (beyond inline
- profile editor). Sortable, searchable across full roster with bulk edit support.
-
-Depth Chart Improvements — auto-sort by OVR, starter highlights, position
- group views with starter vs. backup visual separation.
+Full Player Editor — dedicated tab or panel for editing player attributes with
+ bulk search, sortable player list, and inline attribute sliders across the
+ full roster (not just the profile panel).
 
 TIER 3 — Polish & replayability
 ────────────────────────────────────────────────────────────────────────────────
@@ -176,6 +174,13 @@ MAINTENANCE — Address before extended dynasty saves become common
 ================================================================================
 COMPLETED ITEMS
 ================================================================================
+
+[DONE June 23, 2026] Depth Chart Improvements — Phase section headers group
+ position tabs into OFFENSE / DEFENSE / SPECIAL TEAMS. Out-of-order warning
+ system: tab badges, banner, and row-level OVR delta (+N/-N) highlight when
+ a healthy backup outrates the starter. Starter row has green tint highlight.
+ New "⇅ Sort by OVR" button auto-sorts just the active group. "↺ Reset All"
+ retained for full chart reset. DepthChart.tsx and DepthChartList.tsx updated.
 
 [DONE June 23, 2026] In-Season Player Progression — ProgressionService.ts runs
  after every simulated game. Grades each player's performance 0–100 by position
