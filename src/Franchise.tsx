@@ -476,29 +476,31 @@ export default function Franchise() {
           handleCpuFa={handleCpuFa}
           cpuFaResult={cpuFaResult}
           cpuFaDone={cpuFaDone}
-          working={working}
-          tagWorking={tagWorking}
+          working={working || tagWorking}
         />
       )}
 
       {activeTab === 'coaching' && (
-        <CoachingTab
+                <CoachingTab
           staff={staff}
-          userTeamId={userTeam.id}
+          teamId={userTeam.id}
           showToast={showToast}
-          reload={loadData}
+          onRefresh={loadData}
         />
       )}
 
       {activeTab === 'schemes' && (
-        <SchemesTab userTeamId={userTeam.id} showToast={showToast} />
-      )}
+        <SchemesTab
+          teamId={userTeam.id}
+          teamName={`${userTeam.city} ${userTeam.name}`}
+          onToast={showToast}
+        />
+    )}
 
       {activeTab === 'salaries' && (
         <SalariesTab
-          contracts={contracts}
+                    contracts={contracts}
           cap={cap}
-          deadCap={deadCap}
         />
       )}
 
@@ -508,9 +510,9 @@ export default function Franchise() {
           display: 'flex', justifyContent: 'flex-end',
         }}>
           <div onClick={e => e.stopPropagation()} style={{ height: '100%', overflowY: 'auto' }}>
-            <PlayerProfile
+                        <PlayerProfile
               player={selectedPlayer}
-              stats={playerStats}
+              playerStats={playerStats}
               careerStats={careerStats}
               statsView={statsView}
               setStatsView={setStatsView}
