@@ -55,6 +55,192 @@ Financial System Beyond Cap — market size per team affecting revenue, stadium
   floor and FA appeal.
 
 ================================================================================
+PRE-STEAM TECHNICAL CHECKLIST
+================================================================================
+Everything required before the app is ready for Steam distribution.
+Steam distributes through the Steam client so Windows code signing is not
+required. macOS Gatekeeper signing is also deferred — Windows-first release.
+
+────────────────────────────────────────────────────────────────────────────────
+BLOCKING — App cannot ship without these
+────────────────────────────────────────────────────────────────────────────────
+
+[ ] Steamworks Developer Account + App ID
+    - Register at partner.steamgames.com ($100 one-time fee)
+    - Create the app listing to receive a Steam App ID
+    - Add steam_appid.txt to the project root containing only the App ID
+    - Required before any Steam features (achievements, cloud saves) can be
+      tested, and before the store page can go live
+
+[ ] Windows Build Verification via GitHub Actions CI
+    - better-sqlite3 is a native Node module that must compile per-platform
+    - No CI currently exists (.github/workflows/ folder is missing)
+    - Create a workflow that:
+        1. Checks out the repo on windows-latest runner
+        2. Runs npm ci
+        3. Runs npm test (Vitest suite)
+        4. Runs npm run make to produce a packaged .exe
+        5. Uploads the artifact for QA download
+    - This must pass cleanly before any build is submitted to Steam
+
+[ ] App Icon (.ico and .icns)
+    - forge.config.ts packagerConfig has no icon field
+    - Without it the app shows a generic Electron icon on Windows and macOS
+    - Create assets/icon.ico (256×256 minimum, multi-size preferred)
+    - Create assets/icon.icns (macOS, 512×512)
+    - Add to forge.config.ts: icon: './assets/icon'
+    - The icon is also required for the Steam store capsule artwork
+
+────────────────────────────────────────────────────────────────────────────────
+HIGH PRIORITY — Will hurt reviews or crash reports if shipped as-is
+────────────────────────────────────────────────────────────────────────────────
+
+[ ] Content Security Policy (index.html)
+    - src/index.html has no CSP meta tag
+    - Electron logs security warnings on every launch without it
+    - Add to <head>:
+      <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self';
+                 style-src 'self' 'unsafe-inline'">
+
+[ ] win32metadata in forge.config.ts
+    - MakerSquirrel config is empty ({})
+    - Windows Add/Remove Programs and .exe properties show blank fields
+    - Add to MakerSquirrel config:
+        name: 'GridironDynasty'
+        authors: 'Blake Whitney'
+        description: 'A professional football dynasty simulator'
+        iconUrl: (URL to hosted .ico)
+        setupIcon: './assets/icon.ico'
+
+[ ] productName and appCategoryType in packagerConfig
+    - forge.config.ts packagerConfig is missing:
+        executableName: 'GridironDynasty'        (no spaces — required on Linux)
+        appCopyright: 'Copyright 2026 Blake Whitney'
+        appCategoryType: 'public.app-category.games'   (macOS App Store category)
+
+[ ] Error Boundary (React)
+    - No ErrorBoundary component wraps <App />
+    - Any unhandled JS error in any tab causes a full blank white screen crash
+    - Add a top-level ErrorBoundary class component in src/ErrorBoundary.tsx
+      that catches render errors and shows a styled fallback UI with a
+      "Restart App" button calling window.api.reloadApp() or ipcRenderer
+      invoke('reload')
+    - Wrap <App /> in renderer.ts with <ErrorBoundary>
+
+[ ] Main Process Crash Logging
+    - No uncaughtException or unhandledRejection handlers in src/index.ts
+    - When the main process crashes, there is no log and no user feedback
+    - Add to index.ts:
+        process.on('uncaughtException', (err) => {
+          fs.appendFileSync(path.join(app.getPath('userData'), 'crash.log'),
+            `[${new Date().toISOString()}] ${err.stack}\n`);
+        });
+        process.on('unhandledRejection', (reason) => {
+          fs.appendFileSync(path.join(app.getPath('userData'), 'crash.log'),
+            `[${new Date().toISOString()}] ${String(reason)}\n`);
+        });
+    - Writes crash.log to the userData folder (same place as save files)
+
+[ ] Remove Unused Dependencies
+    - package.json contains two unused packages alongside better-sqlite3:
+        "better": "^0.1.0"      — unrelated package, adds noise
+        "sqlite3": "^6.0.1"     — duplicate; only better-sqlite3 is used
+    - Remove both from dependencies to reduce bundle size and eliminate
+      potential native compile failures on Windows during CI
+
+[ ] squirrel-startup Guard in index.ts
+    - electron-squirrel-startup is in dependencies but its guard call
+      must be the very first line of src/index.ts to prevent the app
+      from launching multiple instances during Windows install/uninstall
+    - Verify or add at the top of index.ts:
+        import started from 'electron-squirrel-startup';
+        if (started) app.quit();
+
+────────────────────────────────────────────────────────────────────────────────
+MEDIUM PRIORITY — Expected polish for a Steam release
+────────────────────────────────────────────────────────────────────────────────
+
+[ ] Minimum Window Size Enforcement
+    - BrowserWindow is created at 1200×700 with no minWidth/minHeight
+    - Users can resize the window smaller than the UI is designed for,
+      breaking layout
+    - Add to createWindow(): minWidth: 1100, minHeight: 650
+
+[ ] Prevent Multiple App Instances
+    - No single-instance lock in index.ts
+    - A user double-clicking the app while it's running opens a second window
+    - Add: const lock = app.requestSingleInstanceLock();
+            if (!lock) { app.quit(); return; }
+            app.on('second-instance', () => { mainWindow?.focus(); });
+
+[ ] Renderer Error Logging
+    - No window.onerror or window.onunhandledrejection handler in renderer.ts
+    - JS errors in the renderer process are silently swallowed in production
+    - Add to renderer.ts:
+        window.onerror = (msg, src, line, col, err) => {
+          console.error('Renderer error:', msg, src, line, col, err);
+        };
+        window.onunhandledrejection = (e) => {
+          console.error('Unhandled promise rejection:', e.reason);
+        };
+
+[ ] Loading / Splash Screen
+    - BrowserWindow starts with show: false and reveals on ready-to-show
+      which is correct, but there is no branded splash while the app loads
+    - For a Steam release, a brief branded loading screen before the main
+      menu significantly improves first-impression feel
+
+[ ] Keyboard Shortcut Cleanup
+    - Default Electron menu is removed (Menu.setApplicationMenu(null))
+      which is correct, but Ctrl+R (reload) and F5 still work in production
+      builds via webContents defaults
+    - Register a globalShortcut to disable Ctrl+R and F5 in production:
+        app.on('ready', () => {
+          if (process.env.NODE_ENV !== 'development') {
+            globalShortcut.register('Control+R', () => {});
+            globalShortcut.register('F5', () => {});
+          }
+        });
+
+────────────────────────────────────────────────────────────────────────────────
+STEAM STORE LISTING REQUIREMENTS (before going live)
+────────────────────────────────────────────────────────────────────────────────
+
+[ ] Store Artwork (all required by Valve)
+    - Header Capsule:      460 × 215 px
+    - Small Capsule:       231 × 87 px
+    - Main Capsule:        616 × 353 px
+    - Library Capsule:     600 × 900 px
+    - Library Hero:        3840 × 1240 px (can submit 1920 × 620 minimum)
+    - Library Logo:        transparent PNG, any size
+
+[ ] Screenshots — minimum 5 required
+    - Recommended: Home tab, Draft board, Playoff bracket, Franchise tab,
+      Commissioner mode (Team Editor or Player Editor)
+
+[ ] Trailer Video — strongly recommended, not required
+    - 30–90 seconds showing core gameplay loop
+
+[ ] Store Description
+    - Short description (up to 300 characters)
+    - Long description (full HTML-friendly detail page)
+    - Tags: Turn-Based Strategy, Sports, Management, Simulation
+
+[ ] Age Rating — IARC questionnaire (in Steamworks dashboard)
+    - Gridiron Dynasty will likely rate E or E10+ (no violence, no explicit
+      content) which has no restrictions on storefront visibility
+
+[ ] Privacy Policy URL
+    - Steam requires a privacy policy link even for single-player offline apps
+    - A simple one-page hosted policy (GitHub Pages or similar) is sufficient
+    - State that no personal data is collected, all saves are stored locally
+
+[ ] System Requirements (fill in Steamworks)
+    - Minimum: Windows 10 64-bit, 4GB RAM, 200MB disk
+    - Recommended: Windows 10/11 64-bit, 8GB RAM, SSD
+
+================================================================================
 SCALABILITY & CODE HEALTH
 ================================================================================
 
@@ -113,84 +299,48 @@ COMPLETED ITEMS
   only). Select any of 32 teams from a dropdown. Editable fields: city, team
   name, abbreviation (4 chars max, auto-uppercased), conference (AFC/NFC),
   division (North/South/East/West). Live preview bar. Saves via edit-team IPC
-  handler (UPDATE teams SET ... WHERE id). Editing your own team updates the
-  top bar immediately via game store. Toast feedback on success/error. Backed
-  by: TeamEditor.tsx, edit-team handler in settingsHandlers.ts, editTeam in
-  preload/core.ts.
+  handler. Editing your own team updates the top bar immediately via game store.
+  Toast feedback on success/error.
 
 [DONE June 23, 2026] Owner Goals & Patience Meter — seasonal objective system
   with real consequences. Goals auto-generated at season start based on team
-  OVR (championship / playoffs / wins / development / cap compliance). Stored
-  in owner_goals table (schema v12). Evaluated at season advance:
-  evaluateOwnerGoals() checks actual performance and marks goals achieved.
+  OVR. Stored in owner_goals table (schema v12). Evaluated at season advance.
   Owner patience (0–100, default 75) adjusts ±5 to ±20 per season based on
-  goal completion. Patience drops below 50 and 25 trigger news events. UI:
-  OwnerGoalsPanel.tsx on Home tab shows patience meter with color + label,
-  goal list with ✓/○ indicators, and warning banner when patience < 35.
-  Backed by: OwnerGoalsService.ts, owner_goals table, get/set owner-patience
-  and get/generate-owner-goals IPC handlers, SeasonService evaluateOwnerGoals
-  call, preload/season.ts exposure.
+  goal completion. Patience drops trigger news events. UI: OwnerGoalsPanel.tsx
+  on Home tab.
 
 [DONE June 23, 2026] Draft Pre-Season Generation + In-Season Scouting —
-  Draft class auto-generated when schedule is generated (season start); 100
-  prospects with hidden ratings are immediately visible on the Draft tab.
-  Scouting budget accumulates by simulating games (+3 per full week, +1 per
-  single game). scout-prospect enforces budget; returns error when exhausted.
-  Budget stored as scouting_budget_{season} in settings; resets each season.
-  Draft tab now always visible year-round (📋 during season, ⚡ after playoffs).
-  Draft picks disabled until playoffs complete. Backed by: simHandlers.ts
-  auto-generate logic, budget increment on simulate-week/simulate-game,
-  draftHandlers.ts budget enforcement on scout-prospect, Draft.tsx year-round
-  display and scoutBudget state, preload/draft.ts getScoutCount exposure.
+  Draft class auto-generated at season start. Scouting budget accumulates by
+  simulating games (+3 per full week, +1 per single game). Budget enforced on
+  scout-prospect. Draft tab always visible year-round.
 
-[DONE June 23, 2026] Full Player Editor Tab — dedicated standalone ✏ Editor
-  tab (Commissioner Mode only). Team selector, position filter, live search,
-  roster list sorted by OVR. Edit form covers every field: name, position,
-  age, OVR, dev trait, all 14 attribute sliders, salary, years remaining.
-  Backed by: PlayerEditor.tsx, edit-player handler (23-field allowlist),
-  edit-player-contract IPC handler, ContractRepository.getByTeam with all
-  14 attribute columns.
+[DONE June 23, 2026] Full Player Editor Tab — Commissioner Mode only.
+  Edit all player fields: name, position, age, OVR, dev trait, 14 attribute
+  sliders, salary, years remaining.
 
-[DONE June 23, 2026] TypeScript Prop and Module Fixes — resolved 7 compilation
-  errors across Player Editor and depth chart. depthUtils.ts utility module
-  created; duplicate depthUtils.tsx removed. App.tsx, Franchise.tsx prop
-  interfaces corrected.
+[DONE June 23, 2026] TypeScript Prop and Module Fixes
 
-[DONE June 23, 2026] Depth Chart Improvements — Phase section headers, out-of-
-  order warning system (tab badges, banners, row-level OVR delta), starter row
-  highlight, Sort by OVR per group, Reset All.
+[DONE June 23, 2026] Depth Chart Improvements — phase headers, out-of-order
+  warning system, starter highlight, Sort by OVR, Reset All.
 
-[DONE June 23, 2026] In-Season Player Progression — ProgressionService.ts runs
-  after every simulated game. Grade-to-OVR-delta system with age/dev trait
-  modifiers, ceiling dampening, floor protection, breakout news events.
+[DONE June 23, 2026] In-Season Player Progression — ProgressionService.ts,
+  grade-to-OVR-delta system, age/dev trait modifiers, breakout news events.
 
-[DONE June 23, 2026] Full Waiver Wire System — in-season releases route through
-  waivers. processWaivers() runs at week end. WaiverWireTab.tsx added.
+[DONE June 23, 2026] Full Waiver Wire System
 
-[DONE June 23, 2026] FA Pool Replenishment — replenishFAPool() tops up free
-  agent counts per position to defined minimums after CPU FA signings and
-  season advance.
+[DONE June 23, 2026] FA Pool Replenishment
 
-[DONE June 23, 2026] Player Retirement Control — announcing_retirement roster
-  status; user can make 1-year retention offer; accepted/declined based on
-  age + OVR probability; auto-retires on season advance if unresolved.
+[DONE June 23, 2026] Player Retirement Control
 
-[DONE June 23, 2026] Playoff Simulation Fix — simulate-playoffs handler
-  corrected to fetch playoff results and champions separately.
+[DONE June 23, 2026] Playoff Simulation Fix
 
-[DONE June 21, 2026] Game Preview / Head-to-Head — pre-sim matchup card shows
-  W-L records, mirrored OVR bars, schemes, and win probability bar.
+[DONE June 21, 2026] Game Preview / Head-to-Head
 
-[DONE June 21, 2026] Practice Squad Promotion Alerts — Active Alerts panel
-  surfaces PS↑ badge when a PS player outrates the lowest active player at
-  the same position.
+[DONE June 21, 2026] Practice Squad Promotion Alerts
 
-[DONE June 21, 2026] Position-Weighted Team Ratings — computeTeamRatings()
-  overhauled from flat average to weighted model. Offense: QB 28%, OL 20%,
-  WR 18%, RB 14%, TE 10%. Defense: DL 28%, LB 24%, CB 20%, S 18%.
+[DONE June 21, 2026] Position-Weighted Team Ratings
 
-[DONE June 20, 2026] Salaries Tab — SalariesTab.tsx with cap summary, contract
-  grade badges, guaranteed %, years-remaining pips, A–D value grades.
+[DONE June 20, 2026] Salaries Tab
 
 [DONE June 20, 2026] Contract Extension — Add Years (not Overwrite)
 
@@ -208,7 +358,7 @@ COMPLETED ITEMS
 
 [DONE June 20, 2026] Position Filter Bug Fix (Roster + Free Agents)
 
-[DONE June 20, 2026] Multiple Incoming CPU Trade Offers (up to 3 simultaneous)
+[DONE June 20, 2026] Multiple Incoming CPU Trade Offers
 
 [DONE June 20, 2026] CPU Trade Frequency Reduction
 
@@ -259,27 +409,3 @@ COMPLETED ITEMS
 [DONE] Player Editor — inline edit mode in PlayerProfile.tsx
 
 [DONE] Playoff UI Update — bracket-style visual
-
-================================================================================
-COMMERCIAL / SCALABILITY TRACK
-================================================================================
-
-BLOCKING — Must fix before distribution
-────────────────────────────────────────────────────────────────────────────────
-Code Signing + Auto-Update — Electron apps without code signing trigger OS
-  security warnings (macOS Gatekeeper, Windows SmartScreen). Needs
-  electron-builder code signing and electron-updater before public distribution.
-
-Windows Build Verification — better-sqlite3 is a native module that must be
-  built per platform. Needs a GitHub Actions CI workflow that builds and
-  tests on Windows before Steam submission.
-
-================================================================================
-PREVIOUSLY COMPLETED (June 18, 2026 and earlier)
-================================================================================
-[DONE] DB Indexes
-[DONE] Migration Versioning
-[DONE] Background Simulation
-[DONE] Full IP Cleanup — fictional players, Gridiron Cup, Gridiron Dynasty
-[DONE] Automated Tests — Vitest suite
-[DONE] CSV Import System
