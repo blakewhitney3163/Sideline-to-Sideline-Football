@@ -578,24 +578,25 @@ const MIGRATIONS: Migration[] = [
     }
   },
 },
-    if (currentVersion < 12) {
-    db.prepare(`
-      CREATE TABLE IF NOT EXISTS owner_goals (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        season INTEGER NOT NULL,
-        goal_type TEXT NOT NULL,
-        target_value INTEGER NOT NULL,
-        achieved INTEGER DEFAULT 0
-      )
-    `).run();
-    if (!settingsRepo.get('owner_patience')) {
-      settingsRepo.set('owner_patience', '75');
-    }
-    setSchemaVersion(12);
-    console.log('Migration v12: owner_goals table created');
-  }
+      {
+    version: 12,
+    description: 'Add owner_goals table and owner_patience setting',
+    up: () => {
+      db.prepare(`
+        CREATE TABLE IF NOT EXISTS owner_goals (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          season INTEGER NOT NULL,
+          goal_type TEXT NOT NULL,
+          target_value INTEGER NOT NULL,
+          achieved INTEGER DEFAULT 0
+        )
+      `).run();
+      if (!settingsRepo.get('owner_patience')) {
+        settingsRepo.set('owner_patience', '75');
+      }
+    },
+  },
 ];
-
 function getSchemaVersion(): number {
   try {
     const row = db.prepare("SELECT value FROM settings WHERE key = 'schema_version'").get() as any;
