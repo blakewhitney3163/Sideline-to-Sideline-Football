@@ -499,12 +499,12 @@ export default function App() {
               <Trades />
             </div>
           )}
-          {isMounted('news') && (
+                    {isMounted('news') && (
             <div style={tabStyle('news')}>
               <NewsFeed />
             </div>
           )}
-                    {isMounted('draft') && (
+          {isMounted('draft') && (
             <div style={tabStyle('draft')}>
               <Suspense fallback={<TabFallback />}>
                 <Draft onDraftComplete={() => handleTabChange('home')} />
@@ -526,11 +526,6 @@ export default function App() {
           {isMounted('import') && (
             <div style={tabStyle('import')}>
               <Import />
-            </div>
-          )}
-          {isMounted('draft') && (
-            <div style={tabStyle('draft')}>
-              <Draft onDraftComplete={() => handleTabChange('home')} />
             </div>
           )}
         </Suspense>
