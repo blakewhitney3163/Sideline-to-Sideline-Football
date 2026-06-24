@@ -19,7 +19,7 @@ import path from 'path';
 
 interface GameSummary {
   week: number;
-  homeTeamId: number;f
+  homeTeamId: number;
   awayTeamId: number;
   homeScore: number;
   awayScore: number;
