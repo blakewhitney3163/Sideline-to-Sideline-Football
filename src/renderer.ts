@@ -14,6 +14,8 @@ window.onunhandledrejection = (e: any) => {
 };
 
 const container = document.getElementById('root') ?? document.createElement('div');
+if (!container.parentNode) document.body.appendChild(container);
+
 const root = createRoot(container);
 root.render(
   React.createElement(ErrorBoundary, null,
@@ -21,7 +23,11 @@ root.render(
   )
 );
 
-// Hide the HTML splash screen once React has mounted
-if (typeof window.__hideSplash === 'function') {
-  window.__hideSplash();
-}
+// Hide splash directly — avoids any CSP / inline-script dependency
+setTimeout(() => {
+  const splash = document.getElementById('splash');
+  if (splash) {
+    splash.classList.add('fade-out');
+    setTimeout(() => splash.remove(), 520);
+  }
+}, 60);
