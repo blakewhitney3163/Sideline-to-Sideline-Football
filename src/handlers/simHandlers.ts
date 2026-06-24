@@ -386,7 +386,7 @@ export function registerSimHandlers(): void {
     return result;
   });
 
-  ipcMain.handle('simulate-game',
+    ipcMain.handle('simulate-game', async (_event: IpcEvent, gameId: number) => {
     const game = db.prepare(`SELECT * FROM games WHERE id = ?`).get(gameId) as any;
     if (!game) return { success: false, reason: 'Game not found.' };
     if (game.is_simulated) return { success: false, reason: 'Game already simulated.' };
@@ -444,11 +444,6 @@ export function registerSimHandlers(): void {
     if (sgBudget < 25) settingsRepo.set(sgKey, String(Math.min(25, sgBudget + 1)));
 
     return {
-      success: true, gameId, weekComplete,
-      homeScore: gameResult.homeScore, awayScore: gameResult.awayScore,
-      callups: rosterResult.callups, userPSOpenSpots: rosterResult.userPSOpenSpots,
-    };
-  });
       success: true, gameId, weekComplete,
       homeScore: gameResult.homeScore, awayScore: gameResult.awayScore,
       callups: rosterResult.callups, userPSOpenSpots: rosterResult.userPSOpenSpots,
