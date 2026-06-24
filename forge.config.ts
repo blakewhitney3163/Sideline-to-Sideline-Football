@@ -13,13 +13,22 @@ import { rendererConfig } from './webpack.renderer.config';
 
 const config: ForgeConfig = {
   packagerConfig: {
-  asar: true,
-  name: 'Gridiron Dynasty',
-  appBundleId: 'com.gridiron.dynasty',
-},
+    asar: true,
+    name: 'Gridiron Dynasty',
+    executableName: 'GridironDynasty',
+    appBundleId: 'com.gridiron.dynasty',
+    appCopyright: 'Copyright 2026 Blake Whitney',
+    appCategoryType: 'public.app-category.games',
+    icon: './assets/icon',
+  },
   rebuildConfig: {},
   makers: [
-    new MakerSquirrel({}),
+    new MakerSquirrel({
+      name: 'GridironDynasty',
+      authors: 'Blake Whitney',
+      description: 'A professional football dynasty simulator',
+      setupIcon: './assets/icon.ico',
+    }),
     new MakerZIP({}, ['darwin']),
     new MakerRpm({}),
     new MakerDeb({}),
@@ -42,8 +51,6 @@ const config: ForgeConfig = {
         ],
       },
     }),
-    // Fuses are used to enable/disable various Electron functionality
-    // at package time, before code signing the application
     new FusesPlugin({
       version: FuseVersion.V1,
       [FuseV1Options.RunAsNode]: false,
