@@ -591,9 +591,7 @@ const MIGRATIONS: Migration[] = [
           achieved INTEGER DEFAULT 0
         )
       `).run();
-      if (!settingsRepo.get('owner_patience')) {
-        settingsRepo.set('owner_patience', '75');
-      }
+            db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('owner_patience', '75')").run();
     },
   },
 ];
