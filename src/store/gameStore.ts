@@ -15,6 +15,7 @@ interface GameState {
   playoffsComplete: boolean;
   difficulty: 'easy' | 'normal' | 'hard';
   simCount: number;
+  commissionerMode: boolean;
 
   setCurrentSeason: (season: number) => void;
   setUserTeam: (team: UserTeam | null) => void;
@@ -22,6 +23,7 @@ interface GameState {
   setDifficulty: (d: 'easy' | 'normal' | 'hard') => void;
   advanceSeason: (nextSeason: number) => void;
   incrementSimCount: () => void;
+  setCommissionerMode: (v: boolean) => void;
 }
 
 export const useGameStore = create<GameState>((set) => ({
@@ -30,6 +32,7 @@ export const useGameStore = create<GameState>((set) => ({
   playoffsComplete: false,
   difficulty: 'normal',
   simCount: 0,
+  commissionerMode: false,
 
   setCurrentSeason: (currentSeason) => set({ currentSeason }),
   setUserTeam: (userTeam) => set({ userTeam }),
@@ -38,4 +41,5 @@ export const useGameStore = create<GameState>((set) => ({
   advanceSeason: (nextSeason) =>
     set({ currentSeason: nextSeason, playoffsComplete: false }),
   incrementSimCount: () => set((s) => ({ simCount: s.simCount + 1 })),
+  setCommissionerMode: (commissionerMode) => set({ commissionerMode }),
 }));
