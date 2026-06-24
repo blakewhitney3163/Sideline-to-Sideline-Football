@@ -44,6 +44,9 @@ export function registerSettingsHandlers(): void {
     db.prepare('DELETE FROM hall_of_fame').run();
     db.prepare('DELETE FROM news_events').run();
     db.prepare('DELETE FROM players').run();
+    db.prepare('DELETE FROM owner_goals').run();
+    db.prepare("DELETE FROM settings WHERE key LIKE 'scouting_budget_%'").run();
+    db.prepare("DELETE FROM settings WHERE key = 'owner_patience'").run();
     generatePlayers();
     db.prepare("UPDATE settings SET value = '2025' WHERE key = 'current_season'").run();
     generateContracts();
@@ -65,6 +68,9 @@ export function registerSettingsHandlers(): void {
     db.prepare('DELETE FROM hall_of_fame').run();
     db.prepare('DELETE FROM news_events').run();
     db.prepare('DELETE FROM players').run();
+    db.prepare('DELETE FROM owner_goals').run();
+    db.prepare("DELETE FROM settings WHERE key LIKE 'scouting_budget_%'").run();
+    db.prepare("DELETE FROM settings WHERE key = 'owner_patience'").run();
     generatePlayers();
     db.prepare("UPDATE settings SET value = '2025' WHERE key = 'current_season'").run();
     generateContracts();
@@ -122,6 +128,33 @@ export function registerSettingsHandlers(): void {
     const setClauses = updates.map(([k]) => `${k} = ?`).join(', ');
     const values = [...updates.map(([, v]) => v), playerId];
     db.prepare(`UPDATE players SET ${setClauses} WHERE id = ?`).run(...values);
+    return { success: true };
+  });
+
+  ipcMain.handle('get-commissioner-mode', () => {
+    return settingsRepo.get('commissioner_mode') === '1';
+  });
+
+  ipcMain.handle('set-commissioner-mode', (_event: IpcEvent, enabled: boolean) => {
+    settingsRepo.set('commissioner_mode', enabled ? '1' : '0');
+    return { success: true };
+  });
+
+  ipcMain.handle('edit-team', (_event: IpcEvent, payload: {
+    teamId: number;
+    city?: string;
+    name?: string;
+    abbreviation?: string;
+    conference?: string;
+    division?: string;
+  }) => {
+    const { teamId, ...fields } = payload;
+    const ALLOWED = ['city', 'name', 'abbreviation', 'conference', 'division'];
+    const updates = Object.entries(fields).filter(([k, v]) => ALLOWED.includes(k) && v !== undefined);
+    if (updates.length === 0) return { success: false, reason: 'No valid fields.' };
+    const setClauses = updates.map(([k]) => `${k} = ?`).join(', ');
+    const values = [...updates.map(([, v]) => v), teamId];
+    db.prepare(`UPDATE teams SET ${setClauses} WHERE id = ?`).run(...values);
     return { success: true };
   });
 }
