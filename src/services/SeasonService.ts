@@ -6,6 +6,7 @@ import { cpuRosterCuts, cpuResignAttempts } from './ContractService';
 import { getCurrentSeason } from '../helpers/getCurrentSeason';
 import { logNewsEvent } from '../helpers/logNewsEvent';
 import { replenishFAPool } from '../generatePlayers';
+import { evaluateOwnerGoals } from './OwnerGoalsService';
 
 function isHOFEligible(position: string, career: any): boolean {
   if ((career.games ?? 0) < HOF_MIN_GAMES) return false;
@@ -428,6 +429,8 @@ db.transaction(() => {
 
 // ── Replenish FA pool for the new offseason ───────────────────────────────
 replenishFAPool();
+
+evaluateOwnerGoals(current, userTeamId);
 
 settingsRepo.set('current_season', String(next));
 return { nextSeason: next, retired, announcingRetirements, cpuResigns, breakouts: breakoutIds.size, hofInductees };
