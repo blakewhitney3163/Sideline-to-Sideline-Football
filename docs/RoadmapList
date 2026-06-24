@@ -83,6 +83,131 @@ BLOCKING — App cannot ship without these
         5. Uploads the artifact for QA download
     - This must pass cleanly before any build is submitted to Steam
 
+[DONE June 24, 2026] App Icon (.ico and .icns)
+    - assets/icon.svg designed with GD branding and orange accent
+    - assets/icon.ico generated (multi-size: 16–256px) via to-ico
+    - assets/icon.icns generated for macOS via png2icons
+    - assets/icon.png (1024×1024 source) committed to repo
+    - forge.config.ts icon: './assets/icon' wired in packagerConfig
+    - scripts/generate-icons.js added for regenerating icons from SVG source
+
+────────────────────────────────────────────────────────────────────────────────
+HIGH PRIORITY — Will hurt reviews or crash reports if shipped as-is
+────────────────────────────────────────────────────────────────────────────────
+
+[DONE June 24, 2026] Content Security Policy (index.html)
+    - CSP meta tag added to src/index.html
+    - Eliminates Electron security warnings on every launch
+
+[DONE June 24, 2026] win32metadata + productName in forge.config.ts
+    - executableName: 'SidelineToSidelineFootball'
+    - appCopyright: 'Copyright 2026 Blake Whitney'
+    - appCategoryType: 'public.app-category.games'
+    - MakerSquirrel: name, authors, description, setupIcon all set
+
+[DONE June 24, 2026] Error Boundary (React)
+    - src/ErrorBoundary.tsx created — class component wrapping <App />
+    - Catches render errors and shows branded fallback UI with Reload button
+    - renderer.ts updated to wrap App in ErrorBoundary
+
+[DONE June 24, 2026] Main Process Crash Logging
+    - process.on('uncaughtException') and process.on('unhandledRejection')
+      added to src/index.ts
+    - Writes timestamped crash.log to app.getPath('userData')
+
+[DONE June 24, 2026] Remove Unused Dependencies
+    - "better" and "sqlite3" removed from package.json dependencies
+    - Only better-sqlite3 remains as the SQLite driver
+
+[DONE June 24, 2026] squirrel-startup Guard in index.ts
+    - import started from 'electron-squirrel-startup'; if (started) process.exit(0)
+    - Added as first two lines of src/index.ts
+    - Prevents multiple app instances during Windows install/uninstall
+
+────────────────────────────────────────────────────────────────────────────────
+MEDIUM PRIORITY — Expected polish for a Steam release
+────────────────────────────────────────────────────────────────────────────────
+
+[DONE June 24, 2026] Minimum Window Size Enforcement
+    - BrowserWindow minWidth: 1100, minHeight: 650 added in src/index.ts
+
+[DONE June 24, 2026] Prevent Multiple App Instances
+    - app.requestSingleInstanceLock() added to src/index.ts
+    - second-instance event focuses existing window instead of opening a new one
+
+[DONE June 24, 2026] Renderer Error Logging
+    - window.onerror and window.onunhandledrejection handlers added to renderer.ts
+
+[DONE June 24, 2026] Keyboard Shortcut Cleanup
+    - globalShortcut blocks Ctrl+R, CommandOrControl+R, and F5 in production builds
+    - globalShortcut.unregisterAll() called on will-quit
+
+[DONE June 24, 2026] App Rename — Sideline to Sideline Football
+    - package.json: name, productName updated
+    - forge.config.ts: name, executableName, appBundleId updated
+    - src/index.html: title updated
+    - src/App.tsx: main menu branding updated (SIDELINE TO SIDELINE / FOOTBALL),
+      top bar badge changed from GID to S2S
+    - src/ErrorBoundary.tsx: error screen header updated
+
+[ ] Loading / Splash Screen
+    - A brief branded loading screen before the main menu would significantly
+      improve first-impression feel for a Steam release
+
+────────────────────────────────────────────────────────────────────────────────
+STEAM STORE LISTING REQUIREMENTS (before going live)
+────────────────────────────────────────────────────────────────────────────────
+
+[ ] Store Artwork (all required by Valve)
+    - Header Capsule:      460 × 215 px
+    - Small Capsule:       231 × 87 px
+    - Main Capsule:        616 × 353 px
+    - Library Capsule:     600 × 900 px
+    - Library Hero:        3840 × 1240 px (can submit 1920 × 620 minimum)
+    - Library Logo:        transparent PNG, any size
+
+[ ] Screenshots — minimum 5 required
+    - Recommended: Home tab, Draft board, Playoff bracket, Franchise tab,
+      Commissioner mode (Team Editor or Player Editor)
+
+[ ] Trailer Video — strongly recommended, not required
+    - 30–90 seconds showing core gameplay loop
+
+[ ] Store Description
+    - Short description (up to 300 characters)
+    - Long description (full HTML-friendly detail page)
+    - Tags: Turn-Based Strategy, Sports, Management, Simulation
+
+[ ] Age Rating — IARC questionnaire (in Steamworks dashboard)
+
+[ ] Privacy Policy URL
+
+[ ] System Requirements (fill in Steamworks)
+    - Minimum: Windows 10 64-bit, 4GB RAM, 200MB disk
+    - Recommended: Windows 10/11 64-bit, 8GB RAM, SSD
+
+────────────────────────────────────────────────────────────────────────────────
+BLOCKING — App cannot ship without these
+────────────────────────────────────────────────────────────────────────────────
+
+[ ] Steamworks Developer Account + App ID
+    - Register at partner.steamgames.com ($100 one-time fee)
+    - Create the app listing to receive a Steam App ID
+    - Add steam_appid.txt to the project root containing only the App ID
+    - Required before any Steam features (achievements, cloud saves) can be
+      tested, and before the store page can go live
+
+[ ] Windows Build Verification via GitHub Actions CI
+    - better-sqlite3 is a native Node module that must compile per-platform
+    - No CI currently exists (.github/workflows/ folder is missing)
+    - Create a workflow that:
+        1. Checks out the repo on windows-latest runner
+        2. Runs npm ci
+        3. Runs npm test (Vitest suite)
+        4. Runs npm run make to produce a packaged .exe
+        5. Uploads the artifact for QA download
+    - This must pass cleanly before any build is submitted to Steam
+
 [ ] App Icon (.ico and .icns)
     - forge.config.ts packagerConfig has no icon field
     - Without it the app shows a generic Electron icon on Windows and macOS
