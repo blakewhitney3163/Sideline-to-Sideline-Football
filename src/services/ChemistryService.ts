@@ -1,5 +1,4 @@
 import { db } from '../database';
-import { getCurrentSeason } from '../helpers/getCurrentSeason';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -66,6 +65,9 @@ export function processGameResult(
   }
 
   applyDelta(teamId, delta, reason, season, week);
+
+  // Apply personality archetype effects each game
+  applyArchetypeModifiers(teamId, season, week);
 }
 
 // ─── Roster Moves ─────────────────────────────────────────────────────────────
@@ -121,20 +123,67 @@ export function processMoraleDrag(teamId: number, season: number, week: number):
     `).get(teamId) as any)?.cnt ?? 0;
 
     if (lowMoraleCount > 0) {
-      const delta = -Math.min(lowMoraleCount, 5); // cap at -5 per week
+      const delta = -Math.min(lowMoraleCount, 5);
       applyDelta(teamId, delta, `Low morale players: ${lowMoraleCount} (${delta})`, season, week);
     }
   } catch {}
 }
 
-// ─── Archetype Hook (stub — wired when Player Personality Archetypes ships) ──
+// ─── Archetype Modifiers ──────────────────────────────────────────────────────
+// Called automatically from processGameResult once per game per team.
+// Each archetype has a probabilistic chance of shifting chemistry per game,
+// producing a meaningful but not overwhelming seasonal effect.
 
-export function applyArchetypeModifiers(_teamId: number, _season: number, _week: number): void {
-  // Future: loop over starters, apply per-archetype chemistry deltas:
-  // 'team_leader'   → +3
-  // 'vocal_leader'  → +5
-  // 'troublemaker'  → -3 (or -8 if morale < 40)
-  // 'selfish'       → -5 if morale < 50
+export function applyArchetypeModifiers(teamId: number, season: number, week: number): void {
+  try {
+    const players = db.prepare(`
+      SELECT archetype, overall_rating, morale
+      FROM players
+      WHERE team_id = ? AND roster_status = 'active' AND archetype != 'normal'
+    `).all(teamId) as { archetype: string; overall_rating: number; morale: number }[];
+
+    if (players.length === 0) return;
+
+    let delta = 0;
+    let posLabel = '';
+    let negLabel = '';
+
+    for (const p of players) {
+      const r = Math.random();
+      switch (p.archetype) {
+        case 'team_leader':
+          if (r < 0.28) { delta += 1; if (!posLabel) posLabel = 'Team leader'; }
+          break;
+        case 'vocal_leader':
+          if (r < 0.22) { delta += 1; if (!posLabel) posLabel = 'Vocal leader'; }
+          break;
+        case 'troublemaker':
+          if (r < 0.30) {
+            delta += p.morale < 40 ? -2 : -1;
+            if (!negLabel) negLabel = 'Troublemaker';
+          }
+          break;
+        case 'selfish':
+          if (r < 0.25) {
+            delta += p.morale < 50 ? -2 : -1;
+            if (!negLabel) negLabel = 'Selfish player';
+          }
+          break;
+      }
+    }
+
+    // Cap per-game archetype swing at ±5
+    delta = Math.max(-5, Math.min(5, delta));
+    if (delta === 0) return;
+
+    const reason = delta > 0
+      ? `${posLabel || 'Leader'} influence (+${delta})`
+      : `${negLabel || 'Attitude'} drag (${delta})`;
+
+    applyDelta(teamId, delta, reason, season, week);
+  } catch (err) {
+    console.error('ChemistryService.applyArchetypeModifiers error:', err);
+  }
 }
 
 // ─── Sim Rating Modifier ──────────────────────────────────────────────────────
@@ -159,6 +208,20 @@ export function getRecentChemistryEvents(teamId: number, season: number, limit =
     ORDER BY id DESC
     LIMIT ?
   `).all(teamId, season, limit) as { id: number; week: number; delta: number; reason: string }[];
+}
+
+// ─── Archetype Breakdown for UI ───────────────────────────────────────────────
+
+export function getTeamArchetypeBreakdown(teamId: number): { archetype: string; count: number }[] {
+  try {
+    return db.prepare(`
+      SELECT archetype, COUNT(*) as count
+      FROM players
+      WHERE team_id = ? AND roster_status = 'active' AND archetype != 'normal'
+      GROUP BY archetype
+      ORDER BY count DESC
+    `).all(teamId) as { archetype: string; count: number }[];
+  } catch { return []; }
 }
 
 // ─── Season Init ──────────────────────────────────────────────────────────────
