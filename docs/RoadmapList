@@ -1,25 +1,22 @@
 GRIDIRON DYNASTY — ROADMAP
-Last Updated: June 21, 2026
+Last Updated: June 23, 2026
 Repository: https://github.com/blakewhitney3163/Gridiron-Dynasty
 ================================================================================
 
 TIER 3 — Polish & replayability
 ────────────────────────────────────────────────────────────────────────────────
-Team Editor — edit team name, city, colors, conference/division.
-
-League Customization — expansion teams, relocation, custom team names.
+League Customization — expansion teams, relocation, custom team names beyond
+  the Team Editor. Relocation wizard, stadium naming, fan base effects.
 
 In-Game Narrative / Play-by-Play — text play-by-play during simulation.
   Stats-only output today limits immersion significantly.
 
 Preset Dynasty Templates — fictional franchise starter kits selectable at new
-  dynasty creation. Each template ships as a pre-built CSV compatible with the
-  existing CSV Import system: a roster of fictional players, team ratings,
-  historical records, and a league configuration. Examples: "Rebuild Mode"
-  (roster of 60–70 OVR players, tight cap), "Contender Window" (stacked but
-  aging roster), "Dynasty Peak" (league powerhouse with high expectations).
-  Lowers the barrier to entry and provides structured challenge modes without
-  requiring manual roster building.
+  dynasty creation. Each template ships as a pre-built CSV: roster of fictional
+  players, team ratings, historical records, and league configuration. Examples:
+  "Rebuild Mode" (60–70 OVR roster, tight cap), "Contender Window" (stacked but
+  aging), "Dynasty Peak" (league powerhouse, high expectations). Lowers barrier
+  to entry and provides structured challenge modes.
 
 ================================================================================
 GAMEPLAY DEPTH — OOTP-Tier Features
@@ -28,41 +25,23 @@ Features that would bring the game to a competitive level with top sports sims.
 
 NARRATIVE & STAKES
 ────────────────────────────────────────────────────────────────────────────────
-Owner Goals / Season Expectations — owner sets win targets, budget compliance,
-  and development mandates each season. Missing targets affects job security and
-  future flexibility. Creates urgency beyond just winning the championship.
-
 Team Chemistry / Locker Room System — team-level morale modifier on top of
   individual player morale. Winning streaks boost it, losing streaks tank it,
   star players leaving damages it. Affects sim ratings for the entire roster.
 
 Player Personality Archetypes — leadership, work ethic, and coachability
   ratings per player beyond dev trait. Affects development speed, locker room
-  health, and contract negotiation behavior. Ties into coaching and morale.
-
-Player Retirement Control — players announce retirement intentions before the
-  offseason ends. User can attempt to convince them to return for one more year
-  with a contract offer. Currently auto-retirement with no player input.
+  health, and contract negotiation behavior.
 
 ROSTER / PLAYER MANAGEMENT
 ────────────────────────────────────────────────────────────────────────────────
 Injury History / Injury-Prone Trait — track career injury history per player.
   Players with repeated injuries accumulate an injury-prone flag that increases
-  in-game injury probability and lowers market value. Builds on existing injury
-  system.
+  in-game injury probability and lowers market value.
 
-Draft Class Pre-Season Generation + In-Season Scouting — auto-generate the
-  full draft class at season start (Week 1) instead of waiting until the
-  offseason. Prospects are visible on the Draft board immediately but ratings
-  are hidden behind a scouting veil. Scouting points accumulate each week,
-  gradually revealing attributes via the existing 25-point scouting system.
-  By draft day, fully scouted prospects have accurate ratings; unscouted
-  prospects remain question marks. Mirrors real NFL scouting timelines and
-  significantly increases draft immersion.
-
-Scouting Department — hire scouts with regional specialties that improve
-  draft prospect accuracy over time. Builds directly on the existing combine
-  measurables and 25-point scouting system.
+Scouting Department — hire scouts with regional specialties that improve draft
+  prospect accuracy over time. Builds directly on the existing combine
+  measurables and in-season scouting budget system.
 
 SIMULATION & SCHEDULE
 ────────────────────────────────────────────────────────────────────────────────
@@ -72,16 +51,12 @@ Multi-Season Batch Simulation — "Sim N seasons" with a progress bar. Critical
 LEAGUE & FINANCIALS
 ────────────────────────────────────────────────────────────────────────────────
 Financial System Beyond Cap — market size per team affecting revenue, stadium
-  attendance, and owner budget. Even a simplified version (large market vs.
-  small market affecting cap floor and FA appeal) adds a meaningful meta layer.
-
-Commissioner / Full Control Mode — control all 32 teams, edit any roster, and
-  simulate full seasons hands-free. Standard in sports sims at this level.
+  attendance, and owner budget. Large market vs. small market affecting cap
+  floor and FA appeal.
 
 ================================================================================
 SCALABILITY & CODE HEALTH
 ================================================================================
-Issues to address before the codebase gets significantly larger.
 
 HIGH PRIORITY
 ────────────────────────────────────────────────────────────────────────────────
@@ -91,364 +66,199 @@ HIGH PRIORITY
 
 IMPORTANT — Fix before next major feature
 ────────────────────────────────────────────────────────────────────────────────
-[DONE June 20, 2026] Contract Salary Market Calibration — Salary generation
-  in database.ts replaced with a position/OVR/dev-trait MARKET_RATE_TABLE
-  aligned with ContractService. Eliminates the "TEAM DEAL" badge incorrectly
-  appearing on nearly all contracts. Covers QB ($1.5–65M), WR ($1.5–45M),
-  DL ($1.5–38M), CB ($1.5–32M), OL ($1.5–36M), LB ($1.5–26M), TE ($1.5–24M),
-  S ($1.5–22M), RB ($1.2–18M), K ($1–8M). Schema migration v10 recalibrates
-  existing save files on next load.
+[DONE June 20, 2026] Contract Salary Market Calibration
 
-[DONE June 20, 2026] Cap-Balanced Dynasty Start — generateContracts() now
-  scales all 32 teams proportionally to 95% of the salary cap (~$265M) at
-  dynasty generation. Previously teams could start $90M+ over cap from
-  independent per-player salary generation with no team-level cap constraint.
-  Schema migration v11 normalizes existing save payrolls on next load.
+[DONE June 20, 2026] Cap-Balanced Dynasty Start
 
-[DONE June 20, 2026] Contract Extension Pay-Cut Floor — extendPlayer() in
-  ContractService.ts enforces a hard 25% pay-cut floor: players reject any
-  extension offer below 75% of their current salary (when current salary >
-  $2M). Previously players accepted any salary decrease on extension.
+[DONE June 20, 2026] Contract Extension Pay-Cut Floor
 
-[DONE June 20, 2026] CPU Trade Accept/Decline Fix — Home.tsx accept handler
-  corrected from broken acceptCpuTrade(tradeId) to acceptCpuTradeOffer with
-  the correct payload ({ myPlayerId, theirPlayerId, theirTeamId, theirPickId }).
-  Decline handler simplified to UI-only dismiss. Resolves TypeScript errors
-  TS2339 on CpuOffer.tradeId.
+[DONE June 20, 2026] CPU Trade Accept/Decline Fix
 
-[DONE June 20, 2026] Save File Delete Resource Lock Fix — saveHandlers.ts
-  now calls closeDatabase() before unlinking a save file, releasing the SQLite
-  file lock that blocked deletion on Windows.
+[DONE June 20, 2026] Save File Delete Resource Lock Fix
 
-[DONE June 20, 2026] My Team Player Clickability — Player names in
-  ActiveRosterTab.tsx now call onPlayerClick, opening the PlayerProfile panel.
-  Previously players in the My Team roster tab were not clickable.
+[DONE June 20, 2026] My Team Player Clickability
 
-[DONE June 20, 2026] Double Game Record Fix — Sim Full Week button disabled
-  while a single game sim is in progress (simulatingGameId !== null), preventing
-  the double win/loss count caused by race condition between the two sim paths.
+[DONE June 20, 2026] Double Game Record Fix
 
-[DONE June 20, 2026] Realistic Schedule Generation — division-based scheduling with proper
-  home/away splits and divisional game weighting. Current schedule is fully
-  random, making standings feel arbitrary. Also flagged as a scalability
-  concern — random matchups produce unrealistic standings and division races.
+[DONE June 20, 2026] Realistic Schedule Generation
 
-[DONE June 20, 2026] Split simulateGame.ts — broken into src/sim/ratings.ts,
-  src/sim/stats.ts, src/sim/scoring.ts, and src/sim/types.ts. Thin orchestrator
-  simulateGame.ts imports and re-exports all modules.
+[DONE June 20, 2026] Split simulateGame.ts
 
-[DONE June 20, 2026] Reduce `any` in IPC Handlers — shared src/types/ipc.ts
-  created with typed DB row interfaces. All handler event params updated to
-  Electron.IpcMainInvokeEvent.
+[DONE June 20, 2026] Reduce `any` in IPC Handlers
 
-[DONE June 20, 2026] Split preload.ts — broken into 8 domain modules under
-  src/preload/ (core, season, roster, contracts, trades, draft, stats,
-  coaching). Minimal orchestrator merges all via spread and exposes via
-  contextBridge.
+[DONE June 20, 2026] Split preload.ts
 
-MAINTENANCE — Address before extended dynasty saves become common
+MAINTENANCE
 ────────────────────────────────────────────────────────────────────────────────
-[DONE June 20, 2026] Startup Migration Check Consolidation — all PRAGMA
-  table_info column checks removed from initDatabase(). Consolidated into
-  versioned migration runner. CURRENT_SCHEMA_VERSION now at 9. Old migration
-  blocks (v2–v8) removed once all saves were past those versions.
+[DONE June 20, 2026] Startup Migration Check Consolidation
 
-[DONE June 20, 2026] News Events Archiving — DELETE fired on every season
-  advance in advanceSeason(). Keeps last 3 seasons in news_events, prunes
-  everything older. Uses existing idx_news_season_week index.
+[DONE June 20, 2026] News Events Archiving
 
-[DONE June 20, 2026] Raw Stats Table Pruning — DELETE FROM stats WHERE
-  season < current - 1 fires in advanceSeason() after career_stats_history
-  INSERT. Keeps current + prior season for in-app lookups; older data already
-  captured in career_stats_history aggregates.
+[DONE June 20, 2026] Raw Stats Table Pruning
 
-[DONE June 20, 2026] career_stats_history team_id Column — migration v9 adds
-  team_id INTEGER to career_stats_history with idx_career_stats_team index.
-  Season-end INSERT updated to capture MAX(s.team_id) per player per season.
+[DONE June 20, 2026] career_stats_history team_id Column
 
 ================================================================================
 COMPLETED ITEMS
 ================================================================================
 
-[DONE June 23, 2026] Full Player Editor Tab — dedicated standalone ✏ Editor tab
- in the main nav. Team selector (all 32 teams, alphabetical), position filter
- buttons, live search, and roster list sorted by OVR. Clicking a player opens
- an inline edit form covering every field: first/last name, position + position
- label, age, overall rating, dev trait (color-coded buttons), all 14 attribute
- sliders (40–99), annual salary, and years remaining. Saves via editPlayer +
- editPlayerContract IPC handlers; refreshes roster and re-selects the updated
- player after save. Backed by: PlayerEditor.tsx, extended edit-player handler
- (23-field allowlist), new edit-player-contract IPC handler, extended preload
- types, and ContractRepository.getByTeam returning all 14 attribute columns.
+[DONE June 23, 2026] Commissioner Mode — save-level mode selected at dynasty
+  creation. Franchise = standard single-team experience. Commissioner = unlocks
+  Player Editor + Team Editor tabs. Mode persisted in settings and restored on
+  every save load. Dynasty mode selector added to main menu. Backed by:
+  commissionerMode in gameStore.ts, get/set-commissioner-mode IPC handlers,
+  settingsRepo persistence, and conditional tab rendering in App.tsx.
+
+[DONE June 23, 2026] Team Editor — dedicated 🏟 Teams tab (Commissioner Mode
+  only). Select any of 32 teams from a dropdown. Editable fields: city, team
+  name, abbreviation (4 chars max, auto-uppercased), conference (AFC/NFC),
+  division (North/South/East/West). Live preview bar. Saves via edit-team IPC
+  handler (UPDATE teams SET ... WHERE id). Editing your own team updates the
+  top bar immediately via game store. Toast feedback on success/error. Backed
+  by: TeamEditor.tsx, edit-team handler in settingsHandlers.ts, editTeam in
+  preload/core.ts.
+
+[DONE June 23, 2026] Owner Goals & Patience Meter — seasonal objective system
+  with real consequences. Goals auto-generated at season start based on team
+  OVR (championship / playoffs / wins / development / cap compliance). Stored
+  in owner_goals table (schema v12). Evaluated at season advance:
+  evaluateOwnerGoals() checks actual performance and marks goals achieved.
+  Owner patience (0–100, default 75) adjusts ±5 to ±20 per season based on
+  goal completion. Patience drops below 50 and 25 trigger news events. UI:
+  OwnerGoalsPanel.tsx on Home tab shows patience meter with color + label,
+  goal list with ✓/○ indicators, and warning banner when patience < 35.
+  Backed by: OwnerGoalsService.ts, owner_goals table, get/set owner-patience
+  and get/generate-owner-goals IPC handlers, SeasonService evaluateOwnerGoals
+  call, preload/season.ts exposure.
+
+[DONE June 23, 2026] Draft Pre-Season Generation + In-Season Scouting —
+  Draft class auto-generated when schedule is generated (season start); 100
+  prospects with hidden ratings are immediately visible on the Draft tab.
+  Scouting budget accumulates by simulating games (+3 per full week, +1 per
+  single game). scout-prospect enforces budget; returns error when exhausted.
+  Budget stored as scouting_budget_{season} in settings; resets each season.
+  Draft tab now always visible year-round (📋 during season, ⚡ after playoffs).
+  Draft picks disabled until playoffs complete. Backed by: simHandlers.ts
+  auto-generate logic, budget increment on simulate-week/simulate-game,
+  draftHandlers.ts budget enforcement on scout-prospect, Draft.tsx year-round
+  display and scoutBudget state, preload/draft.ts getScoutCount exposure.
+
+[DONE June 23, 2026] Full Player Editor Tab — dedicated standalone ✏ Editor
+  tab (Commissioner Mode only). Team selector, position filter, live search,
+  roster list sorted by OVR. Edit form covers every field: name, position,
+  age, OVR, dev trait, all 14 attribute sliders, salary, years remaining.
+  Backed by: PlayerEditor.tsx, edit-player handler (23-field allowlist),
+  edit-player-contract IPC handler, ContractRepository.getByTeam with all
+  14 attribute columns.
 
 [DONE June 23, 2026] TypeScript Prop and Module Fixes — resolved 7 compilation
- errors across the Player Editor and depth chart work. depthUtils.ts utility
- module created exporting POSITION_GROUPS, GROUP_LABELS, TRAIT_META, ovrColor,
- injuryMeta; duplicate depthUtils.tsx removed. App.tsx: Home receives
- onNavigate, SavePicker uses onSaveLoaded, MeetTheTeam receives team/season/
- onStart, Draft uses onDraftComplete. Franchise.tsx: CoachingTab uses teamId +
- onRefresh, SchemesTab uses teamId + teamName + onToast, SalariesTab deadCap
- prop removed, PlayerProfile uses playerStats, OffseasonTab receives
- setPlayerDecisions + setCpuFaDone + setCpuFaResult; tagWorking folded into
- working prop.
+  errors across Player Editor and depth chart. depthUtils.ts utility module
+  created; duplicate depthUtils.tsx removed. App.tsx, Franchise.tsx prop
+  interfaces corrected.
 
-
-[DONE June 23, 2026] Depth Chart Improvements — Phase section headers group
- position tabs into OFFENSE / DEFENSE / SPECIAL TEAMS. Out-of-order warning
- system: tab badges, banner, and row-level OVR delta (+N/-N) highlight when
- a healthy backup outrates the starter. Starter row has green tint highlight.
- New "⇅ Sort by OVR" button auto-sorts just the active group. "↺ Reset All"
- retained for full chart reset. DepthChart.tsx and DepthChartList.tsx updated.
+[DONE June 23, 2026] Depth Chart Improvements — Phase section headers, out-of-
+  order warning system (tab badges, banners, row-level OVR delta), starter row
+  highlight, Sort by OVR per group, Reset All.
 
 [DONE June 23, 2026] In-Season Player Progression — ProgressionService.ts runs
- after every simulated game. Grades each player's performance 0–100 by position
- (QB: comp%, yards, TDs, INTs; RB: YPC, total yards; WR/TE: yards per target;
- DL/LB/DB: tackles, sacks, INTs). Converts grade to OVR delta using age and dev
- trait modifiers. Young players (≤22) have bonus gain chance; veterans (34+) face
- regression. OVR ceiling dampening prevents elite players inflating to 99.
- Breakout news events fire when a player gains 2+ OVR in one game or a young
- player posts a standout performance. Runs for both simulate-game (in-memory
- stats) and simulate-week (queried from DB after worker completes).
+  after every simulated game. Grade-to-OVR-delta system with age/dev trait
+  modifiers, ceiling dampening, floor protection, breakout news events.
 
-[DONE June 23, 2026] Full Waiver Wire System — In-season releases now route
- through waivers instead of going directly to FA. processWaivers() runs at week
- end: CPU teams claim in worst-record-first order, unclaimed players clear to
- free agency after 1 week. balanceRosters() is season-aware (waivers in-season,
- FA in offseason). WaiverWireTab.tsx added to Franchise screen (in-season only)
- with Claim button and canClaim guard. CPU practice squad fill query restricted
- to free_agent status to prevent waiver poaching.
+[DONE June 23, 2026] Full Waiver Wire System — in-season releases route through
+  waivers. processWaivers() runs at week end. WaiverWireTab.tsx added.
 
-[DONE June 23, 2026] FA Pool Replenishment — replenishFAPool() in
- generatePlayers.ts tops up free agent counts per position to defined minimums
- (QB:5, RB:12, WR:14, TE:7, OL:16, DL:14, LB:14, CB:14, S:10, K:4). Called
- after CPU FA signings and at season advance. Fixes the depleted FA pool issue
- where CPU teams signed nearly all FAs leaving nothing for the user.
+[DONE June 23, 2026] FA Pool Replenishment — replenishFAPool() tops up free
+  agent counts per position to defined minimums after CPU FA signings and
+  season advance.
 
-[DONE June 23, 2026] Player Retirement Control — players with announcing_retirement
- roster status surface in the offseason checklist. User can make a 1-year
- retention offer; player accepts/declines based on age and OVR probability (age
- ≤33 and OVR 80+ more likely to return). Declined or dismissed players retire
- and log a news event. Unresolved announcements auto-retire on season advance.
+[DONE June 23, 2026] Player Retirement Control — announcing_retirement roster
+  status; user can make 1-year retention offer; accepted/declined based on
+  age + OVR probability; auto-retires on season advance if unresolved.
 
 [DONE June 23, 2026] Playoff Simulation Fix — simulate-playoffs handler
- corrected to fetch playoff results and champions separately after simulation
- rather than using the simulation result object directly. Resolves the runtime
- crash when navigating to the Playoffs tab after simulating.
+  corrected to fetch playoff results and champions separately.
 
-[DONE June 21, 2026] Game Preview / Head-to-Head — Pre-sim matchup card on
-  the Home screen now shows a full head-to-head preview before simming a game:
-  both teams' W-L records, mirrored Offense/Defense/Overall OVR bars, each
-  team's offensive and defensive scheme, and a win probability bar derived from
-  the team strength delta. Backed by GamePreview.tsx, getFranchiseHealth() and
-  getTeamScheme() fetched in parallel for both teams via a new useEffect.
-  getTeamScheme exposed in preload/roster.ts. Falls back to the simple VS
-  display while data loads.
+[DONE June 21, 2026] Game Preview / Head-to-Head — pre-sim matchup card shows
+  W-L records, mirrored OVR bars, schemes, and win probability bar.
 
-[DONE June 21, 2026] Practice Squad Promotion Alerts — Active Alerts panel on
-  the Home screen now surfaces a PS↑ badge whenever a practice squad player's
-  OVR exceeds the lowest active roster player at the same position. Sorted by
-  gap descending (biggest mismatches first). Each alert shows player name,
-  position, their OVR vs lowest active OVR, and a Promote button that navigates
-  directly to the My Team tab. Backed by getPSPromotionAlerts() in
-  PlayerRepository.ts, get-ps-promotion-alerts IPC handler in simHandlers.ts,
-  and preload/roster.ts exposure. Refreshed after every game and week sim.
+[DONE June 21, 2026] Practice Squad Promotion Alerts — Active Alerts panel
+  surfaces PS↑ badge when a PS player outrates the lowest active player at
+  the same position.
 
-[DONE June 21, 2026] Position-Weighted Team Ratings — computeTeamRatings() in
-  src/sim/ratings.ts overhauled from a flat average to a position-weighted
-  model. Offense: QB 28%, OL 20%, WR 18%, RB 14%, TE 10%. Defense: DL 28%,
-  LB 24%, CB 20%, S 18%. A franchise QB now drives roughly 28% of offensive
-  strength — signing an elite QB matters more than adding a WR1. OL rebuilds
-  and line depth feel meaningfully different from skill position upgrades.
-  Scheme and coaching modifiers are unchanged and stack on top of the weighted
-  base.
+[DONE June 21, 2026] Position-Weighted Team Ratings — computeTeamRatings()
+  overhauled from flat average to weighted model. Offense: QB 28%, OL 20%,
+  WR 18%, RB 14%, TE 10%. Defense: DL 28%, LB 24%, CB 20%, S 18%.
 
-[DONE June 20, 2026] Salaries Tab — New SalariesTab.tsx sub-tab added to the
-  Franchise screen (7th tab). Shows full salary + contract detail for every
-  active roster player: position filter, name search, sortable columns (salary,
-  years remaining, OVR, name), cap summary bar, contract grade badges (TEAM
-  DEAL / FAIR / OVERPAID), guaranteed %, years-remaining pips, and A–D value
-  grades derived from OVR vs. salary percentile.
+[DONE June 20, 2026] Salaries Tab — SalariesTab.tsx with cap summary, contract
+  grade badges, guaranteed %, years-remaining pips, A–D value grades.
 
-[DONE June 20, 2026] Contract Extension — Add Years (not Overwrite) —
-  extendPlayer() in ContractService.ts now adds extension years to the player's
-  existing remaining years instead of overwriting them. ActiveRosterTab.tsx
-  extend dialog updated: button labels read "+1 yr", "+2 yrs" etc., and a live
-  preview shows the new total years on contract. Default dialog opens at 2
-  additional years.
+[DONE June 20, 2026] Contract Extension — Add Years (not Overwrite)
 
-[DONE June 20, 2026] Box Score Q1–Q4 + Team Names — Box score modal (Home.tsx)
-  now shows a quarter-by-quarter scoring grid (Q1–Q4 + final) for both teams.
-  Each stat leader row shows the player's name on line 1 and their team name
-  on line 2 in color-coded text. BoxScoreData interface (home/types.ts) updated
-  to include home_q1–home_q4 and away_q1–away_q4 fields.
+[DONE June 20, 2026] Box Score Q1–Q4 + Team Names
 
-[DONE June 20, 2026] "End Regular Season" Button Label — Advance Week button
-  in Home.tsx is context-aware: weeks 1–16 read "▶ Advance to Week N"; week 17
-  reads "▶ End Regular Season", correctly signalling that clicking advances
-  into playoff seeding rather than a Week 18.
+[DONE June 20, 2026] "End Regular Season" Button Label
 
-[DONE June 20, 2026] Standings Page Scrollable — League.tsx container changed
-  from overflow: hidden to overflow: auto. Standings, conference, and division
-  views are now fully scrollable when content exceeds viewport height.
+[DONE June 20, 2026] Standings Page Scrollable
 
-[DONE June 20, 2026] Wider Sidebar + Stat Leaders with Team Names — Home.tsx
-  sidebar width increased from 220px to 260px. Weekly stat leaders widget now
-  displays each leader's player name and team name on separate lines, giving
-  full context for every leaderboard entry.
+[DONE June 20, 2026] Wider Sidebar + Stat Leaders with Team Names
 
-[DONE June 20, 2026] Dynasty Name Input Visibility (App.tsx) — The dynasty
-  name input on the main menu screen now has a clearly visible white border and
-  an orange focus glow. A helper label below the field reads "Enter a name for
-  your dynasty." Previously the field blended into the background and looked
-  non-interactive.
+[DONE June 20, 2026] Dynasty Name Input Visibility
 
-[DONE June 20, 2026] Team Selection Screen Readability (TeamSelection.tsx) —
-  Replaced the near-black background with a blue-navy gradient. Division
-  header cards and team cards updated to lighter, visually distinct colors with
-  improved hover states. Conference and team labels are readable in all lighting
-  conditions.
+[DONE June 20, 2026] Team Selection Screen Readability
 
-[DONE June 20, 2026] Position Filter Bug Fix (Roster + Free Agents) —
-  ActiveRosterTab.tsx and FreeAgentsTab.tsx filter logic changed from
-  (position_label || position) === filter to
-  position === filter || position_label === filter. The old || short-circuit
-  caused RBs (position_label: HB/FB) and safeties (position_label: SS/FS) to
-  disappear when their position group buttons were clicked. Both roster
-  management and free agent signing screens now correctly show all players
-  under the RB and S filter buttons.
+[DONE June 20, 2026] Position Filter Bug Fix (Roster + Free Agents)
 
-[DONE June 20, 2026] Multiple Incoming CPU Trade Offers — getCpuTradeOffer
-  renamed to getCpuTradeOffers (TradeService.ts), now returns an array of up
-  to 3 simultaneous offers instead of a single offer or null. A ~35% random
-  gate prevents offers from generating on every tab check. A claimedUserPlayerIds
-  Set ensures no two offers in the same batch target the same player. Trades.tsx
-  updated to store cpuOffers[] array with offerIndex cursor. CpuOfferBanner.tsx
-  gains offerIndex, offerCount, onPrev, and onNext props — when multiple offers
-  are present a "X of Y offers" pill and ‹ › navigation arrows appear in the
-  header. Accept or Decline removes only the current offer; remaining offers
-  stay visible.
+[DONE June 20, 2026] Multiple Incoming CPU Trade Offers (up to 3 simultaneous)
 
-[DONE June 20, 2026] CPU Trade Frequency Reduction — CPU-vs-CPU in-season
-  trades (runCpuTrades) capped at 2/week (down from 4). Skip threshold for
-  normal sellers raised to 72% (from 60%), reducing the expected number of
-  CPU-vs-CPU trades per simulated week from ~1.5 to ~0.5. Incoming user-facing
-  offer generation gated at 35% per check (see above), preventing trade offers
-  from appearing after every single tab visit.
+[DONE June 20, 2026] CPU Trade Frequency Reduction
 
-[DONE June 20, 2026] Franchise & League Records — Franchise Records tab added
-  to Records screen. Queries career_stats_history filtered by team_id for
-  single-season franchise bests across all 8 stat categories. Team selector
-  defaults to user's team. Reuses existing LeaderboardTable component. League
-  all-time and season records were already live; franchise records complete
-  the set. Backed by getFranchiseRecords() in StatsService, get-franchise-records
-  IPC handler, and FranchiseRecords.tsx component.
+[DONE June 20, 2026] Franchise & League Records
 
-[DONE June 20, 2026] Trade Balance Fix — Overhauled calcPlayerTradeValue() in
-  TradeService.ts with position weighting (QB: 1.4, WR/TE/CB/DL: 1.1–1.15,
-  OL: 1.05, RB: 0.85), age curves (peak 24–26 at 1.25x, decline 33+ at 0.5x),
-  and dev trait multipliers (X-Factor: 1.5, Superstar: 1.3, Star: 1.15). CPU
-  trade offers now require offer value within 78–115% of requested player value
-  before generating. Lopsided deals (e.g. 76 OVR TE for 91 OVR OL + 1st round
-  pick) are now correctly rejected by the acceptance logic.
+[DONE June 20, 2026] Trade Balance Fix
 
-[DONE June 19, 2026] LB Depth Chart Split — Linebackers broken into MLB
-  (Middle Linebacker) and OLB (Outside Linebacker) as separate position groups
-  in depthUtils.ts POSITION_GROUPS and GROUP_LABELS. generatePlayers.ts
-  POSITION_LABEL_POOLS assigns MLB/OLB labels at generation. franchise/utils.ts
-  POSITIONS filter also updated to reflect the split.
+[DONE June 19, 2026] LB Depth Chart Split (MLB / OLB)
 
-[DONE June 19, 2026] Full Player Stat Editability — All 14 position-specific
-  attributes (speed, strength, awareness, throw_accuracy, throw_power,
-  catching, route_running, tackle_rating, coverage, pass_rush, kickpower,
-  kickaccuracy, runblocking, passblocking) plus OVR, age, and dev trait are
-  now editable via the inline EditPanel in PlayerProfile.tsx. Attributes
-  rendered as labeled sliders with color-coded values. Saved via editPlayer
-  IPC handler.
+[DONE June 19, 2026] Full Player Stat Editability (14 attribute sliders)
 
-[DONE June 19, 2026] Dev Trait Ratio Rebalanced — devTrait() in
-  generatePlayers.ts now uses a 5-tier OVR-based probability system. OVR 90+:
-  5% X-Factor, 20% Superstar, 60% Star, 15% Normal. OVR 85–89: 2% / 12% /
-  60% / 26%. OVR 80–84: 0.5% / 5% / 45% / 49.5%. OVR 70–79: 0.1% / 1% /
-  20% / 79%. Below 70: 4% Star, 96% Normal. Eliminates the previous
-  over-assignment of elite traits to average players.
+[DONE June 19, 2026] Dev Trait Ratio Rebalanced
 
-[DONE June 19, 2026] Home Page Redesign — Redesigned Home.tsx to focus on the
-  user's own game and sim controls. Main content shows: user's matchup card
-  with Sim My Game + Sim Full Week buttons, Roster Health panel (offense/
-  defense/overall OVR with positional group grades), Active Alerts (injuries,
-  practice squad openings). Sidebar handles league context (standings, stat
-  leaders, season controls). Removed WeeklySchedule.tsx and SeasonHeader.tsx
-  which were replaced by inline components. Tab navigation consolidated from
-  12+ tabs to 7 (Home, My Team, League, Trades, Draft, News, Import) using
-  MyTeam.tsx and League.tsx wrapper components.
+[DONE June 19, 2026] Home Page Redesign
 
-[DONE June 19, 2026] Contract Negotiation Fix — Salary input in OffseasonTab
-  changed from arrows-only to a free-text input field (type="text" with
-  onChange handler), allowing direct dollar amount entry. Contract acceptance
-  difficulty tuned via askingPrice() with age-based multipliers (1.04x premium
-  for players 26 and under, 0.92x discount for players 31+).
+[DONE June 19, 2026] Contract Negotiation Fix
 
-[DONE June 19, 2026] Franchise Health Monitor — positional group OVR panel
-  on the Home page. Shows offense OVR, defense OVR, overall grade, and 7
-  positional group tiles (QB, RB, WR/TE, OL, DL, LB, DB) with letter grades.
-  Color-coded green/orange/red. Updates live after every simulated week via
-  getFranchiseHealth() in PlayerRepository, get-franchise-health IPC handler,
-  preload exposure, and FranchiseHealth state in Home.tsx.
+[DONE June 19, 2026] Franchise Health Monitor
 
-[DONE June 19, 2026] Schemes System — offensive and defensive scheme selection
-  for every team. 5 offensive schemes (West Coast, Air Raid, Power Run, Spread,
-  Run & Gun) and 5 defensive schemes (4-3, 3-4, Zone Cover 2, Man Press, Blitz
-  Heavy). Each scheme applies a rating modifier in every simulated game based on
-  roster fit. All 32 CPU teams receive randomly assigned schemes at first
-  launch. Backed by team_schemes table (migration v7), schemeHandlers.ts, and
-  getSchemeModifiers() wired into simulateGame.ts getTeamRatings().
+[DONE June 19, 2026] Schemes System
 
-[DONE June 19, 2026] Draft Combine / Deeper Scouting — five physical combine
-  measurables per prospect: 40-yard dash, bench press reps, vertical jump,
-  broad jump, and 3-cone drill time. Color-coded badges in ProspectBoard.tsx.
-  Stored in draft_prospects via migration v6.
+[DONE June 19, 2026] Draft Combine / Deeper Scouting
 
-[DONE June 19, 2026] Coaching Staff System — HC / OC / DC / ST coordinators
-  with overall, offense, defense, and development ratings. Coaching ratings
-  directly modify team strength in game sim. Backed by coaching_staff table
-  (migration v5), CoachingRepository, CoachingService, and coachingHandlers.
+[DONE June 19, 2026] Coaching Staff System
 
-[DONE June 19, 2026] Contract Negotiation Depth — multi-year offer counters,
-  holdout mechanic, dead cap penalties on early releases.
+[DONE June 19, 2026] Contract Negotiation Depth
 
-[DONE June 19, 2026] Surface Trade Offers on Main Screen — incoming CPU trade
-  proposals surface on the Home tab as a notification card.
+[DONE June 19, 2026] Surface Trade Offers on Main Screen
 
-[DONE June 19, 2026] Meet the Team Screen — orientation screen after team
-  selection on new dynasties.
+[DONE June 19, 2026] Meet the Team Screen
 
-[DONE June 19, 2026] Franchise Tag + Tender System — Franchise Tag (~135% of
-  fair market) and Transition Tag (~110%) in the Offseason tab.
+[DONE June 19, 2026] Franchise Tag + Tender System
 
-[DONE June 19, 2026] Player Morale System — morale column on players table
-  (default 75, range 0–100).
+[DONE June 19, 2026] Player Morale System
 
-[DONE June 18, 2026] Season Awards — MVP, OPOY, DPOY, OROY, DROY, Coach of
-  the Year.
+[DONE June 18, 2026] Season Awards
 
-[DONE June 18, 2026] Practice Squad Accelerated Development — PS players aged
-  23 or younger receive OVR gains each season (up to +3 bonus).
+[DONE June 18, 2026] Practice Squad Accelerated Development
 
-[DONE June 18, 2026] Contract Demand News Events — elite players (OVR 85+)
-  entering final contract year generate a news event.
+[DONE June 18, 2026] Contract Demand News Events
 
-[DONE June 18, 2026] Retirement + HOF News Events — retirements and Hall of
-  Fame inductions generate news feed events at season end.
+[DONE June 18, 2026] Retirement + HOF News Events
 
-[DONE June 18, 2026] Multiple Save Files — save picker at launch, lazy DB
-  init via Proxy pattern, full save create / load / delete UI.
+[DONE June 18, 2026] Multiple Save Files
 
-[DONE June 18, 2026] OL Ratings in Teams / Depth Chart — getRatingCols returns
-  PBK / RBK / STR / AWR for all OL positions.
+[DONE June 18, 2026] OL Ratings in Teams / Depth Chart
 
-[DONE] Player Editor — inline edit mode in PlayerProfile.tsx.
+[DONE] Player Editor — inline edit mode in PlayerProfile.tsx
 
-[DONE] Playoff UI Update — bracket-style visual for the playoff tree.
+[DONE] Playoff UI Update — bracket-style visual
 
 ================================================================================
 COMMERCIAL / SCALABILITY TRACK
@@ -467,15 +277,9 @@ Windows Build Verification — better-sqlite3 is a native module that must be
 ================================================================================
 PREVIOUSLY COMPLETED (June 18, 2026 and earlier)
 ================================================================================
-[DONE] DB Indexes — idx_stats_game_id, idx_stats_player_id, idx_stats_team_id,
-  idx_stats_team_game, idx_games_season, idx_games_season_sim added.
-[DONE] Migration Versioning — schema_version tracked in settings; numbered
-  migration runner upgrades existing saves on launch.
-[DONE] Background Simulation — simulateGame runs in a worker thread.
-[DONE] Full IP Cleanup — all real NFL data removed. Fictional player generator.
-  Championship renamed Gridiron Cup. App renamed Gridiron Dynasty.
-[DONE] Automated Tests — Vitest suite covering sim helpers, game sim logic,
-  season progression, trade value, contract acceptance, milestones, CPU GM,
-  and team stats.
-[DONE] CSV Import System — custom roster, historical records, and player data
-  import UI with column mapping and validation.
+[DONE] DB Indexes
+[DONE] Migration Versioning
+[DONE] Background Simulation
+[DONE] Full IP Cleanup — fictional players, Gridiron Cup, Gridiron Dynasty
+[DONE] Automated Tests — Vitest suite
+[DONE] CSV Import System
