@@ -74,7 +74,7 @@ export default function MeetTheTeam({ team, season, onStart }: Props) {
 
   const S = {
     page: {
-      minHeight: '100vh',
+      height: '100vh',
       background: '#0f172a',
       color: '#e2e8f0',
       fontFamily: "'Segoe UI', system-ui, sans-serif",
