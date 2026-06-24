@@ -88,6 +88,7 @@ export function initDatabase(dbPath: string): void {
       waiver_placed_week INTEGER,
       morale INTEGER DEFAULT 75,
       archetype TEXT NOT NULL DEFAULT 'normal',
+            injury_prone INTEGER DEFAULT 0,
       FOREIGN KEY (team_id) REFERENCES teams(id)
     );
     CREATE TABLE IF NOT EXISTS games (
@@ -341,6 +342,41 @@ export function initDatabase(dbPath: string): void {
       team_id INTEGER PRIMARY KEY,
       offense_scheme TEXT NOT NULL DEFAULT 'West Coast',
       defense_scheme TEXT NOT NULL DEFAULT '4-3',
+      FOREIGN KEY (team_id) REFERENCES teams(id)
+    );
+
+        CREATE TABLE IF NOT EXISTS owner_goals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      season INTEGER NOT NULL,
+      goal_type TEXT NOT NULL,
+      target_value INTEGER NOT NULL,
+      achieved INTEGER DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS injury_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      player_id INTEGER NOT NULL,
+      season INTEGER NOT NULL,
+      week INTEGER NOT NULL,
+      injury_type TEXT NOT NULL,
+      severity TEXT NOT NULL,
+      weeks_out INTEGER NOT NULL,
+      FOREIGN KEY (player_id) REFERENCES players(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS team_chemistry (
+      team_id INTEGER PRIMARY KEY,
+      chemistry INTEGER NOT NULL DEFAULT 50,
+      FOREIGN KEY (team_id) REFERENCES teams(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS chemistry_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      team_id INTEGER NOT NULL,
+      season INTEGER NOT NULL,
+      week INTEGER NOT NULL DEFAULT 0,
+      delta INTEGER NOT NULL,
+      reason TEXT NOT NULL,
       FOREIGN KEY (team_id) REFERENCES teams(id)
     );
   `);
