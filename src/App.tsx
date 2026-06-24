@@ -191,25 +191,28 @@ export default function App() {
   const tabStyle  = (id: Tab): React.CSSProperties => activeTab === id ? {} : { display: 'none' };
 
   // ── Main Menu ─────────────────────────────────────────────────────────────
-  if (screen === 'main-menu') {
+    if (screen === 'main-menu') {
     return (
       <div style={{
         minHeight: '100vh', display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
         background: T.bgPage, fontFamily: 'monospace',
       }}>
+
+        {/* Title */}
         <div style={{ fontSize: 10, color: T.textDim, letterSpacing: 3, marginBottom: 8 }}>
           DYNASTY SIMULATOR
         </div>
         <div style={{ fontSize: 40, fontWeight: 900, color: '#fff', letterSpacing: 6, lineHeight: 1 }}>
           Sideline to Sideline
         </div>
-        <div style={{ fontSize: 40, fontWeight: 900, color: '#FF8740', letterSpacing: 6, marginBottom: 36 }}>
+        <div style={{ fontSize: 40, fontWeight: 900, color: '#FF8740', letterSpacing: 6, marginBottom: 40 }}>
           Football
         </div>
 
-        <div style={{ marginBottom: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-          <div style={{ fontSize: 9, color: T.textDim, letterSpacing: 2, marginBottom: 4 }}>DYNASTY NAME</div>
+        {/* Dynasty Name */}
+        <div style={{ marginBottom: 28, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+          <div style={{ fontSize: 9, color: T.textMuted, letterSpacing: 2, marginBottom: 2 }}>DYNASTY NAME</div>
           <input
             value={dynastyName}
             onChange={e => setDynastyName(e.target.value)}
@@ -230,39 +233,53 @@ export default function App() {
           <div style={{ fontSize: 9, color: T.textDim, letterSpacing: 1 }}>name your save file</div>
         </div>
 
+        {/* Dynasty Mode */}
+        <div style={{ marginBottom: 28, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+          <div style={{ fontSize: 9, color: T.textMuted, letterSpacing: 2, marginBottom: 2 }}>DYNASTY MODE</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {(['franchise', 'commissioner'] as const).map(m => (
+              <button
+                key={m}
+                onClick={() => setDynastyMode(m)}
+                style={{
+                  padding: '9px 18px', fontSize: 10, fontFamily: 'monospace',
+                  fontWeight: dynastyMode === m ? 700 : 400, letterSpacing: 1,
+                  background: dynastyMode === m
+                    ? (m === 'commissioner' ? 'rgba(79,195,247,0.12)' : 'rgba(255,135,64,0.12)')
+                    : 'transparent',
+                  border: `1px solid ${dynastyMode === m
+                    ? (m === 'commissioner' ? '#4FC3F7' : '#FF8740')
+                    : T.borderFaint}`,
+                  color: dynastyMode === m
+                    ? (m === 'commissioner' ? '#4FC3F7' : '#FF8740')
+                    : T.textDim,
+                  borderRadius: 4, cursor: 'pointer', transition: 'all 0.15s',
+                }}
+              >
+                {m === 'franchise' ? '🏈 FRANCHISE' : '🏟 COMMISSIONER'}
+              </button>
+            ))}
+          </div>
+          <div style={{ fontSize: 9, color: T.textDim, letterSpacing: 1 }}>
+            {dynastyMode === 'commissioner'
+              ? 'Unlocks Player Editor + Team Editor tabs'
+              : 'Standard single-team franchise experience'}
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div style={{ width: 300, height: 1, background: T.borderFaint, marginBottom: 24 }} />
+
+        {/* Start Actions */}
         <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
-                       {/* Mode selector */}
-             <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-               {(['franchise', 'commissioner'] as const).map(m => (
-                 <button
-                   key={m}
-                   onClick={() => setDynastyMode(m)}
-                   style={{
-                     flex: 1, padding: '8px 12px', fontSize: 10, fontFamily: 'monospace',
-                     fontWeight: dynastyMode === m ? 700 : 400, letterSpacing: 1,
-                     background: dynastyMode === m ? (m === 'commissioner' ? '#1a1a2a' : '#1a1400') : 'transparent',
-                     border: `1px solid ${dynastyMode === m ? (m === 'commissioner' ? '#4FC3F7' : '#FF8740') : '#222'}`,
-                     color: dynastyMode === m ? (m === 'commissioner' ? '#4FC3F7' : '#FF8740') : '#444',
-                     borderRadius: 4, cursor: 'pointer',
-                   }}
-                 >
-                   {m === 'franchise' ? '🏈 FRANCHISE' : '🏟 COMMISSIONER'}
-                 </button>
-               ))}
-             </div>
-             <div style={{ fontSize: 9, color: '#333', fontFamily: 'monospace', marginBottom: 12, textAlign: 'center' }}>
-               {dynastyMode === 'commissioner'
-                 ? 'Unlocks Player Editor + Team Editor tabs'
-                 : 'Standard single-team franchise experience'}
-             </div>
-             <MenuButton label="NEW DYNASTY" sub="standard setup" color="#FF8740" onClick={() => handleNewGame('standard')} />
-             <MenuButton label="CUSTOM DYNASTY" sub="import csv data" color="#4FC3F7" onClick={() => handleNewGame('custom')} />
+          <MenuButton label="NEW DYNASTY" sub="standard setup" color="#FF8740" onClick={() => handleNewGame('standard')} />
+          <MenuButton label="CUSTOM DYNASTY" sub="import csv data" color="#4FC3F7" onClick={() => handleNewGame('custom')} />
         </div>
 
         <button
           onClick={() => setScreen('save-picker')}
           style={{
-            marginTop: 8, padding: '12px 28px', fontSize: 12, fontWeight: 'bold',
+            marginTop: 4, padding: '12px 28px', fontSize: 12, fontWeight: 'bold',
             letterSpacing: 2, background: 'transparent', color: T.textMuted,
             border: `1px solid ${T.borderFaint}`, borderRadius: 4,
             cursor: 'pointer', fontFamily: 'monospace',
@@ -276,7 +293,6 @@ export default function App() {
       </div>
     );
   }
-
   if (screen === 'loading') {
     return (
       <div style={{
