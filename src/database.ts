@@ -508,7 +508,7 @@ for (const contract of pending) {
 
 // ─── Migration Versioning ─────────────────────────────────────────────────────
 
-const CURRENT_SCHEMA_VERSION = 12;
+const CURRENT_SCHEMA_VERSION = 13;
 
 interface Migration { version: number; description: string; up: () => void; }
 
@@ -545,40 +545,40 @@ const MIGRATIONS: Migration[] = [
     },
   },
   {
-  version: 11,
-  description: 'Normalize all team salary totals to 95% of salary cap',
-  up: () => {
-    const CAP_TARGET = SALARY_CAP * 0.95;
-    const teamRows = db.prepare(`
-      SELECT c.team_id, SUM(c.annual_salary) as total_salary
-      FROM contracts c
-      JOIN players p ON c.player_id = p.id
-      WHERE p.roster_status = 'active'
-      GROUP BY c.team_id
-    `).all() as any[];
-
-    const updateSalary = db.prepare(
-      'UPDATE contracts SET annual_salary = ?, guaranteed_amount = ? WHERE player_id = ?'
-    );
-
-    for (const team of teamRows as any[]) {
-      if (Math.abs(team.total_salary - CAP_TARGET) < 5) continue;
-      const scale = CAP_TARGET / team.total_salary;
-      const contracts = db.prepare(`
-        SELECT c.player_id, c.annual_salary, c.years_total, c.guaranteed_pct
+    version: 11,
+    description: 'Normalize all team salary totals to 95% of salary cap',
+    up: () => {
+      const CAP_TARGET = SALARY_CAP * 0.95;
+      const teamRows = db.prepare(`
+        SELECT c.team_id, SUM(c.annual_salary) as total_salary
         FROM contracts c
         JOIN players p ON c.player_id = p.id
-        WHERE c.team_id = ? AND p.roster_status = 'active'
-      `).all(team.team_id) as any[];
-      for (const c of contracts) {
-        const newSalary = Math.max(1.0, Math.round(c.annual_salary * scale * 10) / 10);
-        const newGtd = Math.round(newSalary * c.years_total * ((c.guaranteed_pct ?? 20) / 100) * 10) / 10;
-        updateSalary.run(newSalary, newGtd, c.player_id);
+        WHERE p.roster_status = 'active'
+        GROUP BY c.team_id
+      `).all() as any[];
+
+      const updateSalary = db.prepare(
+        'UPDATE contracts SET annual_salary = ?, guaranteed_amount = ? WHERE player_id = ?'
+      );
+
+      for (const team of teamRows as any[]) {
+        if (Math.abs(team.total_salary - CAP_TARGET) < 5) continue;
+        const scale = CAP_TARGET / team.total_salary;
+        const contracts = db.prepare(`
+          SELECT c.player_id, c.annual_salary, c.years_total, c.guaranteed_pct
+          FROM contracts c
+          JOIN players p ON c.player_id = p.id
+          WHERE c.team_id = ? AND p.roster_status = 'active'
+        `).all(team.team_id) as any[];
+        for (const c of contracts) {
+          const newSalary = Math.max(1.0, Math.round(c.annual_salary * scale * 10) / 10);
+          const newGtd = Math.round(newSalary * c.years_total * ((c.guaranteed_pct ?? 20) / 100) * 10) / 10;
+          updateSalary.run(newSalary, newGtd, c.player_id);
+        }
       }
-    }
+    },
   },
-},
-      {
+  {
     version: 12,
     description: 'Add owner_goals table and owner_patience setting',
     up: () => {
@@ -591,10 +591,34 @@ const MIGRATIONS: Migration[] = [
           achieved INTEGER DEFAULT 0
         )
       `).run();
-            db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('owner_patience', '75')").run();
+      db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('owner_patience', '75')").run();
+    },
+  },
+  {
+    version: 13,
+    description: 'Add injury_history table and injury_prone flag on players',
+    up: () => {
+      db.prepare(`
+        CREATE TABLE IF NOT EXISTS injury_history (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          player_id INTEGER NOT NULL,
+          season INTEGER NOT NULL,
+          week INTEGER NOT NULL,
+          injury_type TEXT NOT NULL,
+          severity TEXT NOT NULL,
+          weeks_out INTEGER NOT NULL DEFAULT 0,
+          FOREIGN KEY (player_id) REFERENCES players(id)
+        )
+      `).run();
+      db.exec('CREATE INDEX IF NOT EXISTS idx_injury_history_player ON injury_history(player_id)');
+
+      const playerCols = (db.prepare('PRAGMA table_info(players)').all() as any[]).map((c: any) => c.name);
+      if (!playerCols.includes('injury_prone'))
+        db.prepare('ALTER TABLE players ADD COLUMN injury_prone INTEGER DEFAULT 0').run();
     },
   },
 ];
+
 function getSchemaVersion(): number {
   try {
     const row = db.prepare("SELECT value FROM settings WHERE key = 'schema_version'").get() as any;
