@@ -150,9 +150,11 @@ MEDIUM PRIORITY — Expected polish for a Steam release
       top bar badge changed from GID to S2S
     - src/ErrorBoundary.tsx: error screen header updated
 
-[ ] Loading / Splash Screen
-    - A brief branded loading screen before the main menu would significantly
-      improve first-impression feel for a Steam release
+[DONE June 24, 2026] Loading / Splash Screen
+    - Branded HTML splash renders instantly before React loads (zero blank flash)
+    - S2S badge, title, animated orange progress bar (~1.4s)
+    - Fades out in 0.5s once React mounts, then removes itself from DOM
+    - Implemented in src/index.html + src/renderer.ts via window.__hideSplash()
 
 ────────────────────────────────────────────────────────────────────────────────
 STEAM STORE LISTING REQUIREMENTS (before going live)
@@ -237,6 +239,17 @@ MAINTENANCE
 ================================================================================
 COMPLETED ITEMS
 ================================================================================
+
+[DONE June 24, 2026] Injury History / Injury-Prone Trait — permanent injury_history
+  table records every injury event (type, severity, weeks out) per player per game.
+  Players with 2+ moderate/severe injuries accumulate the injury-prone flag. IR
+  placement and activation supported with news events. Dedicated 🏥 Injuries tab
+  under My Team: split IR / active injured view, player detail panel with full
+  career injury history table and injury-prone badge.
+
+[DONE June 24, 2026] Loading / Splash Screen — branded HTML splash screen renders
+  before React loads (zero blank flash). S2S badge, title stack, animated orange
+  progress bar. Fades out 0.5s after React mounts via window.__hideSplash().
 
 [DONE June 23, 2026] Commissioner Mode — save-level mode selected at dynasty
   creation. Franchise = standard single-team experience. Commissioner = unlocks
