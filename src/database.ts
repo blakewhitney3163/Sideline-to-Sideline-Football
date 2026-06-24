@@ -646,6 +646,14 @@ const MIGRATIONS: Migration[] = [
       db.transaction(() => { for (const t of teams) insert.run(t.id); })();
     },
   },
+  {
+  version: 15,
+  up: (db: Database) => {
+    db.prepare(
+      "ALTER TABLE players ADD COLUMN archetype TEXT NOT NULL DEFAULT 'normal'"
+    ).run();
+  },
+},
 ];
 
 function getSchemaVersion(): number {
