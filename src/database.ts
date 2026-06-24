@@ -508,7 +508,7 @@ for (const contract of pending) {
 
 // ─── Migration Versioning ─────────────────────────────────────────────────────
 
-const CURRENT_SCHEMA_VERSION = 13;
+const CURRENT_SCHEMA_VERSION = 14;
 
 interface Migration { version: number; description: string; up: () => void; }
 
@@ -615,6 +615,35 @@ const MIGRATIONS: Migration[] = [
       const playerCols = (db.prepare('PRAGMA table_info(players)').all() as any[]).map((c: any) => c.name);
       if (!playerCols.includes('injury_prone'))
         db.prepare('ALTER TABLE players ADD COLUMN injury_prone INTEGER DEFAULT 0').run();
+    },
+  },
+    {
+    version: 14,
+    description: 'Add team_chemistry and chemistry_events tables',
+    up: () => {
+      db.prepare(`
+        CREATE TABLE IF NOT EXISTS team_chemistry (
+          team_id INTEGER PRIMARY KEY,
+          chemistry INTEGER NOT NULL DEFAULT 50,
+          FOREIGN KEY (team_id) REFERENCES teams(id)
+        )
+      `).run();
+      db.prepare(`
+        CREATE TABLE IF NOT EXISTS chemistry_events (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          team_id INTEGER NOT NULL,
+          season INTEGER NOT NULL,
+          week INTEGER NOT NULL DEFAULT 0,
+          delta INTEGER NOT NULL,
+          reason TEXT NOT NULL,
+          FOREIGN KEY (team_id) REFERENCES teams(id)
+        )
+      `).run();
+      db.exec('CREATE INDEX IF NOT EXISTS idx_chem_events_team ON chemistry_events(team_id, season)');
+      // Seed chemistry = 50 for all existing teams
+      const teams = db.prepare('SELECT id FROM teams').all() as any[];
+      const insert = db.prepare('INSERT OR IGNORE INTO team_chemistry (team_id, chemistry) VALUES (?, 50)');
+      db.transaction(() => { for (const t of teams) insert.run(t.id); })();
     },
   },
 ];
