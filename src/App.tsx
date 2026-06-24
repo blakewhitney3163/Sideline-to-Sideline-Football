@@ -42,7 +42,6 @@ const BASE_TABS: { id: Tab; label: string }[] = [
   { id: 'league', label: 'League' },
   { id: 'trades', label: 'Trades' },
   { id: 'news',   label: '📰 News' },
-  { id: 'import', label: 'Import' },
 ];
 
 function TabFallback() {
@@ -181,7 +180,8 @@ export default function App() {
     const tabs = [
     ...BASE_TABS,
     { id: 'draft' as Tab, label: playoffsComplete ? '⚡ Draft' : '📋 Draft' },
-    ...(commissionerMode ? [
+        ...(commissionerMode ? [
+      { id: 'import' as Tab, label: 'Import' },
       { id: 'editor' as Tab, label: '✏ Editor' },
       { id: 'teameditor' as Tab, label: '🏟 Teams' },
     ] : []),
