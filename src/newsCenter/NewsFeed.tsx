@@ -43,6 +43,7 @@ export default function NewsFeed() {
   const [seasons, setSeasons] = useState<number[]>([]);
   const [viewSeason, setViewSeason] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   useEffect(() => {
     window.api.getNewsSeasons().then((s: number[]) => {
@@ -110,11 +111,21 @@ export default function NewsFeed() {
         ) : (
           events.map(event => {
             const meta = getMeta(event.event_type);
+            const isExpanded = expandedId === event.id;
+            const hasDetail = !!event.detail;
             return (
-              <div key={event.id} style={{
-                display: 'flex', gap: 12, padding: '10px 0',
-                borderBottom: `1px solid ${T.borderFaint}`,
-              }}>
+              <div
+                key={event.id}
+                onClick={() => hasDetail && setExpandedId(isExpanded ? null : event.id)}
+                style={{
+                  display: 'flex', gap: 12, padding: '10px 0',
+                  borderBottom: `1px solid ${T.borderFaint}`,
+                  cursor: hasDetail ? 'pointer' : 'default',
+                  background: isExpanded ? 'rgba(255,255,255,0.03)' : 'transparent',
+                  borderRadius: isExpanded ? 4 : 0,
+                  transition: 'background 0.15s',
+                }}
+              >
                 {/* Icon */}
                 <div style={{ fontSize: 18, flexShrink: 0, width: 28, textAlign: 'center', paddingTop: 2 }}>
                   {meta.icon}
@@ -122,17 +133,31 @@ export default function NewsFeed() {
 
                 {/* Content */}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ color: meta.color, fontWeight: 700, fontSize: 13, lineHeight: 1.3 }}>
-                    {event.headline}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ color: meta.color, fontWeight: 700, fontSize: 13, lineHeight: 1.3, flex: 1 }}>
+                      {event.headline}
+                    </div>
+                    {hasDetail && (
+                      <span style={{ fontSize: 10, color: T.textDim, flexShrink: 0 }}>
+                        {isExpanded ? '▲' : '▼'}
+                      </span>
+                    )}
                   </div>
-                  {event.detail && (
-                    <div style={{ color: T.textMuted, fontSize: 11, marginTop: 3, lineHeight: 1.4 }}>
+                  {isExpanded && hasDetail && (
+                    <div style={{
+                      color: T.textMuted, fontSize: 12, marginTop: 6, lineHeight: 1.5,
+                      padding: '8px 10px', background: 'rgba(255,255,255,0.04)',
+                      borderRadius: 4, borderLeft: `2px solid ${meta.color}`,
+                    }}>
                       {event.detail}
                     </div>
                   )}
                   <div style={{ display: 'flex', gap: 10, marginTop: 4, fontSize: 10, color: T.textDim }}>
                     <span>{weekLabel(event.week)}</span>
                     {event.team_name && <span>· {event.team_name}</span>}
+                    {hasDetail && !isExpanded && (
+                      <span style={{ color: T.borderStrong }}>· tap for details</span>
+                    )}
                   </div>
                 </div>
               </div>
