@@ -14,7 +14,7 @@ interface Props {
 }
 
 export default function Draft({ onDraftComplete }: Props) {
-  const { userTeam, currentSeason } = useGameStore();
+    const { userTeam, currentSeason, playoffsComplete } = useGameStore();
 
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [draftOrder, setDraftOrder] = useState<DraftTeam[]>([]);
