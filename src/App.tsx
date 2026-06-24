@@ -15,8 +15,9 @@ const TeamSelection= lazy(() => import('./TeamSelection'));
 const SavePicker   = lazy(() => import('./SavePicker'));
 const MeetTheTeam  = lazy(() => import('./MeetTheTeam'));
 const PlayerEditor = lazy(() => import('./PlayerEditor'));
+const TeamEditor = lazy(() => import('./TeamEditor'));
 
-type Tab    = 'home' | 'myteam' | 'league' | 'trades' | 'draft' | 'news' | 'import' | 'editor';
+type Tab = 'home' | 'myteam' | 'league' | 'trades' | 'draft' | 'news' | 'import' | 'editor' | 'teameditor';
 type Screen = 'main-menu' | 'loading' | 'custom-setup' | 'save-picker' | 'team-select' | 'setup' | 'meet-team' | 'game';
 
 interface SetupStep  { label: string; done: boolean; }
@@ -41,7 +42,6 @@ const BASE_TABS: { id: Tab; label: string }[] = [
   { id: 'league', label: 'League' },
   { id: 'trades', label: 'Trades' },
   { id: 'news',   label: '📰 News' },
-  { id: 'editor', label: '✏ Editor' },
   { id: 'import', label: 'Import' },
 ];
 
@@ -62,14 +62,16 @@ export default function App() {
   const [dynastyName, setDynastyName]   = useState('');
   const [dynastyNameFocused, setDynastyNameFocused] = useState(false);
   const [importTeams,   setImportTeams]   = useState<ImportState>(IDLE);
-  const [importPlayers, setImportPlayers] = useState<ImportState>(IDLE);
+    const [importPlayers, setImportPlayers] = useState<ImportState>(IDLE);
+    const [dynastyMode, setDynastyMode] = useState<'franchise' | 'commissioner'>('franchise');
 
-  const {
+    const {
     currentSeason, setCurrentSeason,
     userTeam, setUserTeam,
     playoffsComplete, setPlayoffsComplete,
     difficulty, setDifficulty,
     advanceSeason,
+    commissionerMode, setCommissionerMode,
   } = useGameStore();
 
   const handleTabChange = (tab: string) => {
@@ -104,6 +106,8 @@ export default function App() {
     const name = dynastyName.trim() || 'Dynasty';
     setScreen('loading');
     await window.api.openSave(name);
+        await window.api.setCommissionerMode(dynastyMode === 'commissioner');
+    setCommissionerMode(dynastyMode === 'commissioner');
     await window.api.resetSave();
     if (mode === 'standard') {
       setScreen('team-select');
@@ -122,6 +126,9 @@ export default function App() {
       window.api.getOffseasonStatus(),
       window.api.getDifficulty(),
     ]);
+        const commMode = await window.api.getCommissionerMode();
+    setCommissionerMode(commMode === true);
+    await window.api.generateOwnerGoals();
     setCurrentSeason(season);
     setPlayoffsComplete(offseason.playoffsComplete ?? false);
     setDifficulty(diff as any);
@@ -171,14 +178,14 @@ export default function App() {
     }
   };
 
-  const tabs = playoffsComplete
-    ? [
-        ...BASE_TABS.filter(t => t.id !== 'news' && t.id !== 'import'),
-        { id: 'draft' as Tab, label: '⚡ Draft' },
-        { id: 'news'  as Tab, label: '📰 News' },
-        { id: 'import'as Tab, label: 'Import' },
-      ]
-    : BASE_TABS;
+    const tabs = [
+    ...BASE_TABS,
+    { id: 'draft' as Tab, label: playoffsComplete ? '⚡ Draft' : '📋 Draft' },
+    ...(commissionerMode ? [
+      { id: 'editor' as Tab, label: '✏ Editor' },
+      { id: 'teameditor' as Tab, label: '🏟 Teams' },
+    ] : []),
+  ];
 
   const isMounted = (id: Tab) => mountedTabs.has(id);
   const tabStyle  = (id: Tab): React.CSSProperties => activeTab === id ? {} : { display: 'none' };
@@ -224,8 +231,32 @@ export default function App() {
         </div>
 
         <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
-          <MenuButton label="NEW GAME"    sub="standard rosters"    color="#FF8740" onClick={() => handleNewGame('standard')} />
-          <MenuButton label="CUSTOM GAME" sub="import your own data" color="#4FC3F7" onClick={() => handleNewGame('custom')} />
+                       {/* Mode selector */}
+             <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+               {(['franchise', 'commissioner'] as const).map(m => (
+                 <button
+                   key={m}
+                   onClick={() => setDynastyMode(m)}
+                   style={{
+                     flex: 1, padding: '8px 12px', fontSize: 10, fontFamily: 'monospace',
+                     fontWeight: dynastyMode === m ? 700 : 400, letterSpacing: 1,
+                     background: dynastyMode === m ? (m === 'commissioner' ? '#1a1a2a' : '#1a1400') : 'transparent',
+                     border: `1px solid ${dynastyMode === m ? (m === 'commissioner' ? '#4FC3F7' : '#FF8740') : '#222'}`,
+                     color: dynastyMode === m ? (m === 'commissioner' ? '#4FC3F7' : '#FF8740') : '#444',
+                     borderRadius: 4, cursor: 'pointer',
+                   }}
+                 >
+                   {m === 'franchise' ? '🏈 FRANCHISE' : '🏟 COMMISSIONER'}
+                 </button>
+               ))}
+             </div>
+             <div style={{ fontSize: 9, color: '#333', fontFamily: 'monospace', marginBottom: 12, textAlign: 'center' }}>
+               {dynastyMode === 'commissioner'
+                 ? 'Unlocks Player Editor + Team Editor tabs'
+                 : 'Standard single-team franchise experience'}
+             </div>
+             <MenuButton label="NEW DYNASTY" sub="standard setup" color="#FF8740" onClick={() => handleNewGame('standard')} />
+             <MenuButton label="CUSTOM DYNASTY" sub="import csv data" color="#4FC3F7" onClick={() => handleNewGame('custom')} />
         </div>
 
         <button
@@ -471,6 +502,20 @@ export default function App() {
           {isMounted('news') && (
             <div style={tabStyle('news')}>
               <NewsFeed />
+            </div>
+          )}
+                    {isMounted('draft') && (
+            <div style={tabStyle('draft')}>
+              <Suspense fallback={<TabFallback />}>
+                <Draft onDraftComplete={() => handleTabChange('home')} />
+              </Suspense>
+            </div>
+          )}
+          {isMounted('teameditor') && (
+            <div style={tabStyle('teameditor')}>
+              <Suspense fallback={<TabFallback />}>
+                <TeamEditor />
+              </Suspense>
             </div>
           )}
           {isMounted('editor') && (
