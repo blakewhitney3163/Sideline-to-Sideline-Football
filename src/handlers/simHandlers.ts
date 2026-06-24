@@ -16,6 +16,7 @@ import { checkMilestones } from '../helpers/checkMilestones';
 import { Worker } from 'worker_threads';
 import { generateOwnerGoals } from '../services/OwnerGoalsService';
 import { recordInjuryHistory } from '../services/InjuryService';
+import { processGameResult } from '../services/ChemistryService';
 import path from 'path';
 
 interface GameSummary {
@@ -432,6 +433,9 @@ export function registerSimHandlers(): void {
     const weekComplete = gameRepo.countPendingInWeek(game.season, game.week) === 0;
     const newlyInjured = rollInjuries(allStats);
     recordInjuryHistory(newlyInjured, game.week ?? 1, game.season);
+      const homeDiff = gameResult.homeScore - gameResult.awayScore;
+processGameResult(game.home_team_id, homeDiff > 0, homeDiff, game.season, game.week ?? 1);
+processGameResult(game.away_team_id, homeDiff < 0, -homeDiff, game.season, game.week ?? 1);
     logInjuryNews(getCurrentSeason(), newlyInjured, userTeamId);
     const milestonePlayerIds = [...new Set(allStats.map((s: any) => s.player_id as number))];
     checkMilestones(getCurrentSeason(), game.week ?? 1, milestonePlayerIds);
