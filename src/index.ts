@@ -20,6 +20,7 @@ import { registerImportHandlers } from './handlers/importHandlers';
 import { registerCoachingHandlers } from './handlers/coachingHandlers';
 import { generateAllCoachingStaff } from './services/CoachingService';
 import { registerSchemeHandlers, seedTeamSchemes } from './handlers/schemeHandlers';
+import { registerInjuryHandlers } from './handlers/injuryHandlers';
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
@@ -197,6 +198,7 @@ registerNewsHandlers();
 registerImportHandlers();
 registerCoachingHandlers();
 registerSchemeHandlers();
+registerInjuryHandlers();
 
 // ─── App Lifecycle ────────────────────────────────────────────────────────────
 
