@@ -1,6 +1,6 @@
 import { db } from './database';
 
-// ─── Name Pools ──────────────────────────────────────────────────────────────
+// ─── Name Pools ───────────────────────────────────────────────────────────────
 
 const FIRST_NAMES = [
   'James', 'Marcus', 'Tyler', 'Jordan', 'Derek', 'Chris', 'Mike', 'Ryan',
@@ -24,7 +24,7 @@ const LAST_NAMES = [
   'Rogers', 'Reed', 'Cook', 'Morgan', 'Bell', 'Murphy', 'Bailey', 'Cooper',
 ];
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function ri(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -42,7 +42,22 @@ function genName() {
   return { first_name: pick(FIRST_NAMES), last_name: pick(LAST_NAMES) };
 }
 
-// ─── Position Labels ─────────────────────────────────────────────────────────
+// ─── Archetype ────────────────────────────────────────────────────────────────
+// Weighted distribution across 7 personality archetypes.
+// 'normal' is the most common — no chemistry/progression effect.
+
+function genArchetype(): string {
+  const r = Math.random();
+  if (r < 0.05) return 'troublemaker'; //  5%
+  if (r < 0.12) return 'selfish';      //  7%
+  if (r < 0.22) return 'team_leader';  // 10%
+  if (r < 0.30) return 'vocal_leader'; //  8%
+  if (r < 0.45) return 'coachable';    // 15%
+  if (r < 0.65) return 'hard_worker';  // 20%
+  return 'normal';                      // 35%
+}
+
+// ─── Position Labels ──────────────────────────────────────────────────────────
 
 const POSITION_LABEL_POOLS: Record<string, string[]> = {
   QB: ['QB'],
@@ -61,10 +76,10 @@ const POSITION_LABEL_POOLS: Record<string, string[]> = {
 
 function getOverall(index: number, total: number): number {
   const ratio = index / total;
-  if (ratio < 0.20) return ri(80, 95);   // top of depth chart
-  if (ratio < 0.50) return ri(72, 84);   // starters / rotational
-  if (ratio < 0.75) return ri(64, 76);   // backup
-  return ri(56, 68);                      // depth / practice squad level
+  if (ratio < 0.20) return ri(80, 95);
+  if (ratio < 0.50) return ri(72, 84);
+  if (ratio < 0.75) return ri(64, 76);
+  return ri(56, 68);
 }
 
 function getFaOverall(): number {
@@ -75,19 +90,14 @@ function getFaOverall(): number {
 
 function devTrait(ovr: number): string {
   const r = Math.random();
-  // OVR 90+: ~5% XF, ~20% SS, ~60% Star, ~15% Normal
   if (ovr >= 90) return r < 0.05 ? 'X-Factor' : r < 0.25 ? 'Superstar' : r < 0.85 ? 'Star' : 'Normal';
-  // OVR 85-89: ~2% XF, ~12% SS, ~60% Star, ~26% Normal
   if (ovr >= 85) return r < 0.02 ? 'X-Factor' : r < 0.14 ? 'Superstar' : r < 0.74 ? 'Star' : 'Normal';
-  // OVR 80-84: ~0.5% XF, ~5% SS, ~45% Star, ~49.5% Normal
   if (ovr >= 80) return r < 0.005 ? 'X-Factor' : r < 0.055 ? 'Superstar' : r < 0.505 ? 'Star' : 'Normal';
-  // OVR 70-79: ~0.1% XF, ~1% SS, ~20% Star, ~79% Normal
   if (ovr >= 70) return r < 0.001 ? 'X-Factor' : r < 0.011 ? 'Superstar' : r < 0.211 ? 'Star' : 'Normal';
-  // Below 70: no elite traits
   return r < 0.04 ? 'Star' : 'Normal';
 }
 
-// ─── Age by Role ─────────────────────────────────────────────────────────────
+// ─── Age by Role ──────────────────────────────────────────────────────────────
 
 function getAge(index: number, total: number): number {
   const ratio = index / total;
@@ -120,11 +130,11 @@ function genAttrs(position: string, ovr: number): Attrs {
 
   switch (position) {
     case 'QB': return { ...base,
-      speed:         b(-22, -5),
-      strength:      b(-18, -3),
-      awareness:     b(-4, 10),
+      speed:          b(-22, -5),
+      strength:       b(-18, -3),
+      awareness:      b(-4, 10),
       throw_accuracy: b(-5, 8),
-      throw_power:   b(-8, 8),
+      throw_power:    b(-8, 8),
     };
     case 'RB': return { ...base,
       speed:    b(-5, 12),
@@ -154,33 +164,33 @@ function genAttrs(position: string, ovr: number): Attrs {
       passblocking: b(-5, 10),
     };
     case 'DL': return { ...base,
-      speed:        b(-12, 3),
-      strength:     b(-3, 13),
-      awareness:    b(-10, 5),
-      tackle_rating: b(-8, 8),
-      pass_rush:    b(-5, 10),
+      speed:          b(-12, 3),
+      strength:       b(-3, 13),
+      awareness:      b(-10, 5),
+      tackle_rating:  b(-8, 8),
+      pass_rush:      b(-5, 10),
     };
     case 'LB': return { ...base,
-      speed:        b(-8, 5),
-      strength:     b(-8, 8),
-      awareness:    b(-5, 8),
+      speed:         b(-8, 5),
+      strength:      b(-8, 8),
+      awareness:     b(-5, 8),
       tackle_rating: b(-5, 10),
-      coverage:     b(-16, 0),
-      pass_rush:    b(-12, 3),
+      coverage:      b(-16, 0),
+      pass_rush:     b(-12, 3),
     };
     case 'CB': return { ...base,
-      speed:        b(-3, 13),
-      strength:     b(-22, -5),
-      awareness:    b(-8, 5),
+      speed:         b(-3, 13),
+      strength:      b(-22, -5),
+      awareness:     b(-8, 5),
       tackle_rating: b(-16, 0),
-      coverage:     b(-5, 10),
+      coverage:      b(-5, 10),
     };
     case 'S': return { ...base,
-      speed:        b(-5, 8),
-      strength:     b(-12, 3),
-      awareness:    b(-5, 8),
+      speed:         b(-5, 8),
+      strength:      b(-12, 3),
+      awareness:     b(-5, 8),
       tackle_rating: b(-8, 8),
-      coverage:     b(-8, 8),
+      coverage:      b(-8, 8),
     };
     case 'K': return { ...base,
       speed:        flat(48, 72),
@@ -222,7 +232,7 @@ const FA_SLOTS: { position: string; count: number }[] = [
   { position: 'K',  count: 6  },
 ];
 
-// ─── Main Export ─────────────────────────────────────────────────────────────
+// ─── Main Export ──────────────────────────────────────────────────────────────
 
 export function generatePlayers(): void {
     const insert = db.prepare(`
@@ -232,14 +242,14 @@ export function generatePlayers(): void {
       throw_accuracy, throw_power, catching, route_running,
       tackle_rating, coverage, pass_rush,
       kickpower, kickaccuracy, runblocking, passblocking,
-      team_id, is_free_agent, roster_status
+      archetype, team_id, is_free_agent, roster_status
     ) VALUES (
       @first_name, @last_name, @position, @position_label, @age, @overall_rating,
       @speed, @strength, @awareness, @dev_trait,
       @throw_accuracy, @throw_power, @catching, @route_running,
       @tackle_rating, @coverage, @pass_rush,
       @kickpower, @kickaccuracy, @runblocking, @passblocking,
-      @team_id, @is_free_agent, @roster_status
+      @archetype, @team_id, @is_free_agent, @roster_status
     )
   `);
 
@@ -254,18 +264,19 @@ export function generatePlayers(): void {
         for (let i = 0; i < slot.count; i++) {
           const ovr = getOverall(i, slot.count);
           const attrs = genAttrs(slot.position, ovr);
-                  insert.run({
-          ...genName(),
-          position: slot.position,
-          position_label: labels[i % labels.length],
-          age: getAge(i, slot.count),
-          overall_rating: ovr,
-          ...attrs,
-          dev_trait: devTrait(ovr),
-          team_id: team.id,
-          is_free_agent: 0,
-          roster_status: 'active',
-        });
+          insert.run({
+            ...genName(),
+            position: slot.position,
+            position_label: labels[i % labels.length],
+            age: getAge(i, slot.count),
+            overall_rating: ovr,
+            ...attrs,
+            dev_trait: devTrait(ovr),
+            archetype: genArchetype(),
+            team_id: team.id,
+            is_free_agent: 0,
+            roster_status: 'active',
+          });
           total++;
         }
       }
@@ -277,7 +288,7 @@ export function generatePlayers(): void {
       for (let i = 0; i < slot.count; i++) {
         const ovr = getFaOverall();
         const attrs = genAttrs(slot.position, ovr);
-                insert.run({
+        insert.run({
           ...genName(),
           position: slot.position,
           position_label: labels[i % labels.length],
@@ -285,6 +296,7 @@ export function generatePlayers(): void {
           overall_rating: ovr,
           ...attrs,
           dev_trait: devTrait(ovr),
+          archetype: genArchetype(),
           team_id: null,
           is_free_agent: 1,
           roster_status: 'free_agent',
@@ -309,14 +321,14 @@ export function replenishFAPool(): void {
       throw_accuracy, throw_power, catching, route_running,
       tackle_rating, coverage, pass_rush,
       kickpower, kickaccuracy, runblocking, passblocking,
-      team_id, is_free_agent, roster_status
+      archetype, team_id, is_free_agent, roster_status
     ) VALUES (
       @first_name, @last_name, @position, @position_label, @age, @overall_rating,
       @speed, @strength, @awareness, @dev_trait,
       @throw_accuracy, @throw_power, @catching, @route_running,
       @tackle_rating, @coverage, @pass_rush,
       @kickpower, @kickaccuracy, @runblocking, @passblocking,
-      NULL, 1, 'free_agent'
+      @archetype, NULL, 1, 'free_agent'
     )
   `);
 
@@ -338,6 +350,7 @@ export function replenishFAPool(): void {
           overall_rating: ovr,
           ...attrs,
           dev_trait: devTrait(ovr),
+          archetype: genArchetype(),
         });
       }
     }
