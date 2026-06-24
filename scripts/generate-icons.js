@@ -11,10 +11,10 @@ if (!fs.existsSync(svgPath)) {
 }
 
 console.log('Installing icon tools...');
-execSync('npm install --save-dev sharp png-to-ico png2icons', { stdio: 'inherit' });
+execSync('npm install --save-dev sharp to-ico png2icons', { stdio: 'inherit' });
 
 const sharp = require('sharp');
-const pngToIco = require('png-to-ico');
+const toIco = require('to-ico');
 const png2icons = require('png2icons');
 
 async function run() {
@@ -34,7 +34,7 @@ async function run() {
   console.log('  1024x1024 ✓');
 
   console.log('\nCreating icon.ico (Windows)...');
-  const icoBuffer = await pngToIco(icoBuffers);
+  const icoBuffer = await toIco(icoBuffers);
   fs.writeFileSync(path.join(assetsDir, 'icon.ico'), icoBuffer);
   console.log('  assets/icon.ico ✓');
 
@@ -44,10 +44,10 @@ async function run() {
     fs.writeFileSync(path.join(assetsDir, 'icon.icns'), icnsBuffer);
     console.log('  assets/icon.icns ✓');
   } else {
-    console.warn('  icon.icns generation returned null — macOS icon skipped');
+    console.warn('  icon.icns skipped (macOS only needed for Mac builds)');
   }
 
-  console.log('\nDone. Run npm start to verify the icon appears.');
+  console.log('\nDone. assets/icon.ico and assets/icon.icns are ready.');
 }
 
 run().catch(err => {
