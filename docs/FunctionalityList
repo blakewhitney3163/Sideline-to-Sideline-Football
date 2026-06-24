@@ -1,5 +1,5 @@
 GRIDIRON DYNASTY — FULL FEATURE INVENTORY
-Last Updated: June 20, 2026
+Last Updated: June 23, 2026
 Repository: https://github.com/blakewhitney3163/Gridiron-Dynasty
 ================================================================================
 
@@ -10,8 +10,9 @@ CORE INFRASTRUCTURE
   teams, players, games, stats, contracts, settings, champions,
   draft_prospects, depth_chart, career_stats_history, hall_of_fame,
   historical_records, news_events, pick_assets, team_trade_overrides,
-  player_milestones, dead_cap_entries, coaching_staff, team_schemes
-- Schema version: v11. Migration runner in runMigrations() upgrades existing
+  player_milestones, dead_cap_entries, coaching_staff, team_schemes,
+  owner_goals
+- Schema version: v12. Migration runner in runMigrations() upgrades existing
   saves on launch. Old migration blocks removed once all saves have passed them.
   Active migrations:
     v9: team_id INTEGER on career_stats_history + idx_career_stats_team
@@ -19,6 +20,8 @@ CORE INFRASTRUCTURE
          (fixes "TEAM DEAL" badge on nearly every player from prior saves)
     v11: Normalize all team salary totals to 95% of salary cap (~$265M),
          proportionally scaling each team's roster for equal cap distribution
+    v12: owner_goals table (season, goal_type, target_value, achieved);
+         owner_patience setting initialized to 75
 - generateContracts() uses CONTRACT_MARKET_RATES table (positions QB/WR/DL/CB/
   OL/LB/TE/S/RB/K, breakpoints OVR 70–99) + TRAIT_PREMIUM multipliers to
   generate realistic per-player salaries. After generation, every team is
@@ -67,7 +70,7 @@ CODE ARCHITECTURE
     newsHandlers, saveHandlers, coachingHandlers, schemeHandlers
 - Services layer in src/services/:
   SeasonService, SimulationService, StatsService, TradeService,
-  ContractService, CoachingService, ProgressionService
+  ContractService, CoachingService, ProgressionService, OwnerGoalsService
 - Repositories layer in src/repositories/ — typed DB access per domain
 
 MEET THE TEAM SCREEN
@@ -81,6 +84,10 @@ DYNASTY SETUP SCREEN (App.tsx)
 ────────────────────────────────────────────────────────────────────────────────
 - Dynasty name input fully editable with clear visual affordance:
   white border, orange glow on focus, helper label below the field
+- Dynasty mode selector at creation: Franchise or Commissioner
+    Franchise — standard single-team experience
+    Commissioner — unlocks Player Editor + Team Editor tabs
+- Mode persisted to settings and restored on every save load
 - "Start New Dynasty" → team selection → Meet the Team → Home
 
 TEAM SELECTION SCREEN (TeamSelection.tsx)
@@ -117,14 +124,17 @@ HOME TAB
     - Color-coded green (80+), orange (70–79), red (<70)
     - Updates live after every simulated week and individual game sim
     - Backed by getFranchiseHealth() in PlayerRepository
+- Owner Goals Panel (OwnerGoalsPanel.tsx) on Home tab:
+    - Shows owner patience meter (0–100) with color-coded bar:
+      green (60+), orange (35–59), red (<35)
+    - Patience label: Confident / Stable / Concerned / Frustrated / Critical
+    - Lists all season goals with ✓ (achieved) or ○ (pending) indicators
+    - Warning banner when patience drops below 35
 - Live standings snapshot (top AFC / NFC teams in sidebar)
 - Weekly stat leaders widget in sidebar (Pass Yds, Rush Yds, Rec Yds,
   Sacks, Tackles) — each leader shows player name + team name on separate lines
 - Sidebar width: 260px (widened from 220px for better readability)
-- Trade Status widget in sidebar:
-    - Displays user team's current trade posture badge
-    - Quick-click buttons to override: auto / Buyer / Seller / Rebuilding /
-      Neutral
+- Trade Status widget in sidebar
 - Practice squad injury alert banner
 - Advance season button with confirmation dialog
 - Playoff seeding display + simulate playoffs trigger
@@ -179,9 +189,9 @@ DEPTH CHART TAB
 - Injured players shown with strikethrough name in depth list
 - Depth chart drives target distribution in game simulation
 
-PLAYER EDITOR TAB
+PLAYER EDITOR TAB (Commissioner Mode only)
 ────────────────────────────────────────────────────────────────────────────────
-- Standalone ✏ Editor tab in the main nav bar (always visible in-game)
+- Standalone ✏ Editor tab — only visible when Commissioner Mode is active
 - Team selector dropdown — all 32 teams sorted alphabetically by city
 - Position filter buttons (ALL + active positions on selected roster)
 - Live search by player name
@@ -201,6 +211,44 @@ PLAYER EDITOR TAB
 - Roster list refreshes after save; updated player re-selected automatically
 - Toast feedback (success / error) after every save attempt
 
+TEAM EDITOR TAB (Commissioner Mode only)
+────────────────────────────────────────────────────────────────────────────────
+- Standalone 🏟 Teams tab — only visible when Commissioner Mode is active
+- Dropdown to select any of the 32 teams (sorted alphabetically by city)
+- Editable fields per team:
+    City, Team Name, Abbreviation (up to 4 chars, auto-uppercased),
+    Conference (AFC / NFC), Division (North / South / East / West)
+- Live preview bar shows "City Name (ABB) · CONF DIV" before committing
+- ✓ SAVE TEAM writes via edit-team IPC handler (UPDATE teams SET ... WHERE id)
+- If the user's own team is edited, the top bar updates immediately via
+  the game store (setUserTeam)
+- Toast feedback (success / error) after every save attempt
+
+OWNER GOALS & PATIENCE METER
+────────────────────────────────────────────────────────────────────────────────
+- Goals auto-generated at the start of each season (on generate-schedule):
+    80+ avg OVR  → Win championship + 12 wins
+    75–79 OVR   → Make playoffs + 10 wins
+    70–74 OVR   → 8 wins + develop a young star (age ≤25, 75+ OVR, 10+ games)
+    Below 70    → 6 wins + develop a young star + stay under the salary cap
+- Goals stored in owner_goals table (season, goal_type, target_value, achieved)
+- Evaluation runs at season advance (evaluateOwnerGoals in OwnerGoalsService):
+    Checks wins, playoffs appearance, championship, player development, cap
+    compliance; marks each goal achieved = 1 or 0
+- Owner patience (0–100, default 75) adjusts after evaluation:
+    All goals met     → +15
+    Majority met      → +5
+    One goal met      → -10
+    None met          → -20
+    Clamped to 0–100
+- Patience drops trigger news events:
+    Below 50: "Owner Growing Impatient"
+    Below 25: "Owner Issues Final Warning"
+- OwnerGoalsPanel.tsx displayed on Home tab:
+    Patience meter with color (green ≥60 / orange 35–59 / red <35)
+    Label: Confident / Stable / Concerned / Frustrated / Critical
+    Goal list with ✓ / ○ per goal
+    Warning banner when patience < 35
 
 FRANCHISE TAB (7 sub-tabs)
 ────────────────────────────────────────────────────────────────────────────────
@@ -210,8 +258,7 @@ Roster Tab:
     green (80+), orange (60–79), red (<60)
   - Sort by salary / years / OVR / age; name search
   - Position filter buttons use dual match: c.position === filter OR
-    c.position_label === filter — ensures RB (label: HB/FB) and S
-    (label: SS/FS) appear correctly under their position group buttons
+    c.position_label === filter
   - Contract grade badges (TEAM DEAL / OVERPAID)
   - Release, Extend, Restructure actions with cap impact preview
   - Extend dialog: shows current remaining years + extension years being added;
@@ -242,17 +289,12 @@ Waiver Wire Tab (WaiverWireTab.tsx):
  - Footer: player count, 1-week clearing rule, claim priority note
  - Tab label shows live count: "WAIVER WIRE (N)" when players present
 
-Waivers Tab:
-  - View waiver wire players; claim (user or CPU priority by worst record)
-  - Unclaimed players revert to free agency
-
 Free Agents Tab:
   - Browse FAs, filter by position, sort by OVR / age / value
   - Query uses dual condition: (is_free_agent = 1 OR roster_status = 'free_agent')
     AND team_id IS NULL
   - Client-side filter uses dual match: f.position === filter OR
-    f.position_label === filter — same fix as Roster tab; prevents RBs and
-    safeties from disappearing when those position buttons are clicked
+    f.position_label === filter
   - NEEDS button highlights positions the team is thin at
   - Cap impact preview; sign to active roster or practice squad
 
@@ -288,30 +330,33 @@ TRADES TAB
 - CPU acceptance logic: value balance, team needs, trade status
 - Team trade status: Buyer / Seller / Rebuilding / Neutral (+ manual override)
 - CPU incoming trade offers (getCpuTradeOffers in TradeService.ts):
-    - Returns an array of up to 3 simultaneous offers (previously single offer)
-    - ~35% chance of any offers generating on a given check — prevents inbox
-      from always being full after every tab visit
+    - Returns an array of up to 3 simultaneous offers
+    - ~35% chance of any offers generating on a given check
     - No two offers in the same batch can target the same user player
-      (claimedUserPlayerIds Set tracks claimed players)
-    - Displayed in CpuOfferBanner.tsx with "X of Y offers" pill and ‹ › prev/
-      next navigation buttons when multiple offers are present
-    - Accept removes that offer from the array; Decline removes it too; other
-      offers in the batch remain visible and navigable
+    - Displayed in CpuOfferBanner.tsx with "X of Y offers" pill and ‹ › nav
+    - Accept/Decline removes only the current offer; others remain
     - Also surfaced as a card on the Home tab (TradeOfferCard.tsx)
 - Trade deadline enforcement (locked after Week 8)
 - CPU-vs-CPU in-season trades (runCpuTrades): Weeks 2–8, capped at 2/week
-  (reduced from 4), higher skip threshold (72% for normal sellers) to reduce
-  news feed noise
 - All trades logged to news feed
 
 DRAFT TAB
 ────────────────────────────────────────────────────────────────────────────────
-- Generate 100-prospect draft class with hidden ratings
-- Scouting: up to 25 points to reveal ratings (MAX_SCOUTS = 25)
+- Always visible year-round (📋 Draft during season, ⚡ Draft after playoffs)
+- Draft class auto-generated at season start (when schedule is generated);
+  100 prospects with hidden ratings
+- In-season scouting budget system:
+    Budget accumulates by simulating games:
+      Simulate a full week  → +3 scouts
+      Simulate a single game → +1 scout
+    Starting budget: 25 scouts per season
+    scout-prospect enforces budget; returns error when exhausted
+    Budget key: scouting_budget_{season} in settings
+- Scouting reveals ratings (up to 25 points; combine measurables always public)
 - Draft order respects traded pick assets
 - User picks when it's their turn; CPU auto-picks (position need-aware)
-- Draft grades per pick: A / B / C / D / F vs. draft slot value
-- Post-draft summary; all picks logged to news feed
+- Draft picks and grades logged to news feed
+- Draft picks disabled during season until playoffs are complete
 
 DRAFT COMBINE / DEEPER SCOUTING
 ────────────────────────────────────────────────────────────────────────────────
@@ -340,17 +385,13 @@ Season Records: Single-season bests across all in-game seasons + imported
 Franchise Records (FranchiseRecords.tsx):
   - Single-season franchise bests filtered by team_id on career_stats_history
   - Team selector dropdown (alphabetical), defaults to user's team
-  - 8 stat categories; reuses LeaderboardTable in season mode (shows Season
-    column indicating which year the record was set)
-  - Backed by getFranchiseRecords() in StatsService and get-franchise-records
-    IPC handler
-  - Records accumulate after each season advance (requires completed seasons)
+  - 8 stat categories; reuses LeaderboardTable in season mode
+  - Backed by getFranchiseRecords() in StatsService
 
 Season Awards: MVP, OPOY, DPOY, OROY, DROY, Coach of the Year per season
-  (queryable via get-season-awards)
 
 Hall of Fame: Retired players inducted on career milestone thresholds,
-  grouped by induction season. Career totals stored on hall_of_fame table.
+  grouped by induction season.
 
 PLAYOFFS TAB
 ────────────────────────────────────────────────────────────────────────────────
@@ -365,36 +406,28 @@ NEWS CENTER TAB
   Milestones, Season events; season selector (3 seasons retained)
 - Auto-logged events: contracts, draft picks, trades, game results, injuries,
   retirements, HOF inductions, season awards, contract demands, milestones,
-  playoff results
+  playoff results, owner patience warnings
 
 IMPORT TAB
 ────────────────────────────────────────────────────────────────────────────────
-- Import Historical Records (CSV): all-time leaders or season records
-  imported into historical_records table; gold BENCHMARK rows appear in
-  All-Time and Season records views
-- Import Custom Teams (CSV): full dynasty reset with user-supplied team
-  names, cities, abbreviations, conference, division; required columns
-  validated before any DB write; regenerates all players + contracts
-- Import Custom Players (CSV): replaces all players while preserving teams;
-  optional salary/years columns; dev_trait auto-assigned if not provided
+- Import Historical Records (CSV)
+- Import Custom Teams (CSV)
+- Import Custom Players (CSV)
 
 GAME SIMULATION ENGINE
 ────────────────────────────────────────────────────────────────────────────────
 - Stats-first scoring: TDs/FGs generated from team ratings; player stats
   derived to always match the scoreboard
 - Realistic schedule generation: division-based scheduling with 3-year
-  rotation. Per team: 6 divisional games (home+away vs each division rival),
-  8 intra-conference non-divisional games (2 division draws, rotating cycle),
-  4 inter-conference games. 18 games total, 288 league-wide.
-  Week assignment prevents teams from playing twice in the same week.
+  rotation. Per team: 6 divisional games, 8 intra-conference, 4 inter-conference.
+  18 games total, 288 league-wide.
 - Morale modifier: effective OVR = rating × (1 + (morale − 75) × 0.001)
-- Coaching modifier (applied in getTeamRatings):
+- Coaching modifier:
     OC offense_rating: offenseRating += (oc_rating − 70) × 0.15
     DC defense_rating: defenseRating += (dc_rating − 70) × 0.15
     HC overall_rating: both sides += (hc_rating − 70) × 0.05
 - Scheme modifier: each team's offense/defense rating adjusted based on
-  roster fit to scheme (West Coast, Air Raid, Power Run, Spread, Run & Gun,
-  4-3, 3-4, Zone Cover 2, Man Press, Blitz Heavy)
+  roster fit to scheme
 - Game script: trailing teams pass more; leading teams run more
 - Overtime: TD wins outright; FG gives opponent a chance; no ties
 - Weather: clear / rain / snow / wind with pass, rush, score multipliers
@@ -421,75 +454,48 @@ Order of operations per season advance:
   13. Prune news events (DELETE WHERE season < next − 2; keeps 3 seasons)
   14. HOF inductions for newly retired players
   15. Season award news events (MVP, DPOY)
-  16. Advance season counter
- 17. Replenish FA pool (replenishFAPool) — tops up each position to minimum
-     floor so FAs remain available for user signing throughout offseason
+  16. Evaluate owner goals + update patience (evaluateOwnerGoals)
+  17. Advance season counter
+  18. Replenish FA pool (replenishFAPool)
 
 CPU GM INTELLIGENCE
 ────────────────────────────────────────────────────────────────────────────────
 - Team classification: Contender / Buyer / Neutral / Seller / Rebuilding
-- Cap cleanup (cpuRosterCuts): releases lowest value-per-dollar players;
-  protects X-Factor and OVR 88+ cornerstones
+- Cap cleanup (cpuRosterCuts): releases lowest value-per-dollar players
 - CPU resign attempts: offer premium by team type (78%–110% of market)
 - Competitive FA bidding engine: market-rate bids, cap-aware, need-weighted
-- CPU incoming trade offers to user: getCpuTradeOffers() returns up to 3
-  simultaneous offers per check; 35% chance gate prevents constant offer spam;
-  claimedUserPlayerIds prevents two offers targeting the same player
-- CPU-vs-CPU in-season trades: Weeks 2–8, capped at 2/week; 72% skip
-  threshold for normal sellers (previously 60%) reduces news feed volume
-- All 32 CPU teams have assigned schemes that affect sim ratings
+- CPU incoming trade offers: up to 3 simultaneous; 35% chance gate; no
+  duplicate player targeting per batch
+- CPU-vs-CPU in-season trades: Weeks 2–8, capped at 2/week
+- All 32 CPU teams have assigned schemes
 
 MILESTONE SYSTEM
 ────────────────────────────────────────────────────────────────────────────────
 - Runs after every week and individual game sim
-- 4 DB queries (not per-player); 9 career categories, 26 thresholds,
-  5 single-season thresholds; fires exactly once per player per threshold
+- 4 DB queries; 9 career categories, 26 thresholds, 5 single-season thresholds
+- Fires exactly once per player per threshold
 
 IN-SEASON PLAYER PROGRESSION (ProgressionService.ts)
 ────────────────────────────────────────────────────────────────────────────────
-- Runs after every simulated game (simulate-game and simulate-week)
-- Grades each player's performance 0–100 by position:
-  QB: completion %, yards, TDs, INTs; RB: YPC, total yards, TDs;
-  WR/TE: yards per target, total yards, TDs; OL: fixed positive bias (58);
-  DL/LB: tackles, sacks, TFLs; CB/S: tackles, INTs, PBUs; K: FG %
-- Converts grade to OVR delta using age + dev trait modifiers:
-  Grade 82+: 62% chance +1, 10% chance +2 (excellent)
-  Grade 67–81: 30% chance +1 (good)
-  Grade 45–66: no change (average)
-  Grade 32–44: 22% chance -1 (below average)
-  Grade <32: 48% chance -1 (poor)
-- Age modifiers: age ≤22 gets bonus gain chance (+20%); age 31–33 gain
-  suppressed 30%; age 34+ gains suppressed 55%, regression accelerated
-- Young players (≤24) resilient — 60% chance regression is negated
-- Dev trait bonus on positive delta: X-Factor +22%, Superstar +14%, Star +7%
-- OVR ceiling dampening: 91–94 OVR has 70% gain suppression; 95+ has 90%
-- OVR floor protection: ≤52 OVR has 55% loss suppression
-- Breakout news event logged when: delta ≥ 2, OR delta = 1 + age ≤ 24 +
-  OVR ≥ 68 + grade ≥ 85 (young emerging player)
+- Runs after every simulated game
+- Grades each player's performance 0–100 by position
+- Converts grade to OVR delta using age + dev trait modifiers
+- OVR ceiling dampening; OVR floor protection
+- Breakout news events on 2+ OVR gain or young standout
 
 WAIVER WIRE SYSTEM
 ────────────────────────────────────────────────────────────────────────────────
-- In-season releases (user or CPU) → roster_status = 'waivers'
-- Offseason releases → roster_status = 'free_agent' directly (no waivers)
-- processWaivers() runs at end of each completed week:
-  CPU teams claim in worst-record-first priority (reverse standings order)
-  Cap and positional limits enforced per claiming team
-  Unclaimed players after 1 week: contract deleted, releaseToFA() called
-- balanceRosters() is now season-aware: excess players go to waivers
-  in-season, free_agent in offseason
-- CPU practice squad fill query restricted to roster_status = 'free_agent'
-  (prevents waiver players from being poached before clearing)
-- Player Retirement Control: announcing_retirement roster status added;
-  user can make a 1-year retention offer; player accepts or declines based
-  on age/OVR probability; unresolved retirements auto-retire on season advance
+- In-season releases → roster_status = 'waivers'
+- Offseason releases → roster_status = 'free_agent'
+- processWaivers() runs at end of each completed week
+- CPU claims in worst-record-first priority; unclaimed players clear to FA
 
 FA POOL REPLENISHMENT (replenishFAPool in generatePlayers.ts)
 ────────────────────────────────────────────────────────────────────────────────
-- Called after every CPU FA signing wave (cpu-fa-signing) and at season advance
-- Checks current FA count per position against MIN_FA_PER_POSITION floor:
-  QB:5, RB:12, WR:14, TE:7, OL:16, DL:14, LB:14, CB:14, S:10, K:4
+- Called after every CPU FA signing wave and at season advance
+- MIN_FA_PER_POSITION: QB:5, RB:12, WR:14, TE:7, OL:16, DL:14, LB:14,
+  CB:14, S:10, K:4
 - Generates new free agents (OVR 55–76, age 21–31) to fill gaps
-- Ensures user always has a viable FA pool to sign from
 
 BACKEND IPC HANDLERS (full list)
 ────────────────────────────────────────────────────────────────────────────────
@@ -527,3 +533,6 @@ get-announcing-retirements make-retention-offer dismiss-retirement
 get-waiver-wire claim-waiver
 get-difficulty set-difficulty import-historical-records
 import-custom-teams import-custom-players
+get-commissioner-mode set-commissioner-mode edit-team
+get-owner-goals get-owner-patience generate-owner-goals
+delete-save get-ps-promotion-alerts
