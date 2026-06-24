@@ -25,6 +25,6 @@ export const draftApi = {
   scoutProspect: (prospectId: number) =>
     ipcRenderer.invoke('scout-prospect', prospectId),
 
-  getScoutCount: () =>
+  getScoutCount: (): Promise<{ used: number; budget: number }> =>
     ipcRenderer.invoke('get-scout-count'),
 };
