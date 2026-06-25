@@ -5,3 +5,4 @@ export { gameRepo } from './GameRepository';
 export { pickRepo } from './PickRepository';
 export { draftRepo } from './DraftRepository';
 export { coachingRepo } from './CoachingRepository';
+export { scoutRepo } from './ScoutRepository';
