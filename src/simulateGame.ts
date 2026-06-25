@@ -21,12 +21,19 @@ const OFFENSE_MODS: Record<string, { offRating: number; defRating: number }> = {
 };
 
 const DEFENSE_MODS: Record<string, { offRating: number; defRating: number }> = {
-  base:         { offRating: 0,  defRating: 0  },
-  blitz:        { offRating: -2, defRating: 5  },
-  zone:         { offRating: 0,  defRating: 3  },
-  press_man:    { offRating: -1, defRating: 2  },
-  run_stop:     { offRating: -1, defRating: 4  },
+  base:      { offRating: 0,  defRating: 0  },
+  blitz:     { offRating: -2, defRating: 5  },
+  zone:      { offRating: 0,  defRating: 3  },
+  press_man: { offRating: -1, defRating: 2  },
+  run_stop:  { offRating: -1, defRating: 4  },
 };
+
+function applyPlan(ratings: { offenseRating: number; defenseRating: number }, plan: GamePlanOptions): void {
+  const offMod = OFFENSE_MODS[plan.offense ?? 'balanced'] ?? OFFENSE_MODS.balanced;
+  const defMod = DEFENSE_MODS[plan.defense ?? 'base']    ?? DEFENSE_MODS.base;
+  ratings.offenseRating = Math.max(1, ratings.offenseRating + offMod.offRating + defMod.offRating);
+  ratings.defenseRating = Math.max(1, ratings.defenseRating + offMod.defRating + defMod.defRating);
+}
 
 export function simulateGame(
   homeTeamId: number,
@@ -34,7 +41,9 @@ export function simulateGame(
   week: number = 9,
   userTeamId: number = -1,
   difficultyFactor: number = 0,
-  gamePlan?: GamePlanOptions
+  userGamePlan?: GamePlanOptions,
+  cpuHomePlan?: GamePlanOptions,
+  cpuAwayPlan?: GamePlanOptions,
 ): import('./sim/types').SimResult {
   const homeData = loadTeamData(homeTeamId);
   const awayData = loadTeamData(awayTeamId);
@@ -53,20 +62,11 @@ export function simulateGame(
     }
   }
 
-    if (gamePlan && userTeamId !== -1) {
-    const offMod = OFFENSE_MODS[gamePlan.offense ?? 'balanced'] ?? OFFENSE_MODS.balanced;
-    const defMod = DEFENSE_MODS[gamePlan.defense ?? 'base'] ?? DEFENSE_MODS.base;
-    const totalOff = offMod.offRating + defMod.offRating;
-    const totalDef = offMod.defRating + defMod.defRating;
-    if (homeTeamId === userTeamId) {
-      homeRatings.offenseRating = Math.max(1, homeRatings.offenseRating + totalOff);
-      homeRatings.defenseRating = Math.max(1, homeRatings.defenseRating + totalDef);
-    }
-    if (awayTeamId === userTeamId) {
-      awayRatings.offenseRating = Math.max(1, awayRatings.offenseRating + totalOff);
-      awayRatings.defenseRating = Math.max(1, awayRatings.defenseRating + totalDef);
-    }
-  }
+  const homePlan = homeTeamId === userTeamId ? userGamePlan : cpuHomePlan;
+  const awayPlan = awayTeamId === userTeamId ? userGamePlan : cpuAwayPlan;
+  if (homePlan) applyPlan(homeRatings, homePlan);
+  if (awayPlan) applyPlan(awayRatings, awayPlan);
+
   const weather = getWeather(week);
   const wx = weatherMultipliers(weather);
 
@@ -77,7 +77,7 @@ export function simulateGame(
   let awayScore = awayEvents.tds * 7 + awayEvents.fgs * 3;
 
   const scoreDiff = homeScore - awayScore;
-  const homeOffStats = generatePlayerStats(homeData, homeEvents, homeRatings.offenseRating, wx, true, scoreDiff);
+  const homeOffStats = generatePlayerStats(homeData, homeEvents, homeRatings.offenseRating, wx, true,  scoreDiff);
   const awayOffStats = generatePlayerStats(awayData, awayEvents, awayRatings.offenseRating, wx, false, -scoreDiff);
 
   const homeQBInts = homeOffStats.find(s => s.pass_attempts > 0)?.interceptions ?? 0;
@@ -86,8 +86,8 @@ export function simulateGame(
   const homeDefStats = generateDefensiveStats(homeData, awayQBInts, homeRatings.defenseRating);
   const awayDefStats = generateDefensiveStats(awayData, homeQBInts, awayRatings.defenseRating);
 
-  const homeDefTDs = homeDefStats.reduce((sum, s) => sum + (s.def_tds ?? 0), 0);
-  const awayDefTDs = awayDefStats.reduce((sum, s) => sum + (s.def_tds ?? 0), 0);
+  const homeDefTDs = homeDefStats.reduce((s, p) => s + (p.def_tds ?? 0), 0);
+  const awayDefTDs = awayDefStats.reduce((s, p) => s + (p.def_tds ?? 0), 0);
   homeScore += homeDefTDs * 6;
   awayScore += awayDefTDs * 6;
 
@@ -96,10 +96,8 @@ export function simulateGame(
     homeScore += ot.homeOTScore;
     awayScore += ot.awayOTScore;
   }
-
   if (homeScore === awayScore) {
-    if (Math.random() > 0.5) homeScore += 3;
-    else awayScore += 3;
+    if (Math.random() > 0.5) homeScore += 3; else awayScore += 3;
   }
 
   const homeKickerStat = generateKickerStats(homeData, homeEvents, homeEvents.tds);
