@@ -734,53 +734,55 @@ const MIGRATIONS: Migration[] = [
     },
   },
 
-  if (version < 17) {
-  try { db.prepare('ALTER TABLE games ADD COLUMN play_log TEXT').run(); } catch {}
-  db.prepare("INSERT OR REPLACE INTO settings (key,value) VALUES ('schema_version','17')").run();
-  version = 17;
-}
+  {
+    version: 17,
+    description: 'Add play_log column to games',
+    up: () => {
+      try { db.prepare('ALTER TABLE games ADD COLUMN play_log TEXT').run(); } catch {}
+    },
+  },
 
-if (version < 18) {
-  db.prepare(`
-    CREATE TABLE IF NOT EXISTS team_finances (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      team_id INTEGER UNIQUE NOT NULL,
-      market_size TEXT NOT NULL DEFAULT 'medium',
-      stadium_capacity INTEGER NOT NULL DEFAULT 65000,
-      season_revenue REAL NOT NULL DEFAULT 250.0,
-      owner_budget REAL NOT NULL DEFAULT 280.0
-    )
-  `).run();
+  {
+    version: 18,
+    description: 'Add team_finances table and seed market data',
+    up: () => {
+      db.prepare(`
+        CREATE TABLE IF NOT EXISTS team_finances (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          team_id INTEGER UNIQUE NOT NULL,
+          market_size TEXT NOT NULL DEFAULT 'medium',
+          stadium_capacity INTEGER NOT NULL DEFAULT 65000,
+          season_revenue REAL NOT NULL DEFAULT 250.0,
+          owner_budget REAL NOT NULL DEFAULT 280.0
+        )
+      `).run();
 
-  // Seed all 32 teams with market sizes based on team index
-  const allTeams = db.prepare('SELECT id FROM teams ORDER BY id').all() as any[];
-  const marketSizes = ['large','large','large','large','large','large','large','large',
-                       'medium','medium','medium','medium','medium','medium','medium','medium',
-                       'medium','medium','medium','medium','medium','medium','medium','medium',
-                       'small','small','small','small','small','small','small','small'];
-  const revenues   = [380,370,360,355,345,335,325,315,
-                      290,285,280,275,270,265,260,255,
-                      250,248,245,242,240,238,235,232,
-                      210,205,200,198,195,192,190,188];
-  const capacities = [82500,80000,78000,76000,74000,72000,70000,68000,
-                      67000,66500,66000,65500,65000,64500,64000,63500,
-                      63000,62500,62000,61500,61000,60500,60000,59500,
-                      58000,57000,56000,55000,54000,53000,52000,51000];
+      const allTeams = db.prepare('SELECT id FROM teams ORDER BY id').all() as any[];
+      const marketSizes = ['large','large','large','large','large','large','large','large',
+        'medium','medium','medium','medium','medium','medium','medium','medium',
+        'medium','medium','medium','medium','medium','medium','medium','medium',
+        'small','small','small','small','small','small','small','small'];
+      const revenues = [380,370,360,355,345,335,325,315,
+        290,285,280,275,270,265,260,255,
+        250,248,245,242,240,238,235,232,
+        210,205,200,198,195,192,190,188];
+      const capacities = [82500,80000,78000,76000,74000,72000,70000,68000,
+        67000,66500,66000,65500,65000,64500,64000,63500,
+        63000,62500,62000,61500,61000,60500,60000,59500,
+        58000,57000,56000,55000,54000,53000,52000,51000];
 
-  const ins = db.prepare('INSERT OR IGNORE INTO team_finances (team_id, market_size, stadium_capacity, season_revenue, owner_budget) VALUES (?,?,?,?,?)');
-  db.transaction(() => {
-    allTeams.forEach((t, i) => {
-      const ms  = marketSizes[i]  ?? 'medium';
-      const rev = revenues[i]     ?? 250;
-      const cap = capacities[i]   ?? 65000;
-      const bud = ms === 'large' ? rev + 20 : ms === 'small' ? rev + 10 : rev + 15;
-      ins.run(t.id, ms, cap, rev, bud);
-    });
-  })();
-
-  db.prepare("INSERT OR REPLACE INTO settings (key,value) VALUES ('schema_version','18')").run();
-  version = 18;
-}
+      const ins = db.prepare('INSERT OR IGNORE INTO team_finances (team_id, market_size, stadium_capacity, season_revenue, owner_budget) VALUES (?,?,?,?,?)');
+      db.transaction(() => {
+        allTeams.forEach((t, i) => {
+          const ms = marketSizes[i] ?? 'medium';
+          const rev = revenues[i] ?? 250;
+          const cap = capacities[i] ?? 65000;
+          const bud = ms === 'large' ? rev + 20 : ms === 'small' ? rev + 10 : rev + 15;
+          ins.run(t.id, ms, cap, rev, bud);
+        });
+      })();
+    },
+  },
 ];
 
 function getSchemaVersion(): number {
