@@ -7,6 +7,27 @@ import { generatePlayerStats, generateDefensiveStats, generateKickerStats } from
 
 export type { GamePlayerStat, SimResult } from './sim/types';
 
+export interface GamePlanOptions {
+  offense?: string;
+  defense?: string;
+}
+
+const OFFENSE_MODS: Record<string, { offRating: number; defRating: number }> = {
+  balanced:     { offRating: 0,  defRating: 0  },
+  run_heavy:    { offRating: -1, defRating: 1  },
+  pass_attack:  { offRating: 3,  defRating: -2 },
+  ball_control: { offRating: -2, defRating: 3  },
+  bombs_away:   { offRating: 5,  defRating: -4 },
+};
+
+const DEFENSE_MODS: Record<string, { offRating: number; defRating: number }> = {
+  base:         { offRating: 0,  defRating: 0  },
+  blitz:        { offRating: -2, defRating: 5  },
+  zone:         { offRating: 0,  defRating: 3  },
+  press_man:    { offRating: -1, defRating: 2  },
+  run_stop:     { offRating: -1, defRating: 4  },
+};
+
 export function simulateGame(
   homeTeamId: number,
   awayTeamId: number,
