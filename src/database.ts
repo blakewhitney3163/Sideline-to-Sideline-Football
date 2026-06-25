@@ -345,6 +345,18 @@ export function initDatabase(dbPath: string): void {
       FOREIGN KEY (team_id) REFERENCES teams(id)
     );
 
+        CREATE TABLE IF NOT EXISTS scouts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      team_id INTEGER,
+      first_name TEXT NOT NULL,
+      last_name TEXT NOT NULL,
+      overall_rating INTEGER NOT NULL DEFAULT 40,
+      specialty TEXT NOT NULL DEFAULT 'College',
+      salary REAL NOT NULL DEFAULT 1.0,
+      years_on_staff INTEGER NOT NULL DEFAULT 0,
+      FOREIGN KEY (team_id) REFERENCES teams(id)
+    );
+
         CREATE TABLE IF NOT EXISTS owner_goals (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       season INTEGER NOT NULL,
@@ -545,7 +557,7 @@ for (const contract of pending) {
 
 // ─── Migration Versioning ─────────────────────────────────────────────────────
 
-const CURRENT_SCHEMA_VERSION = 15;
+const CURRENT_SCHEMA_VERSION = 16;
 
 interface Migration { version: number; description: string; up: () => void; }
 
@@ -690,6 +702,26 @@ const MIGRATIONS: Migration[] = [
       db.prepare(
         "ALTER TABLE players ADD COLUMN archetype TEXT NOT NULL DEFAULT 'normal'"
       ).run();
+    },
+  },
+
+    {
+    version: 16,
+    description: 'Add scouts table for week-by-week scouting system',
+    up: () => {
+      db.prepare(`
+        CREATE TABLE IF NOT EXISTS scouts (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          team_id INTEGER,
+          first_name TEXT NOT NULL,
+          last_name TEXT NOT NULL,
+          overall_rating INTEGER NOT NULL DEFAULT 40,
+          specialty TEXT NOT NULL DEFAULT 'College',
+          salary REAL NOT NULL DEFAULT 1.0,
+          years_on_staff INTEGER NOT NULL DEFAULT 0,
+          FOREIGN KEY (team_id) REFERENCES teams(id)
+        )
+      `).run();
     },
   },
 ];
