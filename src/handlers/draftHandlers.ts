@@ -232,13 +232,6 @@ ipcMain.handle('get-scout-count', () => {
   return { used, budget, hasCollegeScout };
 });
 
- ipcMain.handle('get-scout-count', () => {
- const season = getCurrentSeason();
- const used = draftRepo.countScouted(season);
- const budget = parseInt(settingsRepo.get(`scouting_budget_${season}`) ?? '25');
- return { used, budget };
- });
-
  ipcMain.handle('run-cpu-round', (_event: any, { round, userTeamId }: { round: number; userTeamId: number }) => {
  const season = getCurrentSeason();
  const teamSlots = getDraftOrderTeamSlots(season);
