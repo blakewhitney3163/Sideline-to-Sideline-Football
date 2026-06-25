@@ -4,6 +4,7 @@ import { TRADE_DEADLINE_WEEK } from '../constants';
 import { TradeResult } from '../types';
 import { getCurrentSeason } from '../helpers/getCurrentSeason';
 import { logNewsEvent } from '../helpers/logNewsEvent';
+import { settingsRepo } from '../repositories';
 
 export function calcPlayerTradeValue(ovr: number, age: number, position: string, devTrait = 'Normal'): number {
   const ageFactor = age <= 23 ? 1.4 : age <= 26 ? 1.25 : age <= 29 ? 1.0 : age <= 32 ? 0.75 : age <= 35 ? 0.5 : 0.3;
@@ -152,11 +153,18 @@ export function proposeTrade(params: {
 export function getCpuTradeOffers(userTeamId: number): any[] {
   const season = getCurrentSeason();
   const currentWeek = gameRepo.getCurrentWeek(season);
-  if (!currentWeek || currentWeek > 14) return [];
+    if (!currentWeek || currentWeek > 10) return [];
   if (currentWeek < 1) return [];
 
-  // ~60% chance of any offers on a given check
-  if (Math.random() > 0.60) return [];
+  // Season cap: max 3 offers delivered total this season
+  const sentKey = `trade_offers_sent_${season}`;
+  const sentCount = parseInt(settingsRepo.get(sentKey) ?? '0');
+  if (sentCount >= 3) return [];
+
+  // Base 18% chance per week; +15% deadline urgency bump in weeks 6-8 for contenders
+  const baseChance = 0.18;
+  const deadlineBump = currentWeek >= 6 && currentWeek <= 8 ? 0.15 : 0;
+  if (Math.random() > baseChance + deadlineBump) return [];
 
   const cpuTeams = db.prepare(`SELECT id, city, name FROM teams WHERE id != ? ORDER BY RANDOM()`).all(userTeamId) as any[];
 
@@ -273,7 +281,12 @@ export function getCpuTradeOffers(userTeamId: number): any[] {
       });
     }
   }
-
+  if (offers.length > 0) {
+    const sentKey = `trade_offers_sent_${season}`;
+    const prev = parseInt(settingsRepo.get(sentKey) ?? '0');
+    settingsRepo.set(sentKey, String(prev + offers.length));
+  }
+  
   return offers;
 }
 
