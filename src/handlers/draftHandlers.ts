@@ -5,6 +5,7 @@ import pathModule from 'path';
 import { getCurrentSeason } from '../helpers/getCurrentSeason';
 import { playerRepo, contractRepo, pickRepo, draftRepo, settingsRepo } from '../repositories';
 import { logNewsEvent } from '../helpers/logNewsEvent';
+import { scoutRepo } from '../repositories';
 
 function generateCombine(position: string, ovr: number): {
  forty_time: number; bench_press: number; vertical_jump: number;
