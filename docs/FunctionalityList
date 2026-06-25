@@ -11,8 +11,8 @@ CORE INFRASTRUCTURE
   draft_prospects, depth_chart, career_stats_history, hall_of_fame,
   historical_records, news_events, pick_assets, team_trade_overrides,
   player_milestones, dead_cap_entries, coaching_staff, team_schemes,
-  owner_goals, injury_history, team_chemistry, chemistry_events
-- Schema version: v15. Migration runner in runMigrations() upgrades existing
+  owner_goals, injury_history, team_chemistry, chemistry_events, scouts
+- Schema version: v16. Migration runner in runMigrations() upgrades existing
   saves on launch. Active migrations:
   v9:  team_id INTEGER on career_stats_history + idx_career_stats_team
   v10: Recalibrate all active-roster contract salaries to market-rate scale
@@ -25,6 +25,9 @@ CORE INFRASTRUCTURE
   v15: archetype TEXT NOT NULL DEFAULT 'normal' column on players
        (existing players all start as 'normal'; new players get weighted
        random archetype from generatePlayers / replenishFAPool)
+  v16: scouts table (id, team_id, first_name, last_name, overall_rating,
+       specialty, salary, years_on_staff); 2 scouts seeded per team + 40
+       free-agent scouts generated on first launch via ScoutingService
 - generateContracts() uses CONTRACT_MARKET_RATES table + TRAIT_PREMIUM
   multipliers. After generation every team scaled to 95% of SALARY_CAP (~$265M).
 - career_stats_history: player_id, season, team_id, games, completions,
@@ -54,17 +57,17 @@ CORE INFRASTRUCTURE
 CODE ARCHITECTURE
 ────────────────────────────────────────────────────────────────────────────────
 - Game simulation modularized into src/sim/:
-  types.ts — shared TeamRatings, GameResult, GamePlayerStat interfaces;
-             TeamData includes chemistry: number
-  ratings.ts — loadTeamData() loads players, coaches, scheme, chemistry;
-               computeTeamRatings() applies morale, coaching, scheme, and
-               chemistry modifiers
-  stats.ts — player stat generation per position
-  scoring.ts — weather, quarter scoring, overtime
-  simulateGame.ts — thin orchestrator
-- Preload modularized into src/preload/ (10 domain files):
+  types.ts     — shared TeamRatings, GameResult, GamePlayerStat interfaces;
+                 TeamData includes chemistry: number
+  ratings.ts   — loadTeamData() loads players, coaches, scheme, chemistry;
+                 computeTeamRatings() applies morale, coaching, scheme, and
+                 chemistry modifiers
+  stats.ts     — player stat generation per position
+  scoring.ts   — weather, quarter scoring, overtime
+  simulateGame.ts — thin orchestrator; accepts optional GamePlanOptions param
+- Preload modularized into src/preload/ (11 domain files):
   core.ts, season.ts, roster.ts, contracts.ts, trades.ts, draft.ts,
-  stats.ts, coaching.ts, injuries.ts, chemistry.ts
+  stats.ts, coaching.ts, injuries.ts, chemistry.ts, gameprep.ts
   preload.ts merges all via spread into a single contextBridge exposure.
 - IPC handlers split by domain in src/handlers/:
   simHandlers, seasonHandlers, settingsHandlers, statsHandlers,
@@ -74,8 +77,10 @@ CODE ARCHITECTURE
 - Services layer in src/services/:
   SeasonService, SimulationService, StatsService, TradeService,
   ContractService, CoachingService, ProgressionService, OwnerGoalsService,
-  InjuryService, ChemistryService
-- Repositories layer in src/repositories/ — typed DB access per domain
+  InjuryService, ChemistryService, ScoutingService
+- Repositories layer in src/repositories/ — typed DB access per domain;
+  includes ScoutRepository (getByTeam, getAvailable, getById, assignToTeam,
+  release, getWeeklyPoints)
 - Shared UI components in src/components/:
   ArchetypeBadge.tsx — reusable archetype chip; import anywhere;
   renders nothing when archetype === 'normal'
@@ -120,6 +125,16 @@ HOME TAB
 - Trade Status widget, practice squad injury alert, advance season button,
   playoff seeding display, Gridiron Cup champions list, draft status,
   pending re-sign count, Season Awards panel
+- Weekly Game Prep panel (GameWeekPrep.tsx) — rendered above game preview
+  on weeks where the user's game is not yet simulated:
+  - Opponent Scout section: reveals top 5 opponent players (name, position,
+    OVR, dev trait), offensive tendency (run % vs pass %), scheme (offense +
+    defense), scouted/unscouted state toggled via is-opponent-scouted IPC
+  - Game Plan selector: Offense mode (balanced / spread / power_run /
+    west_coast / play_action) and Defense mode (base / blitz / zone_coverage /
+    press / prevent); selection saved via set-gameplan IPC and applied to
+    simulateGame on game day via GamePlanOptions modifiers
+  - Injury Preview: active injury report for current week displayed inline
 
 MY TEAM TAB
 ────────────────────────────────────────────────────────────────────────────────
@@ -178,10 +193,10 @@ OWNER GOALS & PATIENCE METER
 PLAYER PERSONALITY ARCHETYPES
 ────────────────────────────────────────────────────────────────────────────────
 - 7 archetypes stored in players.archetype (schema v15):
-  normal (35%) — no effect; baseline majority of roster
-  hard_worker (20%) — +20% chance of extra OVR gain per game (calcDelta bonus)
-  coachable (15%) — +12% chance of extra OVR gain per game (calcDelta bonus)
-  team_leader (10%) — 28% chance per game of +1 chemistry (applyArchetypeModifiers)
+  normal (35%)       — no effect; baseline majority of roster
+  hard_worker (20%)  — +20% chance of extra OVR gain per game (calcDelta bonus)
+  coachable (15%)    — +12% chance of extra OVR gain per game (calcDelta bonus)
+  team_leader (10%)  — 28% chance per game of +1 chemistry (applyArchetypeModifiers)
   vocal_leader (8%)  — 22% chance per game of +1 chemistry
   selfish (7%)       — 25% chance per game of −1 to −2 chemistry (morale-based)
   troublemaker (5%)  — 30% chance per game of −1 to −2 chemistry (morale-based)
@@ -238,6 +253,15 @@ Offseason Tab:
 
 Coaching Staff Tab:
   - HC, OC, DC, ST cards; Fire/Hire; pool auto-replenishes (min 3 per role)
+  - Scouting Department section:
+    - Current scouts displayed with specialty badge, quality rating, pts/week
+      (ceil(overall_rating / 15)), salary, and years on staff
+    - Weekly scouting points total shown (+N pts/week header)
+    - Release button fires scout back to free agent pool
+    - Hire Scout panel: browse available free-agent scouts by specialty,
+      quality, pts/week, and salary; Hire button assigns to team
+    - Scout pool: 40 free-agent scouts generated on first launch;
+      seeded via ScoutingService.generateAllScouts()
 
 Schemes Tab:
   - 5 offensive + 5 defensive schemes; live fit rating; modifier in sim
@@ -249,13 +273,16 @@ TRADES TAB
 - Select any of 32 teams; browse rosters + picks; trade value calculator
 - CPU acceptance: value balance, team needs, trade status
 - Team trade status: Buyer / Seller / Rebuilding / Neutral (+ manual override)
-- CPU incoming offers: up to 3 simultaneous; ~35% chance gate
-- Trade deadline (locked after Week 8); CPU-vs-CPU trades (Weeks 2–8, ≤2/week)
+- CPU incoming offers: capped at 3 per season; 18% weekly chance gate;
+  active weeks 1–10 only; deadline urgency bump +15% weeks 6–8
+- Trade deadline (locked after Week 10); CPU-vs-CPU trades (Weeks 2–8, ≤2/week)
 
 DRAFT TAB
 ────────────────────────────────────────────────────────────────────────────────
-- Always visible year-round; 100 prospects auto-generated at season start
-- In-season scouting budget: +3/full week sim, +1/single game; starts at 25
+- Always visible year-round; 280 prospects auto-generated at season start
+- In-season scouting budget: earned from scout quality sum (ceil(rating/15)
+  per scout, capped at 70 total pts/season); added after each simulated week
+  or game; used to reveal prospect ratings
 - Scouting reveals ratings; combine measurables always public
 - User picks; CPU auto-picks (position need-aware)
 
@@ -298,6 +325,12 @@ GAME SIMULATION ENGINE
   3. Coaching modifier: OC/DC +0.15×, HC +0.05× (vs. 70 baseline)
   4. Scheme modifier: roster fit bonus/penalty
   5. Chemistry modifier: −4 to +3 based on team_chemistry value
+- GamePlanOptions: optional offense/defense mode passed to simulateGame();
+  read from settings key gameplan_{season}_{week}; applied as rating multipliers:
+  Offense modes: balanced (default), spread (+pass −run), power_run (+run −pass),
+  west_coast (+short pass efficiency), play_action (+play action bonus)
+  Defense modes: base (default), blitz (+pass rush −coverage), zone_coverage
+  (+coverage −rush D), press (+man coverage), prevent (+deep coverage −rush)
 - Game script: trailing teams pass more; leading teams run more
 - Overtime: TD wins outright; FG gives opponent a chance; no ties
 - Weather: clear / rain / snow / wind with pass, rush, score multipliers
@@ -307,24 +340,24 @@ GAME SIMULATION ENGINE
 
 SEASON ADVANCE (advanceSeason in SeasonService.ts)
 ────────────────────────────────────────────────────────────────────────────────
-  1.  Age all non-retired players
-  2.  Progression / regression by dev trait + age bracket
-  3.  Breakout bonuses for standout season performers (age ≤ 28)
-  4.  Practice squad development (age ≤ 23, up to +3 OVR)
-  5.  Dev trait evolution
-  6.  Retirement (age/OVR thresholds, chance-based)
-  7.  Morale update (win%, contract year, playing time)
-  8.  Open free agency (CPU GM cuts + resign + contract expiry)
-  9.  Contract demand news events (elite players, final year)
-  10. Injury + waiver cleanup
-  11. Archive season stats to career_stats_history (with team_id)
-  12. Prune raw stats (DELETE WHERE season < current − 1)
-  13. Prune news events (keeps 3 seasons)
-  14. HOF inductions for newly retired players
-  15. Season award news events (MVP, DPOY)
-  16. Evaluate owner goals + update patience
-  17. Advance season counter
-  18. Replenish FA pool
+ 1. Age all non-retired players
+ 2. Progression / regression by dev trait + age bracket
+ 3. Breakout bonuses for standout season performers (age ≤ 28)
+ 4. Practice squad development (age ≤ 23, up to +3 OVR)
+ 5. Dev trait evolution
+ 6. Retirement (age/OVR thresholds, chance-based)
+ 7. Morale update (win%, contract year, playing time)
+ 8. Open free agency (CPU GM cuts + resign + contract expiry)
+ 9. Contract demand news events (elite players, final year)
+10. Injury + waiver cleanup
+11. Archive season stats to career_stats_history (with team_id)
+12. Prune raw stats (DELETE WHERE season < current − 1)
+13. Prune news events (keeps 3 seasons)
+14. HOF inductions for newly retired players
+15. Season award news events (MVP, DPOY)
+16. Evaluate owner goals + update patience
+17. Advance season counter
+18. Replenish FA pool
 
 IN-SEASON PLAYER PROGRESSION (ProgressionService.ts)
 ────────────────────────────────────────────────────────────────────────────────
@@ -339,7 +372,7 @@ CPU GM INTELLIGENCE
 ────────────────────────────────────────────────────────────────────────────────
 - Team classification: Contender / Buyer / Neutral / Seller / Rebuilding
 - Cap cleanup, CPU resign (78%–110% of market), FA bidding engine
-- CPU incoming trades: up to 3 simultaneous; CPU-vs-CPU trades Weeks 2–8
+- CPU incoming trades: capped at 3/season; 18% weekly chance; weeks 1–10 only
 
 MILESTONE SYSTEM
 ────────────────────────────────────────────────────────────────────────────────
@@ -360,41 +393,44 @@ FA POOL REPLENISHMENT
 
 BACKEND IPC HANDLERS (full list)
 ────────────────────────────────────────────────────────────────────────────────
-balance-rosters          get-waiver-wire           claim-waiver
-get-standings            get-teams                 get-roster
-get-player-stats         get-player-career-stats   get-schedule
-get-dashboard            get-stats                 get-hall-of-fame
-get-team-season-stats    simulate-playoffs         get-playoffs
-get-champions            get-seasons               get-current-season
-advance-season           generate-schedule         get-current-week
-get-week-matchups        simulate-week             get-injury-report
-get-game-box-score       reset-dynasty             get-playoff-seeds
-get-user-team            set-user-team             get-team-status
-set-team-trade-status    propose-trade             get-tradeable-picks
-get-cpu-trade-offer      accept-cpu-trade-offer    get-team-contracts
-get-practice-squad       get-cap-summary           get-roster-spots
-sign-free-agent-to-ps    get-free-agents           extend-player
-restructure-player       release-player            get-team-stats
-promote-from-ps          sign-free-agent           get-expiring-contracts
-resign-player            get-offseason-status      cpu-fa-signing
-generate-draft-class     get-draft-class           get-draft-order
-get-round-pick-order     make-draft-pick           scout-prospect
-get-scout-count          run-cpu-round             complete-draft
-get-depth-chart          set-depth-chart-order     reset-depth-chart
-get-alltime-leaders      get-season-records        get-season-awards
-get-franchise-records    get-team-needs            check-setup-done
-reset-save               get-news-feed             get-news-seasons
-simulate-game            list-saves                open-save
-edit-player              edit-player-contract      apply-franchise-tag
-remove-franchise-tag     accept-counter-offer      get-dead-cap
-open-free-agency         get-coaching-staff        get-available-coaches
-hire-coach               fire-coach                get-team-scheme
-get-scheme-options       set-team-scheme           get-franchise-health
-get-announcing-retirements make-retention-offer    dismiss-retirement
-get-difficulty           set-difficulty            import-historical-records
-import-custom-teams      import-custom-players     get-commissioner-mode
-set-commissioner-mode    edit-team                 get-owner-goals
-get-owner-patience       generate-owner-goals      delete-save
-get-ps-promotion-alerts  get-team-injuries         place-on-ir
-activate-from-ir         get-injury-history        get-team-chemistry
-process-morale-drag      get-player-archetype      set-player-archetype
+balance-rosters get-waiver-wire claim-waiver
+get-standings get-teams get-roster
+get-player-stats get-player-career-stats get-schedule
+get-dashboard get-stats get-hall-of-fame
+get-team-season-stats simulate-playoffs get-playoffs
+get-champions get-seasons get-current-season
+advance-season generate-schedule get-current-week
+get-week-matchups simulate-week get-injury-report
+get-game-box-score reset-dynasty get-playoff-seeds
+get-user-team set-user-team get-team-status
+set-team-trade-status propose-trade get-tradeable-picks
+get-cpu-trade-offer accept-cpu-trade-offer get-team-contracts
+get-practice-squad get-cap-summary get-roster-spots
+sign-free-agent-to-ps get-free-agents extend-player
+restructure-player release-player get-team-stats
+promote-from-ps sign-free-agent get-expiring-contracts
+resign-player get-offseason-status cpu-fa-signing
+generate-draft-class get-draft-class get-draft-order
+get-round-pick-order make-draft-pick scout-prospect
+get-scout-count run-cpu-round complete-draft
+get-depth-chart set-depth-chart-order reset-depth-chart
+get-alltime-leaders get-season-records get-season-awards
+get-franchise-records get-team-needs check-setup-done
+reset-save get-news-feed get-news-seasons
+simulate-game list-saves open-save
+edit-player edit-player-contract apply-franchise-tag
+remove-franchise-tag accept-counter-offer get-dead-cap
+open-free-agency get-coaching-staff get-available-coaches
+hire-coach fire-coach get-team-scheme
+get-scheme-options set-team-scheme get-franchise-health
+get-announcing-retirements make-retention-offer dismiss-retirement
+get-difficulty set-difficulty import-historical-records
+import-custom-teams import-custom-players get-commissioner-mode
+set-commissioner-mode edit-team get-owner-goals
+get-owner-patience generate-owner-goals delete-save
+get-ps-promotion-alerts get-team-injuries place-on-ir
+activate-from-ir get-injury-history get-team-chemistry
+process-morale-drag get-player-archetype set-player-archetype
+set-gameplan get-gameplan scout-opponent is-opponent-scouted
+get-scouts get-available-scouts hire-scout fire-scout
+get-weekly-scout-pts
