@@ -1,5 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ratingColor } from './utils';
+
+interface Scout {
+  id: number;
+  team_id: number | null;
+  first_name: string;
+  last_name: string;
+  overall_rating: number;
+  specialty: string;
+  salary: number;
+  years_on_staff: number;
+}
+
+const SPECIALTY_COLOR: Record<string, string> = {
+  Offense: '#FF8740', Defense: '#4FC3F7', College: '#4caf50',
+  National: '#FFD700', Regional: '#AB47BC',
+};
 
 declare const window: any;
 
@@ -52,9 +68,58 @@ export default function CoachingTab({ teamId, staff, onRefresh, showToast }: Pro
   const [showHirePanel, setShowHirePanel] = useState(false);
   const [hireRoleFilter, setHireRoleFilter] = useState<'ALL' | 'HC' | 'OC' | 'DC' | 'ST'>('ALL');
   const [working, setWorking] = useState(false);
+  const [scouts, setScouts] = useState<Scout[]>([]);
+  const [availableScouts, setAvailableScouts] = useState<Scout[]>([]);
+  const [showScoutHire, setShowScoutHire] = useState(false);
+  const [weeklyPts, setWeeklyPts] = useState(0);
 
   const staffByRole: Partial<Record<string, Coach>> = {};
   for (const coach of staff) staffByRole[coach.role] = coach;
+
+  useEffect(() => {
+    window.api.getScouts(teamId).then(setScouts);
+    window.api.getWeeklyScoutPts(teamId).then(setWeeklyPts);
+  }, [teamId]);
+
+  const loadAvailableScouts = async () => {
+    const s = await window.api.getAvailableScouts();
+    setAvailableScouts(s);
+    setShowScoutHire(true);
+  };
+
+  const handleFireScout = async (scout: Scout) => {
+    if (working) return;
+    setWorking(true);
+    const result = await window.api.fireScout(scout.id);
+    if (!result.success) { showToast(result.reason ?? 'Could not release scout.', 'error'); }
+    else {
+      showToast(`${scout.first_name} ${scout.last_name} released.`, 'success');
+      const updated = await window.api.getScouts(teamId);
+      setScouts(updated);
+      const pts = await window.api.getWeeklyScoutPts(teamId);
+      setWeeklyPts(pts);
+    }
+    setWorking(false);
+  };
+
+  const handleHireScout = async (scout: Scout) => {
+    if (working) return;
+    setWorking(true);
+    const result = await window.api.hireScout({ teamId, scoutId: scout.id });
+    if (!result.success) { showToast(result.reason ?? 'Could not hire scout.', 'error'); }
+    else {
+      showToast(`${scout.first_name} ${scout.last_name} hired!`, 'success');
+      const [updated, pts] = await Promise.all([
+        window.api.getScouts(teamId),
+        window.api.getWeeklyScoutPts(teamId),
+      ]);
+      setScouts(updated);
+      setWeeklyPts(pts);
+      const avail = await window.api.getAvailableScouts();
+      setAvailableScouts(avail);
+    }
+    setWorking(false);
+  };
 
   const loadAvailable = async () => {
     const coaches = await window.api.getAvailableCoaches();
@@ -97,7 +162,6 @@ export default function CoachingTab({ teamId, staff, onRefresh, showToast }: Pro
   return (
     <div style={{ padding: '0 0 32px' }}>
 
-      {/* ── Current Staff ──────────────────────────────────────────────── */}
       <div style={{ marginBottom: 12 }}>
         <span style={{ fontSize: 10, letterSpacing: 2, color: '#555' }}>COACHING STAFF</span>
       </div>
@@ -109,10 +173,7 @@ export default function CoachingTab({ teamId, staff, onRefresh, showToast }: Pro
 
           if (!coach) {
             return (
-              <div key={role} style={{
-                background: '#0d0d0d', border: '1px dashed #2a2a2a',
-                borderRadius: 6, padding: '16px 18px',
-              }}>
+              <div key={role} style={{ background: '#0d0d0d', border: '1px dashed #2a2a2a', borderRadius: 6, padding: '16px 18px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                   <RoleBadge role={role} color={meta.color} />
                   <span style={{ fontSize: 11, color: '#444' }}>{meta.label}</span>
@@ -128,32 +189,21 @@ export default function CoachingTab({ teamId, staff, onRefresh, showToast }: Pro
 
           const primaryRating = coach[meta.primaryKey] as number;
           return (
-            <div key={role} style={{
-              background: '#0d0d0d', border: '1px solid #1a1a1a',
-              borderRadius: 6, padding: '16px 18px',
-            }}>
+            <div key={role} style={{ background: '#0d0d0d', border: '1px solid #1a1a1a', borderRadius: 6, padding: '16px 18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <RoleBadge role={role} color={meta.color} />
-                  <span style={{ fontSize: 13, color: '#ddd', fontWeight: 500 }}>
-                    {coach.first_name} {coach.last_name}
-                  </span>
+                  <span style={{ fontSize: 13, color: '#ddd', fontWeight: 500 }}>{coach.first_name} {coach.last_name}</span>
                 </div>
-                <span style={{ fontSize: 24, fontWeight: 'bold', color: ratingColor(primaryRating) }}>
-                  {primaryRating}
-                </span>
+                <span style={{ fontSize: 24, fontWeight: 'bold', color: ratingColor(primaryRating) }}>{primaryRating}</span>
               </div>
-
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginBottom: 12 }}>
                 <StatBox label={meta.primaryLabel} value={primaryRating} />
                 <StatBox label="Dev" value={coach.development_rating} />
                 <StatBox label="Exp" text={`${coach.experience}yr`} />
               </div>
-
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ fontSize: 10, color: '#444' }}>
-                  ${coach.salary.toFixed(1)}M · {coach.years_remaining}yr left
-                </div>
+                <div style={{ fontSize: 10, color: '#444' }}>${coach.salary.toFixed(1)}M · {coach.years_remaining}yr left</div>
                 <button onClick={() => handleFire(coach)} disabled={working} style={{
                   padding: '3px 10px', fontSize: 10, cursor: 'pointer', borderRadius: 3,
                   background: '#1a0000', border: '1px solid #2a0000', color: '#e57373',
@@ -164,7 +214,6 @@ export default function CoachingTab({ teamId, staff, onRefresh, showToast }: Pro
         })}
       </div>
 
-      {/* ── Hire Panel Toggle ──────────────────────────────────────────── */}
       {!showHirePanel && (
         <button onClick={loadAvailable} style={{
           padding: '6px 18px', fontSize: 11, cursor: 'pointer', borderRadius: 4,
@@ -172,7 +221,6 @@ export default function CoachingTab({ teamId, staff, onRefresh, showToast }: Pro
         }}>VIEW AVAILABLE COACHES</button>
       )}
 
-      {/* ── Available Coaches ──────────────────────────────────────────── */}
       {showHirePanel && (
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -182,7 +230,6 @@ export default function CoachingTab({ teamId, staff, onRefresh, showToast }: Pro
               background: 'transparent', border: '1px solid #222', color: '#444',
             }}>Close</button>
           </div>
-
           <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
             {(['ALL', 'HC', 'OC', 'DC', 'ST'] as const).map(r => {
               const active = hireRoleFilter === r;
@@ -197,37 +244,26 @@ export default function CoachingTab({ teamId, staff, onRefresh, showToast }: Pro
               );
             })}
           </div>
-
           {filteredAvailable.length === 0 ? (
-            <div style={{ fontSize: 11, color: '#333', padding: '16px 0' }}>
-              No coaches available in this role.
-            </div>
+            <div style={{ fontSize: 11, color: '#333', padding: '16px 0' }}>No coaches available in this role.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {filteredAvailable.map(coach => {
                 const meta = ROLE_META[coach.role];
                 const primaryRating = coach[meta.primaryKey] as number;
                 return (
-                  <div key={coach.id} style={{
-                    background: '#0d0d0d', border: '1px solid #1a1a1a', borderRadius: 5,
-                    padding: '10px 14px', display: 'flex', alignItems: 'center',
-                    justifyContent: 'space-between',
-                  }}>
+                  <div key={coach.id} style={{ background: '#0d0d0d', border: '1px solid #1a1a1a', borderRadius: 5, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <RoleBadge role={coach.role} color={meta.color} />
                       <div>
-                        <div style={{ fontSize: 12, color: '#ccc' }}>
-                          {coach.first_name} {coach.last_name}
-                        </div>
+                        <div style={{ fontSize: 12, color: '#ccc' }}>{coach.first_name} {coach.last_name}</div>
                         <div style={{ fontSize: 10, color: '#444' }}>{meta.label}</div>
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ fontSize: 9, color: '#444', letterSpacing: 1 }}>{meta.primaryLabel}</div>
-                        <div style={{ fontSize: 18, fontWeight: 'bold', color: ratingColor(primaryRating) }}>
-                          {primaryRating}
-                        </div>
+                        <div style={{ fontSize: 18, fontWeight: 'bold', color: ratingColor(primaryRating) }}>{primaryRating}</div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ fontSize: 9, color: '#444', letterSpacing: 1 }}>EXP</div>
@@ -250,6 +286,114 @@ export default function CoachingTab({ teamId, staff, onRefresh, showToast }: Pro
           )}
         </div>
       )}
+
+      {/* Scouting Department */}
+      <div style={{ marginTop: 32, borderTop: '1px solid #1a1a1a', paddingTop: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div>
+            <span style={{ fontSize: 10, letterSpacing: 2, color: '#4caf50' }}>SCOUTING DEPARTMENT</span>
+            <span style={{ fontSize: 10, color: weeklyPts >= 7 ? '#FFD700' : '#4caf50', marginLeft: 12, background: '#0a1a0a', padding: '2px 8px', borderRadius: 3 }}>
+              +{weeklyPts} pts/week
+            </span>
+          </div>
+          <button
+            onClick={showScoutHire ? () => setShowScoutHire(false) : loadAvailableScouts}
+            style={{
+              padding: '4px 12px', fontSize: 10, fontWeight: 'bold', cursor: 'pointer',
+              background: showScoutHire ? '#141414' : '#0a1a0a',
+              border: `1px solid ${showScoutHire ? '#333' : '#4caf5055'}`,
+              borderRadius: 4, color: showScoutHire ? '#555' : '#4caf50',
+            }}
+          >
+            {showScoutHire ? 'Cancel' : '+ Hire Scout'}
+          </button>
+        </div>
+
+        {scouts.length === 0 ? (
+          <div style={{ fontSize: 11, color: '#333', padding: '8px 0' }}>
+            No scouts on staff — hire one to earn scouting points each week.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
+            {scouts.map(scout => {
+              const specColor = SPECIALTY_COLOR[scout.specialty] ?? '#888';
+              return (
+                <div key={scout.id} style={{ background: '#0d0d0d', border: '1px solid #1a1a1a', borderRadius: 5, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 3, background: `${specColor}22`, border: `1px solid ${specColor}55`, color: specColor }}>{scout.specialty.toUpperCase()}</span>
+                    <div>
+                      <div style={{ fontSize: 12, color: '#ccc' }}>{scout.first_name} {scout.last_name}</div>
+                      <div style={{ fontSize: 9, color: '#444' }}>{scout.years_on_staff} yr{scout.years_on_staff !== 1 ? 's' : ''} on staff</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 9, color: '#444', letterSpacing: 1 }}>QUALITY</div>
+                      <div style={{ fontSize: 18, fontWeight: 'bold', color: ratingColor(scout.overall_rating) }}>{scout.overall_rating}</div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 9, color: '#444', letterSpacing: 1 }}>PTS/WK</div>
+                      <div style={{ fontSize: 13, color: '#4caf50' }}>+{Math.ceil(scout.overall_rating / 15)}</div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 9, color: '#444', letterSpacing: 1 }}>SALARY</div>
+                      <div style={{ fontSize: 13, color: '#888' }}>${scout.salary.toFixed(1)}M</div>
+                    </div>
+                    <button onClick={() => handleFireScout(scout)} disabled={working} style={{
+                      padding: '5px 12px', fontSize: 11, fontWeight: 'bold', cursor: 'pointer',
+                      borderRadius: 4, background: working ? '#141414' : '#1a0808',
+                      border: '1px solid #e5737355', color: working ? '#444' : '#e57373',
+                    }}>Release</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {showScoutHire && (
+          <div style={{ background: '#0a0a0a', borderRadius: 6, padding: '12px 14px' }}>
+            <div style={{ fontSize: 9, letterSpacing: 2, color: '#333', marginBottom: 10 }}>AVAILABLE SCOUTS</div>
+            {availableScouts.length === 0 ? (
+              <div style={{ fontSize: 11, color: '#333' }}>No scouts currently available.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {availableScouts.map(scout => {
+                  const specColor = SPECIALTY_COLOR[scout.specialty] ?? '#888';
+                  return (
+                    <div key={scout.id} style={{ background: '#0d0d0d', border: '1px solid #1a1a1a', borderRadius: 5, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 3, background: `${specColor}22`, border: `1px solid ${specColor}55`, color: specColor }}>{scout.specialty.toUpperCase()}</span>
+                        <div style={{ fontSize: 12, color: '#ccc' }}>{scout.first_name} {scout.last_name}</div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: 9, color: '#444', letterSpacing: 1 }}>QUALITY</div>
+                          <div style={{ fontSize: 18, fontWeight: 'bold', color: ratingColor(scout.overall_rating) }}>{scout.overall_rating}</div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: 9, color: '#444', letterSpacing: 1 }}>PTS/WK</div>
+                          <div style={{ fontSize: 13, color: '#4caf50' }}>+{Math.ceil(scout.overall_rating / 15)}</div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: 9, color: '#444', letterSpacing: 1 }}>ASK</div>
+                          <div style={{ fontSize: 13, color: '#888' }}>${scout.salary.toFixed(1)}M</div>
+                        </div>
+                        <button onClick={() => handleHireScout(scout)} disabled={working} style={{
+                          padding: '5px 14px', fontSize: 11, fontWeight: 'bold', cursor: 'pointer',
+                          borderRadius: 4, background: working ? '#141414' : '#0a1a0a',
+                          border: '1px solid #4caf5055', color: working ? '#444' : '#4caf50',
+                        }}>Hire</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
     </div>
   );
 }
