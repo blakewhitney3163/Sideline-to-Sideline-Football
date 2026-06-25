@@ -77,6 +77,15 @@ getAllTeamFinances:  () => ipcRenderer.invoke('get-all-team-finances'),
   setCommissionerMode: (enabled: boolean) =>
     ipcRenderer.invoke('set-commissioner-mode', enabled),
 
+    setSetting: (key: string, value: string) =>
+    ipcRenderer.invoke('set-setting', key, value),
+
+  getSetting: (key: string) =>
+    ipcRenderer.invoke('get-setting', key),
+
+  applyDynastyTemplate: () =>
+    ipcRenderer.invoke('apply-dynasty-template'),
+
   editTeam: (payload: {
     teamId: number;
     city?: string;
