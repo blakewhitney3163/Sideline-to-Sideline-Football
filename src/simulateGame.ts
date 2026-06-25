@@ -33,7 +33,8 @@ export function simulateGame(
   awayTeamId: number,
   week: number = 9,
   userTeamId: number = -1,
-  difficultyFactor: number = 0
+  difficultyFactor: number = 0,
+  gamePlan?: GamePlanOptions
 ): import('./sim/types').SimResult {
   const homeData = loadTeamData(homeTeamId);
   const awayData = loadTeamData(awayTeamId);
@@ -52,6 +53,20 @@ export function simulateGame(
     }
   }
 
+    if (gamePlan && userTeamId !== -1) {
+    const offMod = OFFENSE_MODS[gamePlan.offense ?? 'balanced'] ?? OFFENSE_MODS.balanced;
+    const defMod = DEFENSE_MODS[gamePlan.defense ?? 'base'] ?? DEFENSE_MODS.base;
+    const totalOff = offMod.offRating + defMod.offRating;
+    const totalDef = offMod.defRating + defMod.defRating;
+    if (homeTeamId === userTeamId) {
+      homeRatings.offenseRating = Math.max(1, homeRatings.offenseRating + totalOff);
+      homeRatings.defenseRating = Math.max(1, homeRatings.defenseRating + totalDef);
+    }
+    if (awayTeamId === userTeamId) {
+      awayRatings.offenseRating = Math.max(1, awayRatings.offenseRating + totalOff);
+      awayRatings.defenseRating = Math.max(1, awayRatings.defenseRating + totalDef);
+    }
+  }
   const weather = getWeather(week);
   const wx = weatherMultipliers(weather);
 
