@@ -140,6 +140,15 @@ export function registerSettingsHandlers(): void {
     return { success: true };
   });
 
+    ipcMain.handle('set-setting', (_event: any, key: string, value: string) => {
+    settingsRepo.set(key, value);
+    return { success: true };
+  });
+
+  ipcMain.handle('get-setting', (_event: any, key: string) => {
+    return settingsRepo.get(key) ?? null;
+  });
+
   ipcMain.handle('edit-team', (_event: IpcEvent, payload: {
     teamId: number;
     city?: string;
