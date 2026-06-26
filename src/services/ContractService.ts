@@ -23,7 +23,6 @@ const MARKET_RATE_TABLE: Record<string, [number, number][]> = {
 
 const TRAIT_MUL: Record<string, number> = { Normal: 1.0, Star: 1.1, Superstar: 1.25, 'X-Factor': 1.45 };
 
-// Map granular position labels to market rate groups
 const POS_RATE_GROUP: Record<string, string> = {
   LT: 'OL', LG: 'OL', C: 'OL', RG: 'OL', RT: 'OL',
   DE: 'DL', DT: 'DL', LE: 'DL', RE: 'DL', IDL: 'DL',
@@ -45,6 +44,31 @@ export function calcFairMarket(ovr: number, position: string, devTrait: string):
     }
   }
   return Math.round(base * (TRAIT_MUL[devTrait] ?? 1.0) * 10) / 10;
+}
+
+// ─── GM Personality Definitions ──────────────────────────────────────────────
+
+interface PersonalityMod {
+  bidMul: number;       // multiplier on FA bids
+  resignPremium: number; // additional premium on resigns (stacks with team-type)
+  minOvrAdjust: number; // added to minOvr threshold (+= values = more selective)
+  traitBonus: number;   // extra premium for X-Factor/Superstar players
+  preferYoung: boolean; // prefer younger players
+  preferPicks: boolean; // less aggressive in trading players (prefers picks)
+}
+
+const PERSONALITY_MODS: Record<string, PersonalityMod> = {
+  win_now:     { bidMul: 1.18, resignPremium: 0.12, minOvrAdjust:  5, traitBonus: 0.08, preferYoung: false, preferPicks: false },
+  analytics:   { bidMul: 0.92, resignPremium:-0.05, minOvrAdjust: -3, traitBonus:-0.05, preferYoung: true,  preferPicks: true  },
+  old_school:  { bidMul: 1.05, resignPremium: 0.10, minOvrAdjust:  4, traitBonus: 0.00, preferYoung: false, preferPicks: false },
+  rebuilder:   { bidMul: 0.72, resignPremium:-0.18, minOvrAdjust:-10, traitBonus:-0.08, preferYoung: true,  preferPicks: true  },
+  star_chaser: { bidMul: 1.22, resignPremium: 0.08, minOvrAdjust: 10, traitBonus: 0.20, preferYoung: false, preferPicks: false },
+  balanced:    { bidMul: 1.00, resignPremium: 0.00, minOvrAdjust:  0, traitBonus: 0.00, preferYoung: false, preferPicks: false },
+};
+
+function getPersonalityMod(teamId: number): PersonalityMod {
+  const row = db.prepare('SELECT gm_personality FROM teams WHERE id = ?').get(teamId) as any;
+  return PERSONALITY_MODS[row?.gm_personality ?? 'balanced'] ?? PERSONALITY_MODS['balanced'];
 }
 
 // ─── User-facing Contract Operations ────────────────────────────────────────
@@ -107,13 +131,11 @@ export function resignPlayer(
     const rawCounter = fairMarket * ageMul * 1.05;
     const counterSalary = Math.round(rawCounter * 2) / 2;
     const counterYears = player.age <= 26 ? 4 : player.age <= 30 ? 3 : player.age <= 33 ? 2 : 1;
-
     const reason =
       ratio < 0.50 ? `Insulted by the offer. Counters at $${counterSalary.toFixed(1)}M/yr.` :
       ratio < 0.70 ? `Not enough to stay. Counters at $${counterSalary.toFixed(1)}M/yr.` :
       ratio < 0.85 ? `Wants more guaranteed money. Counters at $${counterSalary.toFixed(1)}M/yr.` :
                      `Not settling at that rate. Counters at $${counterSalary.toFixed(1)}M/yr.`;
-
     return { success: false, reason, willHitFA: true, counterOffer: { salary: counterSalary, years: counterYears } };
   }
 
@@ -260,8 +282,7 @@ export function cpuRosterCuts(userTeamId: number): { totalReleased: number; team
   const ph = teamIds.map(() => '?').join(',');
   const capRows = db.prepare(`
     SELECT c.team_id, COALESCE(SUM(c.annual_salary), 0) as used_cap
-    FROM contracts c
-    JOIN players p ON c.player_id = p.id
+    FROM contracts c JOIN players p ON c.player_id = p.id
     WHERE c.team_id IN (${ph}) AND p.roster_status = 'active'
     GROUP BY c.team_id
   `).all(...teamIds) as any[];
@@ -274,8 +295,7 @@ export function cpuRosterCuts(userTeamId: number): { totalReleased: number; team
     const players = db.prepare(`
       SELECT p.id, p.first_name, p.last_name, p.position, p.overall_rating, p.age, p.dev_trait,
              c.annual_salary
-      FROM players p
-      JOIN contracts c ON c.player_id = p.id
+      FROM players p JOIN contracts c ON c.player_id = p.id
       WHERE p.team_id = ? AND p.roster_status = 'active'
       ORDER BY (CAST(p.overall_rating AS REAL) / MAX(c.annual_salary, 0.5)) ASC
     `).all(team.id) as any[];
@@ -313,8 +333,7 @@ export function cpuResignAttempts(userTeamId: number): { attempted: number; resi
   const teamTypes = batchGetTeamTypes(teamIds, season);
   const capRows = db.prepare(`
     SELECT c.team_id, COALESCE(SUM(c.annual_salary), 0) as used_cap
-    FROM contracts c
-    JOIN players p ON c.player_id = p.id
+    FROM contracts c JOIN players p ON c.player_id = p.id
     WHERE c.team_id IN (${ph}) AND p.roster_status = 'active'
     GROUP BY c.team_id
   `).all(...teamIds) as any[];
@@ -322,8 +341,7 @@ export function cpuResignAttempts(userTeamId: number): { attempted: number; resi
   const allExpiring = db.prepare(`
     SELECT p.id, p.first_name, p.last_name, p.position, p.overall_rating, p.age, p.dev_trait,
            c.team_id
-    FROM contracts c
-    JOIN players p ON p.id = c.player_id
+    FROM contracts c JOIN players p ON p.id = c.player_id
     WHERE c.team_id IN (${ph}) AND c.years_remaining = 1 AND p.roster_status = 'active'
     ORDER BY c.team_id, p.overall_rating DESC
   `).all(...teamIds) as any[];
@@ -335,13 +353,21 @@ export function cpuResignAttempts(userTeamId: number): { attempted: number; resi
   let attempted = 0, resigned = 0, hitFA = 0;
   for (const team of cpuTeams) {
     const teamType = teamTypes.get(team.id) ?? 'Neutral';
-    const premium = RESIGN_PREMIUM[teamType] ?? 0.95;
+    const basePremium = RESIGN_PREMIUM[teamType] ?? 0.95;
+    const pmods = getPersonalityMod(team.id);
+    const premium = basePremium + pmods.resignPremium;
     let capLeft = getSalaryCap() - (capMap.get(team.id) ?? 0);
     const expiring = expiringByTeam.get(team.id) ?? [];
     for (const player of expiring) {
       if (player.overall_rating < 68) continue;
       const fair = calcFairMarket(player.overall_rating, player.position, player.dev_trait);
-      const offer = Math.round(fair * premium * 10) / 10;
+      let offer = Math.round(fair * premium * 10) / 10;
+      // Star-chaser pays extra for elite traits
+      if (pmods.traitBonus > 0 && (player.dev_trait === 'X-Factor' || player.dev_trait === 'Superstar')) {
+        offer = Math.round(offer * (1 + pmods.traitBonus) * 10) / 10;
+      }
+      // Rebuilder skips expensive vets
+      if (pmods.preferPicks && player.age >= 30 && player.overall_rating < 82) continue;
       if (capLeft < offer) continue;
       attempted++;
       const ratio = offer / fair;
@@ -387,6 +413,7 @@ export function cpuResignAttempts(userTeamId: number): { attempted: number; resi
 
 interface TeamState {
   id: number; type: string; capLeft: number; spotsLeft: number; posCounts: Record<string, number>;
+  pmods: PersonalityMod;
 }
 
 export function cpuFABiddingEngine(userTeamId: number): { totalSigned: number; teamsActive: number } {
@@ -426,6 +453,7 @@ export function cpuFABiddingEngine(userTeamId: number): { totalSigned: number; t
       capLeft: getSalaryCap() - (capMap.get(team.id) ?? 0),
       spotsLeft: MAX_ACTIVE_ROSTER - (activeMap.get(team.id) ?? 0),
       posCounts: posMap.get(team.id) ?? {},
+      pmods: getPersonalityMod(team.id),
     });
   }
   const freeAgents = db.prepare(`
@@ -446,11 +474,24 @@ export function cpuFABiddingEngine(userTeamId: number): { totalSigned: number; t
       const isCritical = posCount < threshold.min;
       const isDepth = posCount < threshold.ideal;
       if (!isCritical && !isDepth) continue;
+
       const config = TEAM_BID_CONFIG[state.type] ?? TEAM_BID_CONFIG.Neutral;
-      if (fa.overall_rating < config.minOvr && !isCritical) continue;
+      const pmods = state.pmods;
+
+      // Personality: rebuilder skips old players, analytics skips overpriced traits
+      if (pmods.preferYoung && fa.age >= 30 && fa.overall_rating < 80 && !isCritical) continue;
+
+      let effectiveMinOvr = config.minOvr + pmods.minOvrAdjust;
+      if (fa.overall_rating < effectiveMinOvr && !isCritical) continue;
+
       const needMult = isCritical ? 1.14 : 1.05;
-      const typeMult = config.base + Math.random() * config.spread;
-      const bid = Math.round(fair * typeMult * needMult * 10) / 10;
+      const typeMult = (config.base + Math.random() * config.spread) * pmods.bidMul;
+      let bid = Math.round(fair * typeMult * needMult * 10) / 10;
+
+      // Star-chaser bonus
+      if (pmods.traitBonus > 0 && (fa.dev_trait === 'X-Factor' || fa.dev_trait === 'Superstar')) {
+        bid = Math.round(bid * (1 + pmods.traitBonus) * 10) / 10;
+      }
       if (state.capLeft < bid) continue;
       bidders.push({ teamId: state.id, bid });
     }
@@ -532,51 +573,35 @@ export function signFreeAgentToPS(playerId: number, teamId: number): SuccessResu
 export function extendPlayer(playerId: number, years: number, salary: number): SuccessResult {
   const contract = contractRepo.getByPlayer(playerId);
   if (!contract) return { success: false, reason: 'No contract found.' };
-
   const player = playerRepo.getById(playerId);
   if (!player) return { success: false, reason: 'Player not found.' };
-
-  // Hard floor: players won't accept more than a 25% pay cut from their current salary
   const currentSalary = contract.annual_salary ?? 0;
   const payCutFloor = Math.round(currentSalary * 0.75 * 10) / 10;
   if (salary < payCutFloor && currentSalary > 2.0) {
-    return {
-      success: false,
-      reason: `Won't accept a pay cut that large. Current salary: $${currentSalary.toFixed(1)}M — minimum offer: $${payCutFloor.toFixed(1)}M/yr.`,
-    };
+    return { success: false, reason: `Won't accept a pay cut that large. Current salary: $${currentSalary.toFixed(1)}M — minimum offer: $${payCutFloor.toFixed(1)}M/yr.` };
   }
-
   const fairMarket = calcFairMarket(player.overall_rating, player.position, player.dev_trait);
   const ratio = salary / Math.max(fairMarket, 1);
-
-  // Players are more forgiving of extensions (team familiarity) but still demand fair value
   let acceptChance =
-    ratio >= 0.95 ? 1.00 :
-    ratio >= 0.80 ? 0.82 :
-    ratio >= 0.65 ? 0.45 :
-    ratio >= 0.50 ? 0.12 : 0.00;
-
+    ratio >= 0.95 ? 1.00 : ratio >= 0.80 ? 0.82 : ratio >= 0.65 ? 0.45 : ratio >= 0.50 ? 0.12 : 0.00;
   if (player.dev_trait === 'X-Factor')  acceptChance = Math.max(0, acceptChance - 0.22);
   if (player.dev_trait === 'Superstar') acceptChance = Math.max(0, acceptChance - 0.12);
   if (player.age >= 32) acceptChance = Math.min(1, acceptChance + 0.15);
   if (player.age >= 35) acceptChance = Math.min(1, acceptChance + 0.15);
   if ((player.morale ?? 75) < 60) acceptChance = Math.max(0, acceptChance - 0.15);
   if ((player.morale ?? 75) >= 85) acceptChance = Math.min(1, acceptChance + 0.08);
-
   if (Math.random() >= acceptChance) {
     const floor = Math.round(Math.max(fairMarket * 0.90, payCutFloor) * 2) / 2;
     return {
       success: false,
-      reason:
-        ratio < 0.50 ? `Insulted by the offer. Looking for at least $${floor.toFixed(1)}M/yr.` :
-        ratio < 0.65 ? `Not enough to commit long-term. Needs $${floor.toFixed(1)}M/yr or better.` :
-                       `Declined the extension — wants closer to $${floor.toFixed(1)}M/yr.`,
+      reason: ratio < 0.50 ? `Insulted by the offer. Looking for at least $${floor.toFixed(1)}M/yr.` :
+               ratio < 0.65 ? `Not enough to commit long-term. Needs $${floor.toFixed(1)}M/yr or better.` :
+                               `Declined the extension — wants closer to $${floor.toFixed(1)}M/yr.`,
     };
   }
-
   const newYearsTotal = contract.years_remaining + years;
-const guaranteedPct = Math.round(40 + Math.random() * 20);
-contractRepo.update(playerId, newYearsTotal, salary, Math.round(salary * newYearsTotal * (guaranteedPct / 100) * 10) / 10, guaranteedPct);
+  const guaranteedPct = Math.round(40 + Math.random() * 20);
+  contractRepo.update(playerId, newYearsTotal, salary, Math.round(salary * newYearsTotal * (guaranteedPct / 100) * 10) / 10, guaranteedPct);
   return { success: true };
 }
 
@@ -602,9 +627,7 @@ export function releasePlayer(playerId: number): SuccessResult & { onWaivers: bo
   const teamId = player?.team_id ?? null;
   const contract = contractRepo.getByPlayer(playerId);
   if (contract && contract.years_remaining > 1 && (contract.guaranteed_amount ?? 0) > 0 && teamId && player) {
-    const deadCap = Math.round(
-      contract.guaranteed_amount * (contract.years_remaining / Math.max(contract.years_total, 1)) * 10
-    ) / 10;
+    const deadCap = Math.round(contract.guaranteed_amount * (contract.years_remaining / Math.max(contract.years_total, 1)) * 10) / 10;
     if (deadCap > 0) {
       contractRepo.addDeadCap(teamId, playerId, `${player.first_name} ${player.last_name}`, player.position, season, deadCap);
     }
@@ -716,4 +739,161 @@ export function getOffseasonStatus(teamId: number | null): {
     draftComplete,
     faOpen,
   };
+}
+
+// ─── 5th Year Option ─────────────────────────────────────────────────────────
+
+export function pickUpFifthYearOption(playerId: number): SuccessResult {
+  const contract = contractRepo.getByPlayer(playerId) as any;
+  if (!contract) return { success: false, reason: 'No contract found.' };
+  if (!contract.fifth_year_option_eligible) return { success: false, reason: 'Not eligible for 5th year option.' };
+  if (contract.fifth_year_option_picked_up) return { success: false, reason: '5th year option already picked up.' };
+  if (contract.years_remaining > 2) return { success: false, reason: 'Option must be exercised in year 3 (2 years remaining).' };
+  const player = playerRepo.getById(playerId);
+  if (!player) return { success: false, reason: 'Player not found.' };
+  const optionSalary = Math.round(calcFairMarket(player.overall_rating, player.position, player.dev_trait) * 1.20 * 10) / 10;
+  db.prepare('UPDATE contracts SET fifth_year_option_picked_up = 1, years_remaining = years_remaining + 1, years_total = years_total + 1 WHERE player_id = ?').run(playerId);
+  logNewsEvent({
+    eventType: 'resign', category: 'transactions',
+    headline: `5th Year Option Exercised for ${player.first_name} ${player.last_name}`,
+    detail: `${player.position} · ${player.overall_rating} OVR · Option adds a 5th year at ~$${optionSalary}M/yr.`,
+    playerId,
+  });
+  return { success: true };
+}
+
+export function declineFifthYearOption(playerId: number): SuccessResult {
+  const contract = contractRepo.getByPlayer(playerId) as any;
+  if (!contract?.fifth_year_option_eligible) return { success: false, reason: 'Not eligible.' };
+  db.prepare('UPDATE contracts SET fifth_year_option_eligible = 0 WHERE player_id = ?').run(playerId);
+  return { success: true };
+}
+
+// ─── Holdouts & Trade Demands ────────────────────────────────────────────────
+
+export function checkHoldoutsAndDemands(userTeamId: number): void {
+  const season = getCurrentSeason();
+  // Only run once per season
+  const key = `holdouts_checked_${season}`;
+  if (db.prepare('SELECT value FROM settings WHERE key = ?').get(key)) return;
+
+  const candidates = db.prepare(`
+    SELECT p.id, p.first_name, p.last_name, p.position, p.overall_rating,
+           p.morale, p.archetype, p.team_id, c.years_remaining
+    FROM players p
+    JOIN contracts c ON c.player_id = p.id
+    WHERE p.roster_status = 'active'
+      AND p.overall_rating >= 80
+      AND p.morale <= 60
+      AND p.team_id IS NOT NULL
+  `).all() as any[];
+
+  const setHoldout = db.prepare('UPDATE players SET holdout_status = ?, holdout_weeks = ? WHERE id = ?');
+  const setDemand  = db.prepare('UPDATE players SET trade_demand = 1 WHERE id = ?');
+
+  db.transaction(() => {
+    for (const p of candidates) {
+      const archMult = ['selfish','troublemaker'].includes(p.archetype ?? '') ? 1.6 : 1.0;
+      const moraleGap = Math.max(0, 60 - p.morale) / 60; // 0-1
+
+      // Holdout: final contract year, very low morale, elite player
+      if (p.years_remaining === 1 && p.overall_rating >= 84) {
+        const holdoutChance = moraleGap * 0.35 * archMult;
+        if (Math.random() < holdoutChance) {
+          const weeks = Math.floor(Math.random() * 3) + 1;
+          setHoldout.run('holdout', weeks, p.id);
+          if (p.team_id === userTeamId) {
+            logNewsEvent({
+              eventType: 'holdout', category: 'transactions',
+              headline: `${p.first_name} ${p.last_name} Holding Out`,
+              detail: `${p.position} · ${p.overall_rating} OVR · Unhappy on expiring deal. Seeking new contract. Expected to miss ~${weeks} week${weeks !== 1 ? 's' : ''} of camp.`,
+              playerId: p.id, teamId: p.team_id, season,
+            });
+          }
+          continue;
+        }
+      }
+
+      // Trade demand: years left on contract, very low morale, elite player unhappy with situation
+      if (p.years_remaining >= 2 && p.overall_rating >= 82) {
+        const demandChance = moraleGap * 0.22 * archMult;
+        if (Math.random() < demandChance) {
+          setDemand.run(p.id);
+          if (p.team_id === userTeamId) {
+            logNewsEvent({
+              eventType: 'trade_demand', category: 'transactions',
+              headline: `${p.first_name} ${p.last_name} Requests Trade`,
+              detail: `${p.position} · ${p.overall_rating} OVR · Unhappy with team situation and demands to be moved.`,
+              playerId: p.id, teamId: p.team_id, season,
+            });
+          }
+        }
+      }
+    }
+  })();
+
+  // CPU teams auto-resolve holdouts with a modest raise
+  const cpuHoldouts = db.prepare(`
+    SELECT p.id, p.team_id, p.overall_rating, p.position, p.dev_trait
+    FROM players p
+    WHERE p.holdout_status = 'holdout' AND p.team_id != ?
+  `).all(userTeamId) as any[];
+  for (const p of cpuHoldouts) {
+    const fair = calcFairMarket(p.overall_rating, p.position, p.dev_trait);
+    const newSalary = Math.round(fair * 1.05 * 10) / 10;
+    contractRepo.update(p.id, 1, newSalary, Math.round(newSalary * 0.5 * 10) / 10, 50);
+    db.prepare("UPDATE players SET holdout_status = NULL, holdout_weeks = 0, morale = MIN(80, morale + 15) WHERE id = ?").run(p.id);
+  }
+
+  db.prepare("INSERT OR REPLACE INTO settings (key,value) VALUES (?,?)").run(key, '1');
+}
+
+export function getHoldoutPlayers(teamId: number): any[] {
+  return db.prepare(`
+    SELECT p.id, p.first_name, p.last_name, p.position, p.overall_rating,
+           p.morale, p.holdout_status, p.holdout_weeks, p.trade_demand,
+           c.annual_salary, c.years_remaining
+    FROM players p
+    LEFT JOIN contracts c ON c.player_id = p.id
+    WHERE p.team_id = ?
+      AND (p.holdout_status IS NOT NULL OR p.trade_demand = 1)
+      AND p.roster_status = 'active'
+  `).all(teamId) as any[];
+}
+
+export function resolveHoldout(playerId: number, action: 'pay' | 'wait' | 'trade_request'): SuccessResult {
+  const player = db.prepare(`
+    SELECT p.id, p.first_name, p.last_name, p.position, p.overall_rating, p.dev_trait,
+           c.annual_salary, c.years_remaining, c.years_total
+    FROM players p LEFT JOIN contracts c ON c.player_id = p.id WHERE p.id = ?
+  `).get(playerId) as any;
+  if (!player) return { success: false, reason: 'Player not found.' };
+
+  if (action === 'pay') {
+    const fair = calcFairMarket(player.overall_rating, player.position, player.dev_trait);
+    const newSalary = Math.round(fair * 1.08 * 10) / 10;
+    const years = player.age <= 28 ? 3 : player.age <= 32 ? 2 : 1;
+    contractRepo.update(playerId, years, newSalary, Math.round(newSalary * years * 0.5 * 10) / 10, 50);
+    db.prepare("UPDATE players SET holdout_status = NULL, holdout_weeks = 0, trade_demand = 0, morale = MIN(90, morale + 20) WHERE id = ?").run(playerId);
+    return { success: true };
+  }
+
+  if (action === 'wait') {
+    // Player reports but morale drops further
+    db.prepare("UPDATE players SET holdout_status = NULL, holdout_weeks = 0, morale = MAX(40, morale - 10) WHERE id = ?").run(playerId);
+    return { success: true };
+  }
+
+  if (action === 'trade_request') {
+    // Mark as actively shopped — news event fires, user uses normal trade flow
+    logNewsEvent({
+      eventType: 'trade_demand', category: 'transactions',
+      headline: `${player.first_name} ${player.last_name} Officially Shopped`,
+      detail: `${player.position} · ${player.overall_rating} OVR · Team has begun fielding offers.`,
+      playerId,
+    });
+    return { success: true };
+  }
+
+  return { success: false, reason: 'Unknown action.' };
 }
