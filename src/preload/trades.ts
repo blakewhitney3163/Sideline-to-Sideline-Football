@@ -10,6 +10,9 @@ export const tradesApi = {
   setTeamTradeStatus: (payload: { teamId: number; status: string | null }) =>
     ipcRenderer.invoke('set-team-trade-status', payload),
 
+    getTeamNeeds: (teamId: number) =>
+    ipcRenderer.invoke('get-team-needs', teamId),
+
   acceptCpuTradeOffer: (payload: { myPlayerId: number; theirPlayerId: number; theirTeamId: number; theirPickId: number | null }) =>
     ipcRenderer.invoke('accept-cpu-trade-offer', payload),
 
