@@ -45,11 +45,18 @@ const TIERS: Record<BudgetTier, TierDef> = {
   gold:   { label: 'Gold',   color: '#FFD700', bg: '#1a1200', maxSalary: 12_000_000, ovrRange: '78–99' },
 };
 
+const TEMPLATE_BUDGETS: Record<string, number> = {
+  rebuild:   8_000_000,
+  contender: 14_000_000,
+  dynasty:   20_000_000,
+};
+const DEFAULT_BUDGET = 12_000_000;
+
 const COACH_ROLES: Array<{ key: 'HC' | 'OC' | 'DC' | 'ST'; label: string; icon: string }> = [
-  { key: 'HC', label: 'Head Coach', icon: '🎯' },
-  { key: 'OC', label: 'Off. Coordinator', icon: '⚡' },
-  { key: 'DC', label: 'Def. Coordinator', icon: '🛡' },
-  { key: 'ST', label: 'Special Teams', icon: '🏈' },
+  { key: 'HC', label: 'Head Coach',        icon: '🎯' },
+  { key: 'OC', label: 'Off. Coordinator',  icon: '⚡' },
+  { key: 'DC', label: 'Def. Coordinator',  icon: '🛡' },
+  { key: 'ST', label: 'Special Teams',     icon: '🏈' },
 ];
 
 const SPECIALTY_ICONS: Record<string, string> = {
@@ -67,7 +74,6 @@ const scoutOvrColor = (v: number) =>
 const fmtM = (n: number) =>
   n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : `$${(n / 1_000).toFixed(0)}K`;
 
-// Scouts store salary in millions directly
 const fmtScout = (n: number) => `$${n.toFixed(1)}M`;
 
 interface Props {
@@ -81,47 +87,54 @@ interface Props {
 export default function PreSeasonStaffPanel({
   teamId, season, onConfirm, onGenerateSchedule, generatingSchedule,
 }: Props) {
-  const [staff, setStaff] = useState<Coach[]>([]);
-  const [available, setAvailable] = useState<Coach[]>([]);
-  const [scouts, setScouts] = useState<Scout[]>([]);
+  const [staff, setStaff]                   = useState<Coach[]>([]);
+  const [available, setAvailable]           = useState<Coach[]>([]);
+  const [scouts, setScouts]                 = useState<Scout[]>([]);
   const [availableScouts, setAvailableScouts] = useState<Scout[]>([]);
-  const [tier, setTier] = useState<BudgetTier>('silver');
-  const [expandedRole, setExpandedRole] = useState<'HC' | 'OC' | 'DC' | 'ST' | null>(null);
+  const [tier, setTier]                     = useState<BudgetTier>('silver');
+  const [expandedRole, setExpandedRole]     = useState<'HC' | 'OC' | 'DC' | 'ST' | null>(null);
   const [scoutsExpanded, setScoutsExpanded] = useState(false);
   const [pendingDuration, setPendingDuration] = useState<Record<number, number>>({});
-  const [working, setWorking] = useState(false);
-  const [confirmed, setConfirmed] = useState(false);
+  const [working, setWorking]               = useState(false);
+  const [confirmed, setConfirmed]           = useState(false);
+  const [coachingBudget, setCoachingBudget] = useState(DEFAULT_BUDGET);
 
   const loadData = async () => {
-    const [s, a, sc, asc] = await Promise.all([
+    const [s, a, sc, asc, tmpl] = await Promise.all([
       window.api.getCoachingStaff(teamId),
       window.api.getAvailableCoaches(),
       window.api.getScouts(teamId),
       window.api.getAvailableScouts(),
+      window.api.getSetting('dynasty_template'),
     ]);
     setStaff(s ?? []);
     setAvailable(a ?? []);
     setScouts(sc ?? []);
     setAvailableScouts((asc ?? []).slice(0, 12));
+    setCoachingBudget(TEMPLATE_BUDGETS[tmpl as string] ?? DEFAULT_BUDGET);
   };
 
   useEffect(() => { loadData(); }, [teamId]);
 
-  const currentTier = TIERS[tier];
-  const totalCoachSalary = staff.reduce((sum, c) => sum + (c.salary ?? 0), 0);
-  const totalScoutSalary = scouts.reduce((sum, s) => sum + (s.salary ?? 0), 0);
+  const totalCoachSalary  = staff.reduce((sum, c) => sum + (c.salary ?? 0), 0);
+  const totalScoutSalary  = scouts.reduce((sum, s) => sum + (s.salary ?? 0), 0);
+  const budgetRemaining   = coachingBudget - totalCoachSalary;
+  const overBudget        = budgetRemaining < 0;
 
   const getCoach = (role: 'HC' | 'OC' | 'DC' | 'ST') => staff.find(c => c.role === role) ?? null;
 
   const marketForRole = (role: 'HC' | 'OC' | 'DC' | 'ST') =>
-    available.filter(c => c.role === role && c.salary <= currentTier.maxSalary).slice(0, 5);
+    available.filter(c => c.role === role && c.salary <= TIERS[tier].maxSalary).slice(0, 5);
 
   const getDuration = (coachId: number) => pendingDuration[coachId] ?? 2;
 
-  const handleHireCoach = async (coachId: number) => {
+  const canAfford = (salary: number) => totalCoachSalary + salary <= coachingBudget;
+
+  const handleHireCoach = async (coach: Coach) => {
+    if (!canAfford(coach.salary)) return;
     setWorking(true);
-    const yearsRemaining = getDuration(coachId);
-    await window.api.hireCoach({ teamId, coachId, yearsRemaining });
+    const yearsRemaining = getDuration(coach.id);
+    await window.api.hireCoach({ teamId, coachId: coach.id, yearsRemaining });
     await loadData();
     setExpandedRole(null);
     setWorking(false);
@@ -177,18 +190,30 @@ export default function PreSeasonStaffPanel({
           <div style={{ fontSize: 9, letterSpacing: 2, color: T.textMuted, textTransform: 'uppercase', marginBottom: 4 }}>
             Pre-Season Setup · {season}
           </div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: T.textPrimary }}>Staff Review</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: T.textPrimary }}>Staff Hiring</div>
           {vacantRoles.length > 0 && (
             <div style={{ fontSize: 10, color: '#e57373', marginTop: 4 }}>
-              ⚠ {vacantRoles.length} vacant coaching slot{vacantRoles.length > 1 ? 's' : ''} — {vacantRoles.map(r => r.key).join(', ')}
+              ⚠ {vacantRoles.length} vacant slot{vacantRoles.length > 1 ? 's' : ''} — {vacantRoles.map(r => r.key).join(', ')}
             </div>
           )}
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 8, color: T.textMuted, marginBottom: 1 }}>Coaching</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#4FC3F7' }}>{fmtM(totalCoachSalary)}</div>
-          <div style={{ fontSize: 8, color: T.textMuted, marginTop: 4, marginBottom: 1 }}>Scouting</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#4FC3F7' }}>{fmtScout(totalScoutSalary)}</div>
+
+        {/* Coaching Budget */}
+        <div style={{
+          textAlign: 'right',
+          background: overBudget ? '#1a0000' : '#0a1a0a',
+          border: `1px solid ${overBudget ? '#3a1a1a' : '#1a3a1a'}`,
+          borderRadius: 6, padding: '8px 14px',
+        }}>
+          <div style={{ fontSize: 8, color: T.textMuted, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 2 }}>
+            Coaching Budget
+          </div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: overBudget ? '#e57373' : '#4caf50' }}>
+            {fmtM(Math.max(0, budgetRemaining))}
+          </div>
+          <div style={{ fontSize: 8, color: T.textDim, marginTop: 1 }}>
+            {fmtM(totalCoachSalary)} of {fmtM(coachingBudget)} used
+          </div>
         </div>
       </div>
 
@@ -240,7 +265,6 @@ export default function PreSeasonStaffPanel({
                       <span style={{ fontSize: 12, color: T.textPrimary, fontWeight: 600 }}>
                         {coach.first_name} {coach.last_name}
                       </span>
-                      {/* Contract years badge */}
                       <span style={{
                         fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 3,
                         background: isExpired ? '#2a0a00' : coach.years_remaining === 1 ? '#1a1000' : '#0a1a0a',
@@ -251,115 +275,130 @@ export default function PreSeasonStaffPanel({
                       </span>
                     </div>
                   ) : (
-                    <div style={{ fontSize: 11, color: '#e57373', fontStyle: 'italic' }}>Vacant</div>
+                    <div style={{ fontSize: 11, color: '#e57373', fontStyle: 'italic' }}>Vacant — hire a coach</div>
                   )}
                 </div>
 
                 {coach && (
-                  <>
-                    <div style={{ textAlign: 'center', minWidth: 36 }}>
-                      <div style={{ fontSize: 18, fontWeight: 800, color: ovrColor(coach.overall_rating), lineHeight: 1 }}>
-                        {coach.overall_rating}
-                      </div>
-                      <div style={{ fontSize: 8, color: T.textMuted }}>OVR</div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    {[
+                      { label: 'OVR', val: coach.overall_rating, color: ovrColor(coach.overall_rating) },
+                      { label: 'OFF', val: coach.offense_rating },
+                      { label: 'DEF', val: coach.defense_rating },
+                      { label: 'DEV', val: coach.development_rating },
+                    ].map(({ label: lbl, val, color }) => (
+                      <span key={lbl} style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: 7, color: T.textDim }}>{lbl}</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: color ?? T.textSecondary }}>{val}</div>
+                      </span>
+                    ))}
+                    <div style={{ fontSize: 10, color: T.textSecondary, fontFamily: 'monospace', marginLeft: 4 }}>
+                      {fmtM(coach.salary)}/yr
                     </div>
-                    <div style={{ textAlign: 'right', minWidth: 48 }}>
-                      <div style={{ fontSize: 11, color: T.textSecondary, fontFamily: 'monospace' }}>{fmtM(coach.salary)}</div>
-                      <div style={{ fontSize: 8, color: T.textMuted }}>/yr</div>
-                    </div>
-                  </>
+                  </div>
                 )}
 
-                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                  {coach && (
-                    <button onClick={() => handleFireCoach(coach.id)} disabled={working} style={{
-                      fontSize: 9, color: '#e57373', background: 'none',
-                      border: '1px solid #3a1a1a', borderRadius: 3,
-                      padding: '3px 8px', cursor: working ? 'not-allowed' : 'pointer',
-                    }}>
-                      Release
-                    </button>
-                  )}
-                  <button onClick={() => setExpandedRole(isExpanded ? null : key)} style={{
-                    fontSize: 9, color: isExpanded ? T.textMuted : '#4FC3F7', background: 'none',
-                    border: `1px solid ${isExpanded ? T.borderFaint : '#1a3a4a'}`,
-                    borderRadius: 3, padding: '3px 8px', cursor: 'pointer',
-                  }}>
-                    {isExpanded ? '▲ Close' : coach ? '↔ Replace' : '+ Hire'}
-                  </button>
-                </div>
+                <button
+                  onClick={() => {
+                    if (coach) {
+                      handleFireCoach(coach.id);
+                    } else {
+                      setExpandedRole(isExpanded ? null : key);
+                    }
+                  }}
+                  disabled={working}
+                  style={{
+                    fontSize: 9, padding: '4px 10px', borderRadius: 4, cursor: working ? 'not-allowed' : 'pointer',
+                    background: coach ? '#1a0a0a' : '#0a1a0a',
+                    border: `1px solid ${coach ? '#3a1a1a' : '#1a3a1a'}`,
+                    color: coach ? '#e57373' : '#4caf50',
+                    flexShrink: 0,
+                  }}
+                >
+                  {coach ? 'Release' : isExpanded ? '▲ Close' : '+ Hire'}
+                </button>
               </div>
 
-              {/* Expanded Hire Market */}
-              {isExpanded && (
-                <div style={{ borderTop: `1px solid ${T.borderFaint}`, padding: '8px 12px', background: T.bgPage }}>
-                  <div style={{ fontSize: 8, color: T.textMuted, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>
-                    {currentTier.label} Market · {TIERS[tier].ovrRange} OVR
-                  </div>
+              {/* Hire market expansion */}
+              {!coach && isExpanded && (
+                <div style={{ borderTop: `1px solid ${T.borderFaint}`, background: T.bgPage, padding: '10px 12px' }}>
                   {market.length === 0 ? (
-                    <div style={{ fontSize: 10, color: T.textDim, padding: '6px 0' }}>
-                      No coaches available in this tier — try a different filter.
+                    <div style={{ fontSize: 10, color: T.textDim, fontStyle: 'italic' }}>
+                      No {TIERS[tier].label} coaches available for this role.
                     </div>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      {market.map(c => (
-                        <div key={c.id} style={{
-                          display: 'flex', alignItems: 'center', gap: 8,
-                          padding: '6px 8px', borderRadius: 4,
-                          background: T.bgCard, border: `1px solid ${T.borderFaint}`,
-                        }}>
-                          <div style={{ fontSize: 16, fontWeight: 800, color: ovrColor(c.overall_rating), minWidth: 28 }}>
-                            {c.overall_rating}
-                          </div>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 11, color: T.textPrimary }}>{c.first_name} {c.last_name}</div>
-                            <div style={{ display: 'flex', gap: 10, marginTop: 2 }}>
-                              {[
-                                { label: 'OFF', val: c.offense_rating },
-                                { label: 'DEF', val: c.defense_rating },
-                                { label: 'DEV', val: c.development_rating },
-                                { label: 'EXP', val: c.experience },
-                              ].map(({ label, val }) => (
-                                <span key={label} style={{ fontSize: 8, color: T.textMuted }}>
-                                  <span style={{ color: T.textDim }}>{label} </span>
-                                  <span style={{ color: T.textSecondary, fontFamily: 'monospace' }}>{val}</span>
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                          <div style={{ fontSize: 11, color: T.textSecondary, fontFamily: 'monospace', minWidth: 50, textAlign: 'right' }}>
-                            {fmtM(c.salary)}/yr
-                          </div>
-
-                          {/* Contract duration selector */}
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minWidth: 60 }}>
-                            <div style={{ fontSize: 8, color: T.textMuted }}>Contract</div>
-                            <div style={{ display: 'flex', gap: 2 }}>
-                              {[1, 2, 3, 4].map(yr => (
-                                <button key={yr} onClick={() => setPendingDuration(prev => ({ ...prev, [c.id]: yr }))}
-                                  style={{
-                                    width: 20, height: 20, borderRadius: 3, fontSize: 9, fontWeight: 700,
-                                    cursor: 'pointer',
-                                    background: getDuration(c.id) === yr ? '#1a3a1a' : T.bgPage,
-                                    border: `1px solid ${getDuration(c.id) === yr ? '#4caf50' : T.borderFaint}`,
-                                    color: getDuration(c.id) === yr ? '#4caf50' : T.textMuted,
-                                  }}>
-                                  {yr}
-                                </button>
-                              ))}
-                            </div>
-                            <div style={{ fontSize: 7, color: T.textDim }}>yr{getDuration(c.id) > 1 ? 's' : ''}</div>
-                          </div>
-
-                          <button onClick={() => handleHireCoach(c.id)} disabled={working} style={{
-                            fontSize: 9, color: '#4caf50', background: '#0a1a0a',
-                            border: '1px solid #1a3a1a', borderRadius: 3,
-                            padding: '4px 10px', cursor: working ? 'not-allowed' : 'pointer',
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {market.map(c => {
+                        const affordable = canAfford(c.salary);
+                        return (
+                          <div key={c.id} style={{
+                            display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 4,
+                            background: T.bgCard,
+                            border: `1px solid ${affordable ? T.borderFaint : '#3a1a1a'}`,
+                            opacity: affordable ? 1 : 0.5,
                           }}>
-                            Hire
-                          </button>
-                        </div>
-                      ))}
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: 11, color: affordable ? T.textPrimary : T.textDim, fontWeight: 600 }}>
+                                {c.first_name} {c.last_name}
+                              </div>
+                              <div style={{ display: 'flex', gap: 8, marginTop: 3 }}>
+                                {[
+                                  { label: 'OVR', val: c.overall_rating, color: ovrColor(c.overall_rating) },
+                                  { label: 'OFF', val: c.offense_rating },
+                                  { label: 'DEF', val: c.defense_rating },
+                                  { label: 'DEV', val: c.development_rating },
+                                  { label: 'EXP', val: c.experience },
+                                ].map(({ label: lbl, val, color }) => (
+                                  <span key={lbl} style={{ fontSize: 9, color: T.textSecondary, fontFamily: 'monospace' }}>
+                                    <span style={{ color: T.textDim }}>{lbl} </span>
+                                    <span style={{ color: color ?? T.textSecondary, fontWeight: 700 }}>{val}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                            <div style={{ fontSize: 11, color: T.textSecondary, fontFamily: 'monospace', minWidth: 50, textAlign: 'right' }}>
+                              {fmtM(c.salary)}/yr
+                            </div>
+
+                            {/* Contract duration selector */}
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minWidth: 60 }}>
+                              <div style={{ fontSize: 8, color: T.textMuted }}>Contract</div>
+                              <div style={{ display: 'flex', gap: 2 }}>
+                                {[1, 2, 3, 4].map(yr => (
+                                  <button key={yr}
+                                    onClick={() => setPendingDuration(prev => ({ ...prev, [c.id]: yr }))}
+                                    style={{
+                                      width: 20, height: 20, borderRadius: 3, fontSize: 9, fontWeight: 700,
+                                      cursor: 'pointer',
+                                      background: getDuration(c.id) === yr ? '#1a3a1a' : T.bgPage,
+                                      border: `1px solid ${getDuration(c.id) === yr ? '#4caf50' : T.borderFaint}`,
+                                      color: getDuration(c.id) === yr ? '#4caf50' : T.textMuted,
+                                    }}>
+                                    {yr}
+                                  </button>
+                                ))}
+                              </div>
+                              <div style={{ fontSize: 7, color: T.textDim }}>yr{getDuration(c.id) > 1 ? 's' : ''}</div>
+                            </div>
+
+                            <button
+                              onClick={() => handleHireCoach(c)}
+                              disabled={working || !affordable}
+                              title={!affordable ? 'Exceeds coaching budget' : undefined}
+                              style={{
+                                fontSize: 9,
+                                color: affordable ? '#4caf50' : '#e57373',
+                                background: affordable ? '#0a1a0a' : '#1a0a0a',
+                                border: `1px solid ${affordable ? '#1a3a1a' : '#3a1a1a'}`,
+                                borderRadius: 3, padding: '4px 10px',
+                                cursor: (working || !affordable) ? 'not-allowed' : 'pointer',
+                              }}
+                            >
+                              {affordable ? 'Hire' : 'Over Budget'}
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -370,16 +409,16 @@ export default function PreSeasonStaffPanel({
       </div>
 
       {/* ── Scouting Staff ── */}
-      <div style={{
-        borderTop: `1px solid ${T.borderFaint}`, paddingTop: 14, marginBottom: 16,
-      }}>
+      <div style={{ borderTop: `1px solid ${T.borderFaint}`, paddingTop: 14, marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
           <div>
             <div style={{ fontSize: 9, letterSpacing: 1.5, color: T.textMuted, textTransform: 'uppercase' }}>
               Scouting Staff
             </div>
             <div style={{ fontSize: 9, color: T.textDim, marginTop: 2 }}>
-              {scouts.length}/{MAX_SCOUTS} scouts · {scouts.length > 0 ? `${scouts.reduce((s, sc) => s + Math.ceil(sc.overall_rating / 15), 0)} pts/wk draft scouting` : 'no scouts — draft vision limited'}
+              {scouts.length}/{MAX_SCOUTS} scouts · {scouts.length > 0
+                ? `${scouts.reduce((s, sc) => s + Math.ceil(sc.overall_rating / 15), 0)} pts/wk draft scouting`
+                : 'no scouts — draft vision limited'}
             </div>
           </div>
           <button onClick={() => setScoutsExpanded(x => !x)} style={{
@@ -391,13 +430,11 @@ export default function PreSeasonStaffPanel({
           </button>
         </div>
 
-        {/* Current scouts */}
         {scouts.length > 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: scoutsExpanded ? 10 : 0 }}>
             {scouts.map(sc => (
               <div key={sc.id} style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                padding: '8px 12px', borderRadius: 5,
+                display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 5,
                 background: T.bgCard, border: `1px solid ${T.borderFaint}`,
               }}>
                 <div style={{ fontSize: 16, fontWeight: 800, color: scoutOvrColor(sc.overall_rating), minWidth: 28 }}>
@@ -432,7 +469,6 @@ export default function PreSeasonStaffPanel({
           </div>
         )}
 
-        {/* Scout hire market */}
         {scoutsExpanded && (
           <div style={{ borderTop: `1px solid ${T.borderFaint}`, paddingTop: 10 }}>
             {scouts.length >= MAX_SCOUTS ? (
@@ -486,6 +522,7 @@ export default function PreSeasonStaffPanel({
       {/* ── Legend ── */}
       <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
         {[
+          { label: 'OVR', desc: 'Overall rating' },
           { label: 'OFF', desc: 'Offense coaching' },
           { label: 'DEF', desc: 'Defense coaching' },
           { label: 'DEV', desc: 'Player development' },
@@ -495,11 +532,6 @@ export default function PreSeasonStaffPanel({
             <span style={{ color: T.textMuted, fontFamily: 'monospace' }}>{label}</span> {desc}
           </div>
         ))}
-        <div style={{ fontSize: 8, color: T.textDim, marginLeft: 'auto' }}>
-          <span style={{ color: '#4caf50' }}>●</span> 2+ yrs &nbsp;
-          <span style={{ color: '#FF8740' }}>●</span> 1 yr left &nbsp;
-          <span style={{ color: '#e57373' }}>●</span> expired
-        </div>
       </div>
 
       {/* ── Confirm Button ── */}
