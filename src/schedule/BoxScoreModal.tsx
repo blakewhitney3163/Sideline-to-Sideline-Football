@@ -96,7 +96,22 @@ export default function BoxScoreModal({ gameId, onClose }: Props) {
       }}>
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', borderBottom: `1px solid ${T.borderFaint}` }}>
-          <span style={{ color: T.textDim, fontSize: 11, fontWeight: 700, letterSpacing: 1 }}>WEEK {game.week} BOX SCORE</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ color: T.textDim, fontSize: 11, fontWeight: 700, letterSpacing: 1 }}>WEEK {game.week} BOX SCORE</span>
+            {game.weather && game.weather !== 'clear' && (() => {
+              const wx: Record<string, { icon: string; label: string; color: string }> = {
+                snow: { icon: '❄️', label: 'SNOW', color: '#90caf9' },
+                rain: { icon: '🌧️', label: 'RAIN', color: '#7ec8e3' },
+                wind: { icon: '💨', label: 'WIND', color: '#b0bec5' },
+              };
+              const w = wx[game.weather];
+              return w ? (
+                <span style={{ fontSize: 10, fontWeight: 700, color: w.color, background: 'rgba(255,255,255,0.05)', border: `1px solid ${w.color}44`, borderRadius: 4, padding: '2px 7px', letterSpacing: 0.5 }}>
+                  {w.icon} {w.label}
+                </span>
+              ) : null;
+            })()}
+          </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: T.textDim, fontSize: 18, cursor: 'pointer', lineHeight: 1 }}>×</button>
         </div>
 
@@ -133,11 +148,11 @@ export default function BoxScoreModal({ gameId, onClose }: Props) {
           </div>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <tbody>
-              <StatRow label="PASSING"   away={passerLine(topPasser(awayPlayers))}       home={passerLine(topPasser(homePlayers))} />
-              <StatRow label="RUSHING"   away={rusherLine(topRusher(awayPlayers))}       home={rusherLine(topRusher(homePlayers))} />
-              <StatRow label="RECEIVING" away={receiverLine(topReceiver(awayPlayers))}   home={receiverLine(topReceiver(homePlayers))} />
-              <StatRow label="DEFENSE"   away={defenderLine(topDefender(awayPlayers))}   home={defenderLine(topDefender(homePlayers))} />
-              <StatRow label="KICKER"    away={kickerLine(topKicker(awayPlayers))}       home={kickerLine(topKicker(homePlayers))} />
+              <StatRow label="PASSING"  away={passerLine(topPasser(awayPlayers))}     home={passerLine(topPasser(homePlayers))} />
+              <StatRow label="RUSHING"  away={rusherLine(topRusher(awayPlayers))}     home={rusherLine(topRusher(homePlayers))} />
+              <StatRow label="RECEIVING" away={receiverLine(topReceiver(awayPlayers))} home={receiverLine(topReceiver(homePlayers))} />
+              <StatRow label="DEFENSE"  away={defenderLine(topDefender(awayPlayers))} home={defenderLine(topDefender(homePlayers))} />
+              <StatRow label="KICKER"   away={kickerLine(topKicker(awayPlayers))}     home={kickerLine(topKicker(homePlayers))} />
               {(homeDefTDs + awayDefTDs) > 0 && (
                 <StatRow
                   label="DEF TDS"
