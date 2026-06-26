@@ -9,7 +9,7 @@ import { useGameStore } from './store/gameStore';
 declare const window: any;
 
 export default function Standings() {
-  const { currentSeason } = useGameStore();
+  const { currentSeason, simCount } = useGameStore();
   const [standings, setStandings] = useState<Team[]>([]);
   const [viewSeason, setViewSeason] = useState(currentSeason);
   const [availableSeasons, setAvailableSeasons] = useState<number[]>([]);
@@ -25,7 +25,7 @@ export default function Standings() {
 
   useEffect(() => {
     window.api.getStandings(viewSeason).then((data: Team[]) => setStandings(data));
-  }, [viewSeason]);
+  }, [viewSeason, simCount]);
 
   const afcSeeds = getPlayoffSeeds(standings, 'AFC');
   const nfcSeeds = getPlayoffSeeds(standings, 'NFC');
