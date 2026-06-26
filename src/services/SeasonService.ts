@@ -8,6 +8,7 @@ import { logNewsEvent } from '../helpers/logNewsEvent';
 import { replenishFAPool } from '../generatePlayers';
 import { evaluateOwnerGoals } from './OwnerGoalsService';
 import { decrementCoachContracts } from './CoachingService';
+import { checkCapEscalation, checkExpansionVote, checkCpuRelocation } from './LeagueExpansionService';
 
 function isHOFEligible(position: string, career: any): boolean {
   if ((career.games ?? 0) < HOF_MIN_GAMES) return false;
@@ -435,5 +436,8 @@ decrementCoachContracts();
 evaluateOwnerGoals(current, userTeamId);
 
 settingsRepo.set('current_season', String(next));
+  checkCapEscalation(next);
+  checkExpansionVote(next);
+  checkCpuRelocation(next);
   return { nextSeason: next, retired, announcingRetirements, cpuResigns, breakouts: breakoutIds.size, hofInductees };
 }
