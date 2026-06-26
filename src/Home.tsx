@@ -67,6 +67,7 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
   const [generatingSchedule, setGeneratingSchedule] = useState(false);
   const [boxScore, setBoxScore] = useState<BoxScoreData | null>(null);
   const [boxScoreLoading, setBoxScoreLoading] = useState(false);
+  const [playLog, setPlayLog] = useState<any[]>([]);
   const [topAFC, setTopAFC] = useState<StandingEntry[]>([]);
   const [topNFC, setTopNFC] = useState<StandingEntry[]>([]);
   const [champions, setChampions] = useState<Champion[]>([]);
@@ -167,7 +168,7 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
         if (!cancelled) setMatchups(data);
       } else if (seasonDone && !champForSeason) {
         const [seeds, weekData] = await Promise.all([window.api.getPlayoffSeeds(), window.api.getWeekMatchups(18)]);
-        if (!cancelled) { setPlayoffSeeds(seeds); setMatchups(weekData); }
+        if (!cancelled) { setPlayoffSeeds(seats); setMatchups(weekData); }
       } else if (seasonDone && champForSeason) {
         const [results, weekData, awards] = await Promise.all([
           window.api.getPlayoffs(currentSeason),
@@ -291,10 +292,14 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
   };
 
   const handleBoxScore = async (gameId: number) => {
-    if (boxScore?.game?.id === gameId) { setBoxScore(null); return; }
+    if (boxScore?.game?.id === gameId) { setBoxScore(null); setPlayLog([]); return; }
     setBoxScoreLoading(true);
-    const data = await window.api.getGameBoxScore(gameId);
+    const [data, log] = await Promise.all([
+      window.api.getGameBoxScore(gameId),
+      window.api.getGamePlayLog?.(gameId).catch(() => []),
+    ]);
     setBoxScore(data);
+    setPlayLog(log ?? []);
     setBoxScoreLoading(false);
   };
 
@@ -538,6 +543,34 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
                         })}
                       </div>
                     ))}
+
+                    {playLog.length > 0 && (
+                      <div style={{ marginTop: 14 }}>
+                        <div style={{ fontSize: 8, color: T.textMuted, letterSpacing: 1.5, marginBottom: 8 }}>PLAY BY PLAY</div>
+                        {[1, 2, 3, 4].filter(q => playLog.some(e => e.quarter === q)).map(q => (
+                          <div key={q} style={{ marginBottom: 10 }}>
+                            <div style={{ fontSize: 8, color: '#444', letterSpacing: 1, marginBottom: 4, paddingBottom: 3, borderBottom: `1px solid ${T.borderFaint}` }}>
+                              QUARTER {q}
+                            </div>
+                            {playLog.filter(e => e.quarter === q).map((entry: any, i: number) => {
+                              const typeColor = entry.type === 'td' ? '#4caf50' : entry.type === 'fg' ? '#FF8740' : entry.type === 'turnover' ? '#e57373' : '#888';
+                              const typeBadge = entry.type === 'td' ? 'TD' : entry.type === 'fg' ? 'FG' : entry.type === 'turnover' ? 'TO' : '▶';
+                              return (
+                                <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '4px 0', borderBottom: `1px solid ${T.borderFaint}`, fontSize: 11 }}>
+                                  <span style={{ fontSize: 8, fontWeight: 700, padding: '2px 5px', borderRadius: 3, background: typeColor + '22', color: typeColor, minWidth: 22, textAlign: 'center', flexShrink: 0 }}>
+                                    {typeBadge}
+                                  </span>
+                                  <span style={{ color: '#aaa', flex: 1, lineHeight: 1.4 }}>{entry.description}</span>
+                                  <span style={{ fontSize: 9, color: T.textDim, whiteSpace: 'nowrap', fontFamily: 'monospace', flexShrink: 0 }}>
+                                    {entry.homeScore}–{entry.awayScore}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </>
