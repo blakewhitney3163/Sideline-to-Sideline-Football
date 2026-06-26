@@ -4,11 +4,11 @@ import { T } from '../theme';
 declare const window: any;
 
 const OFFENSE_PLANS = [
-  { id: 'balanced',     label: 'Balanced',      desc: 'Standard — no modifiers' },
-  { id: 'run_heavy',    label: 'Run Heavy',      desc: '+D, −O' },
-  { id: 'pass_attack',  label: 'Pass Attack',    desc: '+O, slight −D' },
-  { id: 'ball_control', label: 'Ball Control',   desc: '+D, −O' },
-  { id: 'bombs_away',   label: 'Bombs Away',     desc: '+O++, −D++ (risky)' },
+  { id: 'balanced',     label: 'Balanced',     desc: 'No modifiers' },
+  { id: 'run_heavy',    label: 'Run Heavy',    desc: '+D, −O' },
+  { id: 'pass_attack',  label: 'Pass Attack',  desc: '+O, slight −D' },
+  { id: 'ball_control', label: 'Ball Control', desc: '+D, −O' },
+  { id: 'bombs_away',   label: 'Bombs Away',   desc: '+O++, −D++ (risky)' },
 ];
 
 const DEFENSE_PLANS = [
@@ -18,9 +18,6 @@ const DEFENSE_PLANS = [
   { id: 'press_man', label: 'Press Man', desc: '+D, slight −O' },
   { id: 'run_stop',  label: 'Run Stop',  desc: '+D vs run, −O' },
 ];
-
-const ovrColor = (v: number) => v >= 85 ? '#4caf50' : v >= 75 ? '#FF8740' : '#aaa';
-const DEV_COLOR: Record<string, string> = { 'X-Factor': '#FFD700', 'Superstar': '#FF8740', 'Star': '#4FC3F7', 'Normal': '#555' };
 
 interface Props {
   season: number;
@@ -34,14 +31,16 @@ export default function GameWeekPrep({ season, week, opponentTeamId, opponentNam
   const [offense, setOffense] = useState('balanced');
   const [defense, setDefense] = useState('base');
   const [saved, setSaved] = useState(false);
+  const [planSaved, setPlanSaved] = useState(false);
   const [scoutData, setScoutData] = useState<any>(null);
   const [scouting, setScouting] = useState(false);
   const [alreadyScouted, setAlreadyScouted] = useState(false);
+  const [expanded, setExpanded] = useState<'plan' | 'scout' | null>(null);
 
   useEffect(() => {
     if (!season || !week) return;
     window.api.getGameplan({ season, week }).then((gp: any) => {
-      if (gp?.offense) setOffense(gp.offense);
+      if (gp?.offense) { setOffense(gp.offense); setPlanSaved(true); }
       if (gp?.defense) setDefense(gp.defense);
     });
     window.api.isOpponentScouted({ season, week }).then((v: boolean) => setAlreadyScouted(v));
@@ -50,7 +49,9 @@ export default function GameWeekPrep({ season, week, opponentTeamId, opponentNam
   const saveGameplan = async () => {
     await window.api.setGameplan({ season, week, offense, defense });
     setSaved(true);
+    setPlanSaved(true);
     setTimeout(() => setSaved(false), 2000);
+    setExpanded(null);
   };
 
   const handleScout = async () => {
@@ -59,193 +60,156 @@ export default function GameWeekPrep({ season, week, opponentTeamId, opponentNam
     setScoutData(data);
     setAlreadyScouted(true);
     setScouting(false);
+    setExpanded('scout');
   };
 
   const outCount = injuredPlayers.filter((p: any) => p.injury_status === 'out' || p.injury_status === 'ir').length;
-  const qCount   = injuredPlayers.filter((p: any) => p.injury_status === 'questionable').length;
+  const qCount = injuredPlayers.filter((p: any) => p.injury_status === 'questionable').length;
+  const offLabel = OFFENSE_PLANS.find(p => p.id === offense)?.label ?? offense;
+  const defLabel = DEFENSE_PLANS.find(p => p.id === defense)?.label ?? defense;
 
-  const sectionHeader = (label: string) => (
-    <div style={{ fontSize: 9, letterSpacing: 2, color: T.textDim, marginBottom: 10, textTransform: 'uppercase' as const }}>
-      {label}
+  const CheckRow = ({ done, label, action, onAction, open, onToggle }: {
+    done: boolean; label: React.ReactNode; action?: string;
+    onAction?: () => void; open?: boolean; onToggle?: () => void;
+  }) => (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 10,
+      padding: '8px 0', borderBottom: `1px solid ${T.borderFaint}`,
+    }}>
+      <span style={{
+        width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: done ? '#0a2a0a' : '#1a1a1a',
+        border: `1px solid ${done ? '#4caf50' : '#333'}`,
+        fontSize: 10, color: done ? '#4caf50' : '#444',
+      }}>
+        {done ? '✓' : '○'}
+      </span>
+      <span style={{ flex: 1, fontSize: 12, color: done ? '#aaa' : '#ccc' }}>{label}</span>
+      {onToggle && (
+        <button onClick={onToggle} style={{
+          fontSize: 10, padding: '2px 8px', cursor: 'pointer', borderRadius: 3,
+          background: 'none', border: `1px solid ${open ? '#FF8740' : '#333'}`,
+          color: open ? '#FF8740' : '#555',
+        }}>
+          {open ? '▲ close' : '▼ edit'}
+        </button>
+      )}
+      {action && onAction && (
+        <button onClick={onAction} style={{
+          fontSize: 10, padding: '2px 10px', cursor: 'pointer', borderRadius: 3,
+          background: '#0a1a2a', border: '1px solid #4FC3F7', color: '#4FC3F7',
+        }}>
+          {action}
+        </button>
+      )}
     </div>
   );
 
-  const pillBtn = (id: string, label: string, desc: string, active: boolean, onClick: () => void, accent: string) => (
-    <button key={id} onClick={onClick} style={{
-      padding: '5px 10px', fontSize: 10, cursor: 'pointer', borderRadius: 4,
-      background: active ? `${accent}22` : '#0a0a0a',
-      border: `1px solid ${active ? accent : '#222'}`,
-      color: active ? accent : '#555',
-      textAlign: 'left' as const,
-    }}>
-      <div style={{ fontWeight: active ? 700 : 400 }}>{label}</div>
-      <div style={{ fontSize: 9, opacity: 0.7 }}>{desc}</div>
-    </button>
-  );
-
   return (
-    <div style={{ borderBottom: `1px solid #1a1a1a`, marginBottom: 16, paddingBottom: 16 }}>
+    <div style={{ fontSize: 12, marginBottom: 12 }}>
 
-      {/* Opponent Scout */}
-      <div style={{ marginBottom: 16 }}>
-        {sectionHeader('Opponent Scout')}
-        {!alreadyScouted ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button
-              onClick={handleScout}
-              disabled={scouting}
-              style={{
-                padding: '6px 14px', fontSize: 11, fontWeight: 700,
-                background: scouting ? '#111' : '#0a1a2a',
-                border: `1px solid ${scouting ? '#222' : '#4FC3F7'}`,
-                borderRadius: 4, color: scouting ? '#444' : '#4FC3F7',
-                cursor: scouting ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {scouting ? 'Scouting...' : `Scout ${opponentName}`}
-            </button>
-            <span style={{ fontSize: 10, color: '#444' }}>Reveals players, tendencies & scheme</span>
-          </div>
-        ) : scoutData ? (
-          <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 8 }}>
-            {/* No scouts banner */}
-            {scoutData.scoutLevel === 'basic' && (
-              <div style={{ fontSize: 10, color: '#FF8740', background: '#1a0e00', border: '1px solid #FF874030', borderRadius: 4, padding: '5px 10px' }}>
-                No scouts on staff — only scheme info available. Hire scouts in Franchise → Coaching Staff.
-              </div>
-            )}
-
-            {/* Scheme + tendency */}
-            <div style={{ background: '#0a0a0a', borderRadius: 4, padding: '8px 10px' }}>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 4 }}>
-                <span style={{ fontSize: 9, color: '#4FC3F7', background: '#0a1a2a', padding: '2px 6px', borderRadius: 3 }}>
-                  OFF: {scoutData.scheme?.offense_scheme ?? '?'}
-                </span>
-                <span style={{ fontSize: 9, color: '#ef5350', background: '#1a0a0a', padding: '2px 6px', borderRadius: 3 }}>
-                  DEF: {scoutData.scheme?.defense_scheme ?? '?'}
-                </span>
-              </div>
-              <div style={{ fontSize: 10, color: '#aaa' }}>{scoutData.tendency}</div>
-            </div>
-
-            {/* Home/away split (Regional scout) */}
-            {scoutData.homeAwaySplit && (
-              <div style={{ background: '#0a0a0a', borderRadius: 4, padding: '6px 10px', display: 'flex', gap: 16 }}>
-                <span style={{ fontSize: 9, color: '#555' }}>SPLITS (same conf):</span>
-                <span style={{ fontSize: 10, color: '#4caf50' }}>Home {scoutData.homeAwaySplit.homeWins}-{scoutData.homeAwaySplit.homeLosses}</span>
-                <span style={{ fontSize: 10, color: '#FF8740' }}>Away {scoutData.homeAwaySplit.awayWins}-{scoutData.homeAwaySplit.awayLosses}</span>
-              </div>
-            )}
-
-            {/* Top players */}
-            {scoutData.topPlayers?.length > 0 && (
-              <div>
-                <div style={{ fontSize: 9, color: '#444', letterSpacing: 1, marginBottom: 4 }}>TOP PLAYERS</div>
-                {scoutData.topPlayers.map((p: any, i: number) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0', borderBottom: '1px solid #111' }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: ovrColor(p.overall_rating), minWidth: 28, fontFamily: 'monospace' }}>{p.overall_rating}</span>
-                    <span style={{ fontSize: 11, color: '#ccc', flex: 1 }}>{p.first_name} {p.last_name}</span>
-                    <span style={{ fontSize: 9, color: '#555' }}>{p.position}</span>
-                    {p.dev_trait !== 'Normal' && (
-                      <span style={{ fontSize: 8, color: DEV_COLOR[p.dev_trait] ?? '#888', background: `${DEV_COLOR[p.dev_trait]}22`, padding: '1px 5px', borderRadius: 3 }}>
-                        {p.dev_trait}
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Offensive stats (Offense scout) */}
-            {scoutData.offensiveStats?.length > 0 && (
-              <div>
-                <div style={{ fontSize: 9, color: '#FF8740', letterSpacing: 1, marginBottom: 4 }}>OFFENSIVE STATS (season)</div>
-                {scoutData.offensiveStats.map((p: any, i: number) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', borderBottom: '1px solid #111', fontSize: 10 }}>
-                    <span style={{ color: '#ccc', flex: 1 }}>{p.name}</span>
-                    <span style={{ color: '#555', minWidth: 28 }}>{p.position}</span>
-                    {p.pass_yards > 0 && <span style={{ color: '#4FC3F7', fontFamily: 'monospace' }}>{p.pass_yards}py {p.pass_tds}td</span>}
-                    {p.rush_yards > 0 && <span style={{ color: '#4caf50', fontFamily: 'monospace' }}>{p.rush_yards}ry</span>}
-                    {p.rec_yards  > 0 && <span style={{ color: '#AB47BC', fontFamily: 'monospace' }}>{p.rec_yards}recy</span>}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Defensive stats (Defense scout) */}
-            {scoutData.defensiveStats?.length > 0 && (
-              <div>
-                <div style={{ fontSize: 9, color: '#ef5350', letterSpacing: 1, marginBottom: 4 }}>DEFENSIVE STATS (season)</div>
-                {scoutData.defensiveStats.map((p: any, i: number) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0', borderBottom: '1px solid #111', fontSize: 10 }}>
-                    <span style={{ color: '#ccc', flex: 1 }}>{p.name}</span>
-                    <span style={{ color: '#555', minWidth: 28 }}>{p.position}</span>
-                    <span style={{ color: '#ef5350', fontFamily: 'monospace' }}>{p.tackles}tkl {p.sacks}sck</span>
-                    {p.ints > 0 && <span style={{ color: '#4FC3F7', fontFamily: 'monospace' }}>{p.ints}int</span>}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 9, color: '#4caf50' }}>✓ Scouted</span>
-          </div>
-        )}
+      {/* Weekly checklist header */}
+      <div style={{ fontSize: 9, letterSpacing: 2, color: T.textMuted, marginBottom: 10, textTransform: 'uppercase' }}>
+        Week {week} Prep Checklist
       </div>
 
-      {/* Game Plan */}
-      <div style={{ marginBottom: 16 }}>
-        {sectionHeader('Game Plan')}
-        <div style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 9, color: '#555', marginBottom: 5 }}>OFFENSE</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 5 }}>
-            {OFFENSE_PLANS.map(p => pillBtn(p.id, p.label, p.desc, offense === p.id, () => { setOffense(p.id); setSaved(false); }, '#FF8740'))}
-          </div>
-        </div>
-        <div style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 9, color: '#555', marginBottom: 5 }}>DEFENSE</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 5 }}>
-            {DEFENSE_PLANS.map(p => pillBtn(p.id, p.label, p.desc, defense === p.id, () => { setDefense(p.id); setSaved(false); }, '#4FC3F7'))}
-          </div>
-        </div>
-        <button
-          onClick={saveGameplan}
-          style={{
-            padding: '5px 14px', fontSize: 10, fontWeight: 700, cursor: 'pointer',
-            background: saved ? '#0a1a0a' : '#0a0a0a',
-            border: `1px solid ${saved ? '#4caf50' : '#333'}`,
-            borderRadius: 4, color: saved ? '#4caf50' : '#666',
-          }}
-        >
-          {saved ? '✓ Saved' : 'Save Plan'}
-        </button>
-      </div>
+      {/* Checklist items */}
+      <CheckRow
+        done={planSaved}
+        label={planSaved
+          ? <><span style={{ color: '#4caf50' }}>Game Plan Set</span> · <span style={{ color: '#888', fontSize: 11 }}>{offLabel} / {defLabel}</span></>
+          : 'Set Game Plan'}
+        onToggle={() => setExpanded(expanded === 'plan' ? null : 'plan')}
+        open={expanded === 'plan'}
+      />
 
-      {/* Injury Report */}
-      {injuredPlayers.length > 0 && (
-        <div>
-          {sectionHeader('Injury Report')}
-          <div style={{ display: 'flex', gap: 10, marginBottom: 8 }}>
-            {outCount > 0 && <span style={{ fontSize: 10, color: '#e57373', background: '#1a0a0a', padding: '2px 8px', borderRadius: 3 }}>{outCount} OUT/IR</span>}
-            {qCount  > 0 && <span style={{ fontSize: 10, color: '#FF8740', background: '#1a0800', padding: '2px 8px', borderRadius: 3 }}>{qCount} QUESTIONABLE</span>}
-          </div>
-          {injuredPlayers.slice(0, 5).map((p: any) => (
-            <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0', borderBottom: '1px solid #111', fontSize: 10 }}>
-              <span style={{
-                fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 2, minWidth: 24, textAlign: 'center',
-                background: p.injury_status === 'ir' ? '#1a0a0a' : p.injury_status === 'out' ? '#140800' : '#0a0a0a',
-                color:      p.injury_status === 'ir' ? '#e57373' : p.injury_status === 'out' ? '#FF8740' : '#888',
+      {/* Game Plan inline editor */}
+      {expanded === 'plan' && (
+        <div style={{ padding: '10px 0 4px 28px' }}>
+          <div style={{ fontSize: 9, color: T.textMuted, letterSpacing: 1, marginBottom: 6 }}>OFFENSE</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 10 }}>
+            {OFFENSE_PLANS.map(p => (
+              <button key={p.id} onClick={() => { setOffense(p.id); setSaved(false); }} style={{
+                padding: '4px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4,
+                background: offense === p.id ? '#2a1200' : '#141414',
+                border: `1px solid ${offense === p.id ? '#FF8740' : '#222'}`,
+                color: offense === p.id ? '#FF8740' : '#555',
+                fontWeight: offense === p.id ? 'bold' : 'normal',
               }}>
-                {p.injury_status?.toUpperCase()}
-              </span>
-              <span style={{ color: '#bbb', flex: 1 }}>{p.first_name[0]}. {p.last_name}</span>
-              <span style={{ color: '#555' }}>{p.position}</span>
-            </div>
-          ))}
-          {injuredPlayers.length > 5 && <div style={{ fontSize: 9, color: '#444', marginTop: 4 }}>+{injuredPlayers.length - 5} more</div>}
+                {p.label} <span style={{ fontSize: 9, opacity: 0.7 }}>{p.desc}</span>
+              </button>
+            ))}
+          </div>
+          <div style={{ fontSize: 9, color: T.textMuted, letterSpacing: 1, marginBottom: 6 }}>DEFENSE</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 10 }}>
+            {DEFENSE_PLANS.map(p => (
+              <button key={p.id} onClick={() => { setDefense(p.id); setSaved(false); }} style={{
+                padding: '4px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4,
+                background: defense === p.id ? '#0a1a2a' : '#141414',
+                border: `1px solid ${defense === p.id ? '#4FC3F7' : '#222'}`,
+                color: defense === p.id ? '#4FC3F7' : '#555',
+                fontWeight: defense === p.id ? 'bold' : 'normal',
+              }}>
+                {p.label} <span style={{ fontSize: 9, opacity: 0.7 }}>{p.desc}</span>
+              </button>
+            ))}
+          </div>
+          <button onClick={saveGameplan} style={{
+            padding: '6px 20px', fontSize: 11, cursor: 'pointer', borderRadius: 4,
+            background: '#0a1a2a', border: '1px solid #4FC3F7', color: '#4FC3F7', fontWeight: 700,
+          }}>
+            {saved ? '✓ Saved' : 'Save Plan'}
+          </button>
         </div>
       )}
+
+      <CheckRow
+        done={alreadyScouted}
+        label={alreadyScouted ? <><span style={{ color: '#4caf50' }}>Opponent Scouted</span> · <span style={{ color: '#888', fontSize: 11 }}>{opponentName}</span></> : `Scout ${opponentName}`}
+        action={alreadyScouted ? undefined : (scouting ? 'Scouting...' : 'Scout Now')}
+        onAction={alreadyScouted ? undefined : handleScout}
+        onToggle={alreadyScouted ? () => setExpanded(expanded === 'scout' ? null : 'scout') : undefined}
+        open={expanded === 'scout'}
+      />
+
+      {/* Scout results inline */}
+      {expanded === 'scout' && scoutData && (
+        <div style={{ padding: '10px 0 4px 28px' }}>
+          {scoutData.scoutLevel === 'basic' && (
+            <div style={{ fontSize: 10, color: '#FF8740', marginBottom: 8, padding: '4px 8px', background: '#1a0e00', borderRadius: 3 }}>
+              No scouts on staff — only scheme info available. Hire scouts in Coaching Staff.
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+            <span style={{ fontSize: 11, color: '#888' }}>OFF: <span style={{ color: '#aaa' }}>{scoutData.scheme?.offense_scheme ?? '?'}</span></span>
+            <span style={{ fontSize: 11, color: '#888' }}>DEF: <span style={{ color: '#aaa' }}>{scoutData.scheme?.defense_scheme ?? '?'}</span></span>
+            {scoutData.tendency && <span style={{ fontSize: 11, color: '#888' }}>{scoutData.tendency}</span>}
+          </div>
+          {scoutData.topPlayers?.length > 0 && (
+            <div>
+              <div style={{ fontSize: 9, color: T.textMuted, letterSpacing: 1, marginBottom: 4 }}>KEY PLAYERS</div>
+              {scoutData.topPlayers.map((p: any, i: number) => (
+                <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '3px 0', borderBottom: `1px solid ${T.borderFaint}`, fontSize: 11 }}>
+                  <span style={{ width: 32, fontWeight: 800, color: '#FF8740', fontFamily: 'monospace' }}>{p.overall_rating}</span>
+                  <span style={{ flex: 1, color: '#ccc' }}>{p.first_name} {p.last_name}</span>
+                  <span style={{ color: '#555', fontSize: 10 }}>{p.position}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      <CheckRow
+        done={outCount === 0 && qCount === 0}
+        label={
+          outCount > 0 || qCount > 0
+            ? <><span style={{ color: '#FF8740' }}>Injuries</span> · <span style={{ fontSize: 11, color: '#888' }}>{outCount > 0 ? `${outCount} OUT/IR` : ''}{outCount > 0 && qCount > 0 ? ', ' : ''}{qCount > 0 ? `${qCount} Q` : ''}</span></>
+            : <span style={{ color: '#666' }}>No injuries to report</span>
+        }
+      />
+
     </div>
   );
 }
