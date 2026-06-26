@@ -47,13 +47,16 @@ export function initDatabase(dbPath: string): void {
   // ── Base Schema ─────────────────────────────────────────────────────────────
   _db!.exec(`
     CREATE TABLE IF NOT EXISTS teams (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      city TEXT NOT NULL,
-      abbreviation TEXT NOT NULL,
-      conference TEXT NOT NULL,
-      division TEXT NOT NULL
-    );
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    city TEXT NOT NULL,
+    abbreviation TEXT NOT NULL,
+    conference TEXT NOT NULL,
+    division TEXT NOT NULL,
+    is_expansion INTEGER DEFAULT 0,
+    stadium_name TEXT,
+    relocated_from TEXT
+  );
     CREATE TABLE IF NOT EXISTS players (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       first_name TEXT NOT NULL,
@@ -391,6 +394,19 @@ CREATE TABLE IF NOT EXISTS team_finances (
       FOREIGN KEY (team_id) REFERENCES teams(id)
     );
 
+    CREATE TABLE IF NOT EXISTS expansion_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    season INTEGER NOT NULL,
+    city TEXT NOT NULL,
+    name TEXT NOT NULL,
+    conference TEXT NOT NULL,
+    division TEXT NOT NULL,
+    team_id INTEGER,
+    votes_for INTEGER NOT NULL DEFAULT 0,
+    votes_against INTEGER NOT NULL DEFAULT 0,
+    passed INTEGER NOT NULL DEFAULT 0
+  );
+
     CREATE TABLE IF NOT EXISTS chemistry_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       team_id INTEGER NOT NULL,
@@ -450,6 +466,9 @@ CREATE TABLE IF NOT EXISTS team_finances (
   // ── Bootstrap defaults ────────────────────────────────────────────────────
   if (!_db!.prepare("SELECT value FROM settings WHERE key = 'current_season'").get())
     _db!.prepare("INSERT INTO settings (key, value) VALUES ('current_season', '2025')").run();
+  
+    if (!_db!.prepare("SELECT value FROM settings WHERE key = 'salary_cap'").get())
+    _db!.prepare("INSERT INTO settings (key, value) VALUES ('salary_cap', '279.2')").run();
 
   runMigrations();
     // Must run after migrations — team_id is added by v9 on old saves
@@ -566,7 +585,7 @@ for (const contract of pending) {
 
 // ─── Migration Versioning ─────────────────────────────────────────────────────
 
-const CURRENT_SCHEMA_VERSION = 18;
+const CURRENT_SCHEMA_VERSION = 19;
 
 interface Migration { version: number; description: string; up: () => void; }
 
@@ -783,6 +802,38 @@ const MIGRATIONS: Migration[] = [
       })();
     },
   },
+
+  {
+    version: 19,
+    description: 'Add expansion/relocation columns, expansion_history table, seed salary_cap',
+    up: () => {
+      const teamCols = (db.prepare('PRAGMA table_info(teams)').all() as any[]).map((c: any) => c.name);
+      if (!teamCols.includes('is_expansion'))
+        db.prepare('ALTER TABLE teams ADD COLUMN is_expansion INTEGER DEFAULT 0').run();
+      if (!teamCols.includes('stadium_name'))
+        db.prepare('ALTER TABLE teams ADD COLUMN stadium_name TEXT').run();
+      if (!teamCols.includes('relocated_from'))
+        db.prepare('ALTER TABLE teams ADD COLUMN relocated_from TEXT').run();
+
+      db.prepare(`
+        CREATE TABLE IF NOT EXISTS expansion_history (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          season INTEGER NOT NULL,
+          city TEXT NOT NULL,
+          name TEXT NOT NULL,
+          conference TEXT NOT NULL,
+          division TEXT NOT NULL,
+          team_id INTEGER,
+          votes_for INTEGER NOT NULL DEFAULT 0,
+          votes_against INTEGER NOT NULL DEFAULT 0,
+          passed INTEGER NOT NULL DEFAULT 0
+        )
+      `).run();
+
+      db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('salary_cap', '279.2')").run();
+    },
+  },
+  
 ];
 
 function getSchemaVersion(): number {
