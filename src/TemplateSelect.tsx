@@ -4,7 +4,7 @@ import { T } from './theme';
 declare const window: any;
 
 interface Template {
-  id: 'rebuild' | 'contender' | 'dynasty';
+  id: string;
   label: string;
   tagline: string;
   ovrRange: string;
@@ -15,6 +15,16 @@ interface Template {
 }
 
 const TEMPLATES: Template[] = [
+  {
+    id: 'default',
+    label: 'Default',
+    tagline: 'No adjustments',
+    ovrRange: 'League average OVR',
+    capSpace: 'Standard cap room',
+    patience: 'Normal expectations',
+    color: '#94a3b8',
+    description: 'Start with a stock roster. No ratings adjustments, no cap changes. Pick any team and play.',
+  },
   {
     id: 'rebuild',
     label: 'Rebuild',
@@ -54,43 +64,58 @@ interface Props {
 
 export default function TemplateSelect({ onSelect, onBack }: Props) {
   const handleSelect = async (id: string) => {
-    await window.api.setSetting?.('dynasty_template', id).catch(() => {});
+    if (id === 'default') {
+      await window.api.setSetting?.('dynasty_template', '').catch(() => {});
+    } else {
+      await window.api.setSetting?.('dynasty_template', id).catch(() => {});
+    }
     onSelect(id);
   };
 
   return (
     <div style={{
-      minHeight: '100vh', background: '#0c1220',
-      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      padding: 40, fontFamily: 'monospace', position: 'relative',
+      minHeight: '100vh',
+      background: '#0a0f1a',
+      color: '#e2e8f0',
+      fontFamily: "'Segoe UI', system-ui, sans-serif",
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      padding: '40px 24px',
     }}>
-
       {/* Back button */}
-      <button
-        onClick={onBack}
-        style={{
-          position: 'absolute', top: 24, left: 24,
-          background: 'none', border: '1px solid #333', borderRadius: 4,
-          color: '#888', fontSize: 11, fontFamily: 'monospace', letterSpacing: 1,
-          padding: '6px 14px', cursor: 'pointer',
-        }}
-        onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = '#666'; }}
-        onMouseLeave={e => { e.currentTarget.style.color = '#888'; e.currentTarget.style.borderColor = '#333'; }}
-      >
-        ← BACK
-      </button>
+      <div style={{ width: '100%', maxWidth: 860, marginBottom: 32 }}>
+        <button
+          onClick={onBack}
+          style={{
+            background: 'none', border: '1px solid #333', color: '#888',
+            padding: '8px 18px', borderRadius: 6, cursor: 'pointer',
+            fontSize: 11, fontFamily: 'monospace', letterSpacing: 2,
+          }}
+          onMouseEnter={e => { e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = '#666'; }}
+          onMouseLeave={e => { e.currentTarget.style.color = '#888'; e.currentTarget.style.borderColor = '#333'; }}
+        >
+          ← BACK
+        </button>
+      </div>
 
-      <div style={{ fontSize: 10, letterSpacing: 4, color: '#FF8740', marginBottom: 8, textTransform: 'uppercase' }}>
+      <div style={{ fontSize: 11, color: '#4FC3F7', letterSpacing: 4, fontFamily: 'monospace', marginBottom: 8 }}>
         Sideline to Sideline Football
       </div>
-      <div style={{ fontSize: 28, fontWeight: 900, color: '#fff', marginBottom: 6, letterSpacing: 1 }}>
+      <h1 style={{ fontSize: 28, fontWeight: 800, margin: '0 0 8px', textAlign: 'center' }}>
         Choose Your Starting Scenario
-      </div>
-      <div style={{ fontSize: 13, color: '#666', marginBottom: 40 }}>
+      </h1>
+      <p style={{ color: '#64748b', fontSize: 14, marginBottom: 40, textAlign: 'center' }}>
         This shapes your roster quality, cap situation, and owner expectations.
-      </div>
+      </p>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, maxWidth: 900, width: '100%' }}>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: 16,
+        width: '100%',
+        maxWidth: 860,
+      }}>
         {TEMPLATES.map(t => (
           <button
             key={t.id}
@@ -113,29 +138,35 @@ export default function TemplateSelect({ onSelect, onBack }: Props) {
               e.currentTarget.style.background = '#111827';
             }}
           >
-            <div style={{ fontSize: 9, letterSpacing: 2, color: t.color, marginBottom: 6, textTransform: 'uppercase' }}>
+            <div style={{ fontSize: 11, color: t.color, marginBottom: 6, fontFamily: 'monospace', letterSpacing: 1 }}>
               {t.tagline}
             </div>
-            <div style={{ fontSize: 22, fontWeight: 900, color: '#fff', marginBottom: 14 }}>{t.label}</div>
-            <div style={{ fontSize: 12, color: '#888', lineHeight: 1.6, marginBottom: 20 }}>{t.description}</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <div style={{ fontSize: 22, fontWeight: 800, color: '#f1f5f9', marginBottom: 8 }}>
+              {t.label}
+            </div>
+            <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 16, lineHeight: 1.5 }}>
+              {t.description}
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
               {[t.ovrRange, t.capSpace, t.patience].map((stat, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
-                  <div style={{ width: 5, height: 5, borderRadius: '50%', background: t.color, flexShrink: 0 }} />
-                  <span style={{ color: '#bbb' }}>{stat}</span>
-                </div>
+                <span key={i} style={{
+                  fontSize: 11, color: '#64748b', background: '#1e293b',
+                  padding: '3px 10px', borderRadius: 4,
+                }}>
+                  {stat}
+                </span>
               ))}
             </div>
-            <div style={{ marginTop: 20, padding: '8px 0', borderTop: `1px solid ${t.color}22`, fontSize: 12, fontWeight: 700, color: t.color, textAlign: 'center' }}>
+            <div style={{ fontSize: 12, color: t.color, fontFamily: 'monospace', letterSpacing: 1 }}>
               Select {t.label} →
             </div>
           </button>
         ))}
       </div>
 
-      <div style={{ fontSize: 11, color: '#444', marginTop: 30 }}>
+      <p style={{ color: '#334155', fontSize: 12, marginTop: 32 }}>
         You can pick any team after selecting a scenario.
-      </div>
+      </p>
     </div>
   );
 }
