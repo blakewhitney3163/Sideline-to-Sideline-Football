@@ -91,9 +91,10 @@ export default function App() {
     });
   };
 
-  const runSetup = async () => {
+    const runSetup = async () => {
     markStep('Finalizing dynasty setup...', false);
     await window.api.balanceRosters();
+    await window.api.applyDynastyTemplate();
     await new Promise(r => setTimeout(r, 800));
     markStep('Finalizing dynasty setup...', true);
     setSetupComplete(true);
