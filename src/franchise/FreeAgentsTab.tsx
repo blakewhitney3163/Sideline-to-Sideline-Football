@@ -1,6 +1,6 @@
 import React from 'react';
 import { FreeAgent, CapSummary, RosterSpots } from './types';
-import { POSITIONS, TRAIT_META, ratingColor, trajectory, fmtSalary, fairMarketValue } from './utils';
+import { POSITIONS, ratingColor, trajectory, fmtSalary, fairMarketValue } from './utils';
 
 interface Props {
   freeAgents: FreeAgent[];
@@ -36,7 +36,6 @@ interface FaRowProps {
 }
 
 const FaRow = React.memo(({ fa, signingId, psSigningId, rosterSpots, openSign, handleSignToPs, setSigningId }: FaRowProps) => {
-  const trait = TRAIT_META[fa.dev_trait] ?? TRAIT_META['Normal'];
   const traj = trajectory(fa.age);
   const mv = fairMarketValue(fa.position, fa.overall_rating, fa.dev_trait);
   const isSigning = signingId === fa.id;
@@ -45,14 +44,7 @@ const FaRow = React.memo(({ fa, signingId, psSigningId, rosterSpots, openSign, h
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderBottom: '1px solid #1a1a1a', fontSize: 12 }}>
       <div style={{ width: 3, alignSelf: 'stretch', background: ratingColor(fa.overall_rating), borderRadius: 2, flexShrink: 0 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ color: '#ccc', fontWeight: 600, fontSize: 12 }}>{fa.first_name} {fa.last_name}</span>
-          {trait.short && (
-            <span style={{ fontSize: 8, fontWeight: 700, color: trait.color, background: trait.bg, borderRadius: 2, padding: '1px 3px' }}>
-              {trait.short}
-            </span>
-          )}
-        </div>
+        <div style={{ color: '#ccc', fontWeight: 600, fontSize: 12 }}>{fa.first_name} {fa.last_name}</div>
         <span style={{ color: '#555', fontSize: 10 }}>{fa.position_label || fa.position}</span>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#777', fontSize: 11 }}>
@@ -61,9 +53,6 @@ const FaRow = React.memo(({ fa, signingId, psSigningId, rosterSpots, openSign, h
       </div>
       <div style={{ width: 32, textAlign: 'center', color: ratingColor(fa.overall_rating), fontWeight: 700, fontSize: 13 }}>
         {fa.overall_rating}
-      </div>
-      <div style={{ width: 72, color: '#555', fontSize: 10, textAlign: 'center' }}>
-        {fa.dev_trait === 'Normal' ? '—' : fa.dev_trait}
       </div>
       <div style={{ width: 64, color: '#888', fontSize: 11 }}>{fmtSalary(mv)}/yr</div>
       <div style={{ display: 'flex', gap: 4 }}>
@@ -217,7 +206,7 @@ export default function FreeAgentsTab({
                   type="text"
                   inputMode="decimal"
                   value={signSalary}
-                  onChange={(e) => setSignSalary(e.target.value)}
+                  onChange={e => setSignSalary(e.target.value)}
                   placeholder="0.0"
                   style={{
                     width: 80, padding: '4px 8px',
@@ -246,7 +235,8 @@ export default function FreeAgentsTab({
                 alignSelf: 'flex-end', padding: '8px 20px', fontSize: 12, fontWeight: 700,
                 background: working || signCapLeft < 0 ? '#1a1a1a' : '#4FC3F7',
                 color: working || signCapLeft < 0 ? '#333' : '#000',
-                border: 'none', borderRadius: 4, cursor: working || signCapLeft < 0 ? 'not-allowed' : 'pointer',
+                border: 'none', borderRadius: 4,
+                cursor: working || signCapLeft < 0 ? 'not-allowed' : 'pointer',
               }}
             >
               {working ? '...' : signCapLeft < 0 ? 'OVER CAP' : 'Confirm Signing'}
@@ -256,10 +246,12 @@ export default function FreeAgentsTab({
       )}
 
       {/* Column header */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 44px 80px 80px 110px', gap: 4, padding: '4px 20px', fontSize: 9, color: '#444', letterSpacing: 1, borderBottom: '1px solid #1a1a1a' }}>
-        {['PLAYER', 'AGE / OVR', 'OVR', 'DEV', 'MARKET VALUE', ''].map((h, i) => (
-          <span key={i}>{h}</span>
-        ))}
+      <div style={{ display: 'flex', gap: 8, padding: '4px 20px', fontSize: 9, color: '#444', letterSpacing: 1, borderBottom: '1px solid #1a1a1a' }}>
+        <span style={{ flex: 1 }}>PLAYER</span>
+        <span style={{ width: 60 }}>AGE</span>
+        <span style={{ width: 32, textAlign: 'center' }}>OVR</span>
+        <span style={{ width: 64 }}>MARKET</span>
+        <span style={{ width: 110 }} />
       </div>
 
       {/* Scrollable free agent list */}
