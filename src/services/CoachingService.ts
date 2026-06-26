@@ -149,7 +149,11 @@ export function getAvailableCoaches(role?: string): Coach[] {
   return coachingRepo.getAvailable(role);
 }
 
-export function hireCoach(teamId: number, coachId: number): { success: boolean; reason?: string } {
+export function hireCoach(
+  teamId: number,
+  coachId: number,
+  yearsRemaining: number = 1
+): { success: boolean; reason?: string } {
   const coach = coachingRepo.getById(coachId);
   if (!coach) return { success: false, reason: 'Coach not found.' };
   if (coach.team_id !== null) return { success: false, reason: 'Coach is already under contract.' };
@@ -158,8 +162,13 @@ export function hireCoach(teamId: number, coachId: number): { success: boolean; 
   const existing = coachingRepo.getByTeamAndRole(teamId, coach.role);
   if (existing) coachingRepo.release(existing.id);
 
-  coachingRepo.assignToTeam(coachId, teamId);
+  const years = Math.max(1, Math.min(4, yearsRemaining));
+  coachingRepo.assignToTeam(coachId, teamId, years);
   return { success: true };
+}
+
+export function decrementCoachContracts(): { released: number } {
+  return coachingRepo.decrementContracts();
 }
 
 export function fireCoach(coachId: number): { success: boolean; reason?: string } {
