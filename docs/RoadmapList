@@ -12,7 +12,8 @@ DONE - In-Game Narrative / Play-by-Play — text play-by-play during simulation.
  PlayEntry logs generated from real game stats: TD passes, TD runs, FGs,
  turnovers, and big plays. Stored in games.play_log column (schema v17) and
  retrieved via get-game-play-log IPC. Phrase bank templates for commentary.
- Backend and storage complete; full UI render in box score modal pending.
+ Rendered in box score modal on Home tab: quarter-by-quarter with TD/FG/TO/
+ bigplay badges and running score on the right.
 
 DONE - Preset Dynasty Templates — fictional franchise starter kits selectable at new
  dynasty creation. Three templates: Rebuild (62–70 OVR, $30M+ cap, 5-year
@@ -42,10 +43,10 @@ LEAGUE & FINANCIALS
 DONE - Financial System Beyond Cap — team_finances table (schema v18): market_size
  (large/medium/small), stadium_capacity, season_revenue, owner_budget. 32 teams
  seeded with differentiated market data (8 large, 16 medium, 8 small market).
- FinancesTab component built (src/franchise/FinancesTab.tsx): market size badge,
- stadium capacity, season revenue, owner budget progress bar, league-wide market
- table. IPCs: get-team-finances, get-all-team-finances. Tab wiring to Franchise
- nav pending.
+ FinancesTab component (src/franchise/FinancesTab.tsx) wired as 8th tab in
+ Franchise nav: market size badge, stadium capacity, season revenue, owner
+ budget progress bar, league-wide market table. IPCs: get-team-finances,
+ get-all-team-finances.
 
 ================================================================================
 PRE-STEAM TECHNICAL CHECKLIST
@@ -158,6 +159,18 @@ MAINTENANCE
 COMPLETED ITEMS
 ================================================================================
 
+[DONE June 25, 2026] Play-by-Play UI — box score modal on Home tab now renders
+ the play log below stat lines. Entries grouped by quarter (Q1–Q4). Each entry
+ shows a color-coded type badge (TD green / FG orange / TO red / bigplay gray),
+ the description text, and running score (homeScore–awayScore) on the right.
+ getGamePlayLog added to src/preload/stats.ts; fetched alongside box score in
+ handleBoxScore via Promise.all.
+
+[DONE June 25, 2026] Finances Tab — FinancesTab.tsx wired as 8th tab in
+ Franchise nav (src/Franchise.tsx). Always visible. Displays market size badge,
+ stadium capacity, season revenue, owner budget progress bar, and league-wide
+ market breakdown grid for all 32 teams.
+
 [DONE June 25, 2026] Preset Dynasty Templates — Three starter kits on new
  dynasty creation: Rebuild, Contender, Dynasty. Each adjusts user team OVR and
  contract salaries via apply-dynasty-template IPC. Template select screen
@@ -165,18 +178,10 @@ COMPLETED ITEMS
  Back button to return to team selection. Template saved to settings as
  dynasty_template key.
 
-[DONE June 25, 2026] Play-by-Play Commentary — generatePlayLog() in
- src/sim/playbyplay.ts builds a play-by-play log from real game stats.
- PlayEntry fields: quarter, teamName, description, type (td/fg/turnover/
- bigplay), running homeScore/awayScore. Five phrase-bank categories (TD pass,
- TD run, FG, turnover, big play), each with 3–4 template strings. Log stored
- in games.play_log column (schema v17); retrieved via get-game-play-log IPC.
-
 [DONE June 25, 2026] Financial System — team_finances table (schema v18)
  with market_size, stadium_capacity, season_revenue, owner_budget. 32 teams
  seeded with real market-size differentials (8 large / 16 medium / 8 small).
- FinancesTab.tsx component built: market badge, capacity, revenue tiles,
- owner budget progress bar, league-wide market breakdown grid.
+ FinancesTab.tsx component built and wired.
  IPCs: get-team-finances, get-all-team-finances.
 
 [DONE June 25, 2026] CPU Trade Offer Weekly Cap — CPU offer generation
