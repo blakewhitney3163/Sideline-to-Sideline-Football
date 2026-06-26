@@ -346,7 +346,7 @@ export default function App() {
           />
         </div>
         <button
-          onClick={() => setScreen('template-select')}
+          onClick={() => setScreen('team-select')}
           style={{
             padding: '12px 28px', fontSize: 12, fontWeight: 'bold', letterSpacing: 2,
             background: '#FF8740', color: '#000', border: 'none', borderRadius: 4,
@@ -378,7 +378,7 @@ export default function App() {
       <Suspense fallback={<div style={{ color: '#555', padding: 40 }}>Loading...</div>}>
         <TemplateSelect
           onSelect={() => setScreen('team-select')}
-          onBack={() => setScreen('custom-setup')}
+          onBack={() => setScreen('main-menu')}
         />
       </Suspense>
     );
