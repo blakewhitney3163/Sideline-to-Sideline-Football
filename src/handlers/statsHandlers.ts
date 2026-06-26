@@ -255,7 +255,7 @@ export function registerStatsHandlers(): void {
   ipcMain.handle('get-roster', (_event: any, teamId: number) =>
     db.prepare(`
       SELECT p.*, c.annual_salary, c.years_remaining, c.years_total,
-             c.is_rookie_contract, c.has_fifth_year_option
+             c.is_rookie_deal, c.fifth_year_option_eligible, c.fifth_year_option_picked_up
       FROM players p
       LEFT JOIN contracts c ON c.player_id = p.id
       WHERE p.team_id = ? AND p.roster_status = 'active'
