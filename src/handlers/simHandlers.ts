@@ -815,10 +815,10 @@ export function registerSimHandlers(): void {
         });
         settingsRepo.set(`game_play_log_${game.id}`, JSON.stringify(playLog));
       }
-    } catch (e) {
-      // play log is non-critical
+        } catch (e) {
+      console.error('[play-log] generation failed:', e);
     }
-
+    
     const weekComplete = gameRepo.countPendingInWeek(game.season, game.week) === 0;
     const newlyInjured = rollInjuries(allStats);
     recordInjuryHistory(newlyInjured as any[], game.week ?? 1, game.season);
