@@ -5,8 +5,17 @@ Repository: https://github.com/blakewhitney3163/Sideline-to-Sideline-Football
 
 TIER 3 — Polish & replayability
 ────────────────────────────────────────────────────────────────────────────────
-League Customization — expansion teams, relocation, custom team names beyond
- the Team Editor. Relocation wizard, stadium naming, fan base effects.
+DONE - League Customization — vote-driven league expansion, natural salary cap
+ escalation, and CPU/user team relocation. OFFICE sub-tab added to the League
+ view (LeagueOffice.tsx). Three panels: Salary Cap (dynamic cap with history),
+ Expansion (user YES/NO vote, recent expansion history), Relocation (city picker
+ modal, CPU relocation news). Schema v19 adds is_expansion, stadium_name,
+ relocated_from columns on teams and the expansion_history table. Dynamic cap
+ stored in settings (salary_cap key) and read everywhere via getSalaryCap()
+ helper. LeagueExpansionService runs checkCapEscalation, checkExpansionVote,
+ and checkCpuRelocation at each season advance (steps 19–21). Four new IPC
+ handlers wired in seasonHandlers.ts: get-league-office-data, cast-expansion-vote,
+ get-relocation-cities, request-user-relocation.
 
 DONE - In-Game Narrative / Play-by-Play — text play-by-play during simulation.
  PlayEntry logs generated from real game stats: TD passes, TD runs, FGs,
@@ -19,10 +28,10 @@ DONE - Preset Dynasty Templates — fictional franchise starter kits selectable 
  dynasty creation. Three templates: Rebuild (62–70 OVR, $30M+ cap, 5-year
  horizon), Contender (78–84 OVR, $15M cap, 2-year window), Dynasty (85–90 OVR
  core, $8M cap, win-now pressure). Roster OVR and contract salaries adjusted
- via apply-dynasty-template IPC (settingsHandlers.ts). Template saved to
- settings; applied in runSetup after balanceRosters. TemplateSelect screen
- restored to App.tsx flow (template-select screen type). Back button returns
- to custom-setup. Standard new dynasty also routes through template-select.
+ via apply-dynasty-template IPC (settingsHandlers.ts). Template select screen
+ (TemplateSelect.tsx) shown between team selection and dynasty name input.
+ Back button to return to team selection. Template saved to settings as
+ dynasty_template key. Standard new dynasty also routes through template-select.
  User team coaches cleared on dynasty start so pre-season staff panel starts
  vacant.
 
@@ -162,6 +171,17 @@ MAINTENANCE
 ================================================================================
 COMPLETED ITEMS
 ================================================================================
+
+[DONE June 26, 2026] League Customization — OFFICE tab (LeagueOffice.tsx) added
+ to League view. Three panels: Salary Cap (dynamic cap stored in settings,
+ escalates 2–5% with 10% chance each offseason, history of last 5 seasons),
+ Expansion (user YES/NO vote via cast-expansion-vote IPC, 60%+ threshold,
+ city pool, expansion_history table), Relocation (city picker modal, 10-season
+ cooldown, 30 patience minimum, CPU relocation at critically low patience).
+ Schema v19: is_expansion / stadium_name / relocated_from columns on teams;
+ expansion_history table. getSalaryCap() helper replaces all hardcoded SALARY_CAP
+ references in ContractService. LeagueExpansionService runs 3 checks at each
+ season advance. Four new IPC handlers in seasonHandlers.ts and season.ts preload.
 
 [DONE June 26, 2026] Pre-Season Staff Coaching Budget — coaching budget introduced
  to pre-season staff panel. Starting budget tied to dynasty template: Rebuild
@@ -351,4 +371,3 @@ COMPLETED ITEMS
 [DONE June 18, 2026] OL Ratings in Teams / Depth Chart
 [DONE] Player Editor — inline edit mode in PlayerProfile.tsx
 [DONE] Playoff UI Update — bracket-style visual
-
