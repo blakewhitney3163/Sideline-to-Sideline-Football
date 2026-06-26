@@ -92,16 +92,18 @@ export function registerSettingsHandlers(): void {
     return row.cnt > 0;
   });
 
-  ipcMain.handle('apply-dynasty-template', () => {
+    ipcMain.handle('apply-dynasty-template', () => {
     const template = settingsRepo.get('dynasty_template');
-    if (!template) return { success: true };
-
     const teamIdStr = settingsRepo.get('user_team_id');
     if (!teamIdStr) return { success: false, reason: 'No user team set' };
     const teamId = parseInt(teamIdStr, 10);
 
+    // Always clear coaches from user's team so they hire fresh in pre-season
+    db.prepare('UPDATE coaching_staff SET team_id = NULL, years_remaining = 3 WHERE team_id = ?').run(teamId);
+
+    if (!template) return { success: true };
+
     if (template === 'rebuild') {
-      // Drop all players 10–18 OVR, floor at 50
       const players = db.prepare(
         "SELECT id, overall_rating FROM players WHERE team_id = ? AND roster_status = 'active'"
       ).all(teamId) as PlayerOvrRow[];
@@ -110,13 +112,10 @@ export function registerSettingsHandlers(): void {
         const newOvr = Math.max(50, p.overall_rating - drop);
         db.prepare('UPDATE players SET overall_rating = ? WHERE id = ?').run(newOvr, p.id);
       }
-      // Cut contracts to 55% of current salary, floor at $0.87M minimum
       db.prepare(
         'UPDATE contracts SET annual_salary = MAX(0.87, annual_salary * 0.55) WHERE team_id = ?'
       ).run(teamId);
-
     } else if (template === 'contender') {
-      // Trim bottom half of roster 2–6 OVR, floor at 55
       const players = db.prepare(
         "SELECT id, overall_rating FROM players WHERE team_id = ? AND roster_status = 'active' ORDER BY overall_rating ASC"
       ).all(teamId) as PlayerOvrRow[];
@@ -126,13 +125,10 @@ export function registerSettingsHandlers(): void {
         const newOvr = Math.max(55, p.overall_rating - drop);
         db.prepare('UPDATE players SET overall_rating = ? WHERE id = ?').run(newOvr, p.id);
       }
-      // Contracts at 80% of current salary
       db.prepare(
         'UPDATE contracts SET annual_salary = MAX(0.87, annual_salary * 0.80) WHERE team_id = ?'
       ).run(teamId);
-
     } else if (template === 'dynasty') {
-      // Boost top 15 players 3–7 OVR, ceiling at 99
       const players = db.prepare(
         "SELECT id, overall_rating FROM players WHERE team_id = ? AND roster_status = 'active' ORDER BY overall_rating DESC LIMIT 15"
       ).all(teamId) as PlayerOvrRow[];
@@ -141,7 +137,6 @@ export function registerSettingsHandlers(): void {
         const newOvr = Math.min(99, p.overall_rating + boost);
         db.prepare('UPDATE players SET overall_rating = ? WHERE id = ?').run(newOvr, p.id);
       }
-      // Contracts unchanged for dynasty
     }
 
     return { success: true };
