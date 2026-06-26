@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron';
-import { SALARY_CAP, MAX_ACTIVE_ROSTER, MAX_PRACTICE_SQUAD } from '../constants';
+import { MAX_ACTIVE_ROSTER, MAX_PRACTICE_SQUAD } from '../constants';
+import { getSalaryCap } from '../helpers/getSalaryCap';
 import { CapSummary, RosterSpots } from '../types';
 import { settingsRepo, playerRepo, contractRepo } from '../repositories';
 import {
@@ -23,8 +24,9 @@ export function registerContractHandlers(): void {
     playerRepo.getPracticeSquad(teamId));
 
   ipcMain.handle('get-cap-summary', (_event: IpcEvent, teamId: number): CapSummary => {
+    const totalCap = getSalaryCap();
     const usedCap = contractRepo.getCapUsage(teamId);
-    return { total_cap: SALARY_CAP, used_cap: usedCap, available_cap: Math.round((SALARY_CAP - usedCap) * 10) / 10 };
+    return { total_cap: totalCap, used_cap: usedCap, available_cap: Math.round((totalCap - usedCap) * 10) / 10 };
   });
 
   ipcMain.handle('get-roster-spots', (_event: IpcEvent, teamId: number): RosterSpots => {
@@ -68,7 +70,7 @@ export function registerContractHandlers(): void {
     return promoteFromPS(playerId, teamId);
   });
 
-    ipcMain.handle('demote-to-ps', (_event: IpcEvent, playerId: number) => {
+  ipcMain.handle('demote-to-ps', (_event: IpcEvent, playerId: number) => {
     const teamId = settingsRepo.getUserTeamId();
     if (!teamId) return { success: false, reason: 'No franchise selected.' };
     return demoteToPS(playerId, teamId);
@@ -132,12 +134,10 @@ export function registerContractHandlers(): void {
     const { getCurrentSeason } = require('../helpers/getCurrentSeason');
     const season = getCurrentSeason();
     return {
-      amount:  contractRepo.getDeadCap(teamId, season),
+      amount: contractRepo.getDeadCap(teamId, season),
       entries: contractRepo.getDeadCapEntries(teamId, season),
     };
   });
-
-  // ── Player Editor: direct contract edit ────────────────────────────────────
 
   ipcMain.handle('edit-player-contract', (_event: IpcEvent, {
     playerId,
