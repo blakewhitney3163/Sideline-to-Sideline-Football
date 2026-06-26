@@ -10,6 +10,7 @@ import OffseasonTab from './franchise/OffseasonTab';
 import CoachingTab from './franchise/CoachingTab';
 import SchemesTab from './franchise/SchemesTab';
 import SalariesTab from './franchise/SalariesTab';
+import FinancesTab from './franchise/FinancesTab';
 import PlayerProfile from './teams/PlayerProfile';
 import { Player, PlayerStats, CareerSeasonStats } from './teams/types';
 
@@ -27,7 +28,7 @@ export default function Franchise() {
   const [expiringPlayers, setExpiringPlayers] = useState<Contract[]>([]);
   const [cap, setCap] = useState<CapSummary | null>(null);
   const [rosterSpots, setRosterSpots] = useState<RosterSpots | null>(null);
-  const [activeTab, setActiveTab] = useState<'roster' | 'ps' | 'fa' | 'waivers' | 'offseason' | 'coaching' | 'schemes' | 'salaries'>('roster');
+const [activeTab, setActiveTab] = useState<'roster' | 'ps' | 'fa' | 'waivers' | 'offseason' | 'coaching' | 'schemes' | 'salaries' | 'finances'>('roster');
   const [working, setWorking] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [teamNeeds, setTeamNeeds] = useState<string[]>([]);
@@ -305,7 +306,7 @@ export default function Franchise() {
   const capColor = capPct > 100 ? '#e57373' : capPct > 90 ? '#FF8740' : '#4caf50';
   const totalGuaranteed = contracts.reduce((s, c) => s + (c.guaranteed_amount ?? 0), 0);
 
-  const tabs = [
+    const tabs = [
     { key: 'roster' as const, label: `ACTIVE ROSTER (${contracts.length})`, warn: false },
     { key: 'salaries' as const, label: 'SALARIES', warn: false },
     { key: 'ps' as const, label: `PRACTICE SQUAD (${practiceSquad.length})`, warn: false },
@@ -313,6 +314,7 @@ export default function Franchise() {
     ...(!playoffsComplete ? [{ key: 'waivers' as const, label: `WAIVER WIRE${waiverWire.length > 0 ? ` (${waiverWire.length})` : ''}`, warn: false }] : []),
     { key: 'coaching' as const, label: 'COACHING STAFF', warn: false },
     { key: 'schemes' as const, label: 'SCHEMES', warn: false },
+    { key: 'finances' as const, label: 'FINANCES', warn: false },
     ...(playoffsComplete ? [{ key: 'offseason' as const, label: expiringCount > 0 ? `OFFSEASON ⚠ ${expiringCount}` : 'OFFSEASON', warn: expiringCount > 0 }] : []),
   ];
 
@@ -505,6 +507,10 @@ export default function Franchise() {
                     contracts={contracts}
           cap={cap}
         />
+      )}
+
+            {activeTab === 'finances' && (
+        <FinancesTab teamId={userTeam.id} currentSeason={currentSeason} />
       )}
 
       {selectedPlayer && (
