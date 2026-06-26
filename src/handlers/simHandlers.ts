@@ -1016,11 +1016,11 @@ export function registerSimHandlers(): void {
 
   ipcMain.handle('get-game-box-score', (_event: IpcEvent, gameId: number) => {
     const game = db.prepare(`
-      SELECT g.id, g.week, g.home_score, g.away_score,
+            SELECT g.id, g.week, g.home_score, g.away_score,
              g.home_q1, g.home_q2, g.home_q3, g.home_q4,
              g.away_q1, g.away_q2, g.away_q3, g.away_q4,
-             ht.id as home_team_id, ht.city || ' ' || ht.name AS home_team,
-             at.id as away_team_id, at.city || ' ' || at.name AS away_team
+             g.weather,
+             ht.id as home_team_id, ...
       FROM games g
       JOIN teams ht ON g.home_team_id = ht.id
       JOIN teams at ON g.away_team_id = at.id
