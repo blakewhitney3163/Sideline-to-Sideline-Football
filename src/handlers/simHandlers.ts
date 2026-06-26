@@ -172,7 +172,7 @@ function generateDraftClass(season: number): void {
     else if (i < 160) ovr = Math.floor(Math.random() * 5) + 59;
     else if (i < 224) ovr = Math.floor(Math.random() * 5) + 57;
     else              ovr = Math.floor(Math.random() * 6) + 52;
-        prospects.push({
+    prospects.push({
       season,
       first_name: DRAFT_FIRST[Math.floor(Math.random() * DRAFT_FIRST.length)],
       last_name:  DRAFT_LAST[Math.floor(Math.random() * DRAFT_LAST.length)],
@@ -184,6 +184,26 @@ function generateDraftClass(season: number): void {
     });
   }
   draftRepo.insertClass(prospects);
+}
+
+// ── Shared helper: get/derive playoff seed arrays ──────────────────────────
+
+function getOrDerivePlayoffSeeds(s: number): { afcSeeds: any[]; nfcSeeds: any[] } {
+  let rawAfc = settingsRepo.get(`playoff_seeds_AFC_${s}`);
+  let rawNfc = settingsRepo.get(`playoff_seeds_NFC_${s}`);
+  if (!rawAfc || !rawNfc) {
+    const allRecords = gameRepo.getAllRecords(s);
+    const deriveSeed = (conf: string) =>
+      (db.prepare(`SELECT id, city, name FROM teams WHERE conference = ?`).all(conf) as any[])
+        .map((t: any) => ({ ...t, wins: allRecords[t.id]?.wins ?? 0 }))
+        .sort((a: any, b: any) => b.wins - a.wins).slice(0, 7);
+    const afcSeeds = deriveSeed('AFC');
+    const nfcSeeds = deriveSeed('NFC');
+    settingsRepo.set(`playoff_seeds_AFC_${s}`, JSON.stringify(afcSeeds));
+    settingsRepo.set(`playoff_seeds_NFC_${s}`, JSON.stringify(nfcSeeds));
+    return { afcSeeds, nfcSeeds };
+  }
+  return { afcSeeds: JSON.parse(rawAfc), nfcSeeds: JSON.parse(rawNfc) };
 }
 
 export function registerSimHandlers(): void {
@@ -205,6 +225,8 @@ export function registerSimHandlers(): void {
     else contractRepo.create(playerId, teamId, 1, 1.0, 0, 0);
     return { success: true, name: `${player.first_name} ${player.last_name}` };
   });
+
+  // ── Bulk Playoff Simulation (used by Home.tsx "Simulate Playoffs" button) ─
 
   ipcMain.handle('simulate-playoffs', (_event: IpcEvent, season?: number) => {
     const s = season ?? getCurrentSeason();
@@ -247,6 +269,10 @@ export function registerSimHandlers(): void {
     const afcTeams = seedTeams('AFC');
     const nfcTeams = seedTeams('NFC');
 
+    // Store seeds so get-playoff-state can use them
+    settingsRepo.set(`playoff_seeds_AFC_${s}`, JSON.stringify(afcTeams));
+    settingsRepo.set(`playoff_seeds_NFC_${s}`, JSON.stringify(nfcTeams));
+
     const afcWC  = [simGame(afcTeams[1], afcTeams[6], 18, 'AFC Wild Card'), simGame(afcTeams[2], afcTeams[5], 18, 'AFC Wild Card'), simGame(afcTeams[3], afcTeams[4], 18, 'AFC Wild Card')];
     const nfcWC  = [simGame(nfcTeams[1], nfcTeams[6], 18, 'NFC Wild Card'), simGame(nfcTeams[2], nfcTeams[5], 18, 'NFC Wild Card'), simGame(nfcTeams[3], nfcTeams[4], 18, 'NFC Wild Card')];
     const afcDiv = [simGame(afcTeams[0], afcWC[2].winner, 19, 'AFC Divisional'), simGame(afcWC[0].winner, afcWC[1].winner, 19, 'AFC Divisional')];
@@ -271,6 +297,291 @@ export function registerSimHandlers(): void {
       afc: { seeds: afcTeams, wildCard: afcWC, divisional: afcDiv, championship: afcChamp },
       nfc: { seeds: nfcTeams, wildCard: nfcWC, divisional: nfcDiv, championship: nfcChamp },
       gridironCup,
+    };
+  });
+
+  // ── get-playoffs: returns completed playoff games for Home.tsx display ─────
+
+  ipcMain.handle('get-playoffs', (_event: IpcEvent, season: number) => {
+    const s = season ?? getCurrentSeason();
+    return db.prepare(`
+      SELECT g.week, g.home_score, g.away_score,
+        ht.city || ' ' || ht.name as home_team,
+        at.city || ' ' || at.name as away_team
+      FROM games g
+      JOIN teams ht ON ht.id = g.home_team_id
+      JOIN teams at ON at.id = g.away_team_id
+      WHERE g.season = ? AND g.is_playoff = 1 AND g.is_simulated = 1
+      ORDER BY g.week, g.id
+    `).all(s);
+  });
+
+  // ── init-playoffs: sets up Wild Card round as game-by-game pending games ───
+
+  ipcMain.handle('init-playoffs', (_event: IpcEvent, season?: number) => {
+    const s = season ?? getCurrentSeason();
+    db.prepare(`DELETE FROM stats WHERE game_id IN (SELECT id FROM games WHERE season = ? AND is_playoff = 1)`).run(s);
+    db.prepare(`DELETE FROM games WHERE season = ? AND is_playoff = 1`).run(s);
+
+    const allRecords = gameRepo.getAllRecords(s);
+    const afcSeeds = (db.prepare(`SELECT id, city, name FROM teams WHERE conference = 'AFC'`).all() as any[])
+      .map((t: any) => ({ ...t, wins: allRecords[t.id]?.wins ?? 0 }))
+      .sort((a: any, b: any) => b.wins - a.wins).slice(0, 7);
+    const nfcSeeds = (db.prepare(`SELECT id, city, name FROM teams WHERE conference = 'NFC'`).all() as any[])
+      .map((t: any) => ({ ...t, wins: allRecords[t.id]?.wins ?? 0 }))
+      .sort((a: any, b: any) => b.wins - a.wins).slice(0, 7);
+
+    settingsRepo.set(`playoff_seeds_AFC_${s}`, JSON.stringify(afcSeeds));
+    settingsRepo.set(`playoff_seeds_NFC_${s}`, JSON.stringify(nfcSeeds));
+
+    const insertPending = db.prepare(`
+      INSERT INTO games
+      (season, week, home_team_id, away_team_id, home_score, away_score,
+       home_q1, home_q2, home_q3, home_q4, away_q1, away_q2, away_q3, away_q4,
+       weather, is_playoff, is_simulated)
+      VALUES (?, 18, ?, ?, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 'clear', 1, 0)
+    `);
+
+    db.transaction(() => {
+      insertPending.run(s, afcSeeds[1].id, afcSeeds[6].id);
+      insertPending.run(s, afcSeeds[2].id, afcSeeds[5].id);
+      insertPending.run(s, afcSeeds[3].id, afcSeeds[4].id);
+      insertPending.run(s, nfcSeeds[1].id, nfcSeeds[6].id);
+      insertPending.run(s, nfcSeeds[2].id, nfcSeeds[5].id);
+      insertPending.run(s, nfcSeeds[3].id, nfcSeeds[4].id);
+    })();
+
+    return { initialized: true };
+  });
+
+  // ── get-playoff-state: returns live bracket state for Playoffs.tsx ─────────
+
+  ipcMain.handle('get-playoff-state', (_event: IpcEvent, season?: number) => {
+    const s = season ?? getCurrentSeason();
+
+    const playoffCount = (db.prepare('SELECT COUNT(*) as cnt FROM games WHERE season = ? AND is_playoff = 1').get(s) as any).cnt;
+    if (playoffCount === 0) return { initialized: false };
+
+    const { afcSeeds, nfcSeeds } = getOrDerivePlayoffSeeds(s);
+    const afcIdSet = new Set(afcSeeds.map((t: any) => t.id));
+
+    const games = db.prepare(`
+      SELECT g.*,
+        ht.city as home_city, ht.name as home_name,
+        at.city as away_city, at.name as away_name
+      FROM games g
+      JOIN teams ht ON ht.id = g.home_team_id
+      JOIN teams at ON at.id = g.away_team_id
+      WHERE g.season = ? AND g.is_playoff = 1
+      ORDER BY g.week, g.id
+    `).all(s) as any[];
+
+    const fmtTeam = (id: number, city: string, name: string) => ({ id, city, name });
+    const fmtGame = (g: any) => ({
+      id: g.id,
+      week: g.week,
+      homeTeam: fmtTeam(g.home_team_id, g.home_city, g.home_name),
+      awayTeam: fmtTeam(g.away_team_id, g.away_city, g.away_name),
+      homeScore: g.home_score,
+      awayScore: g.away_score,
+      isSimulated: g.is_simulated === 1,
+      winner: g.is_simulated === 1
+        ? (g.home_score > g.away_score
+          ? fmtTeam(g.home_team_id, g.home_city, g.home_name)
+          : fmtTeam(g.away_team_id, g.away_city, g.away_name))
+        : null,
+    });
+
+    const sortBySeedIdx = (list: any[], seeds: any[]) => {
+      const idxOf = (teamId: number) => seeds.findIndex((t: any) => t.id === teamId);
+      return [...list].sort((a, b) => idxOf(a.home_team_id) - idxOf(b.home_team_id));
+    };
+
+    const wcGames    = games.filter(g => g.week === 18);
+    const divGames   = games.filter(g => g.week === 19);
+    const champGames = games.filter(g => g.week === 20);
+    const cupGame    = games.find(g => g.week === 21) ?? null;
+
+    const afcWC  = sortBySeedIdx(wcGames.filter(g => afcIdSet.has(g.home_team_id)), afcSeeds);
+    const nfcWC  = sortBySeedIdx(wcGames.filter(g => !afcIdSet.has(g.home_team_id)), nfcSeeds);
+    const afcDiv = sortBySeedIdx(divGames.filter(g => afcIdSet.has(g.home_team_id)), afcSeeds);
+    const nfcDiv = sortBySeedIdx(divGames.filter(g => !afcIdSet.has(g.home_team_id)), nfcSeeds);
+
+    // Championship: classify by home team conference
+    const afcChampGame = champGames.find(g => afcIdSet.has(g.home_team_id)) ?? null;
+    const nfcChampGame = champGames.find(g => !afcIdSet.has(g.home_team_id)) ?? null;
+
+    const champRow = db.prepare(`
+      SELECT t.id, t.city, t.name FROM champions c
+      JOIN teams t ON t.id = c.team_id WHERE c.season = ?
+    `).get(s) as any;
+
+    return {
+      initialized: true,
+      complete: !!champRow,
+      champion: champRow ? fmtTeam(champRow.id, champRow.city, champRow.name) : null,
+      afcSeeds,
+      nfcSeeds,
+      afc: {
+        wildCard:     afcWC.map(fmtGame),
+        divisional:   afcDiv.map(fmtGame),
+        championship: afcChampGame ? fmtGame(afcChampGame) : null,
+      },
+      nfc: {
+        wildCard:     nfcWC.map(fmtGame),
+        divisional:   nfcDiv.map(fmtGame),
+        championship: nfcChampGame ? fmtGame(nfcChampGame) : null,
+      },
+      gridironCup: cupGame ? fmtGame(cupGame) : null,
+    };
+  });
+
+  // ── simulate-playoff-game: simulates one game and advances rounds ──────────
+
+  ipcMain.handle('simulate-playoff-game', (_event: IpcEvent, gameId: number) => {
+    const s = getCurrentSeason();
+
+    const game = db.prepare(`
+      SELECT g.*,
+        ht.city as home_city, ht.name as home_name,
+        at.city as away_city, at.name as away_name
+      FROM games g
+      JOIN teams ht ON ht.id = g.home_team_id
+      JOIN teams at ON at.id = g.away_team_id
+      WHERE g.id = ? AND g.season = ? AND g.is_playoff = 1
+    `).get(gameId, s) as any;
+
+    if (!game)             return { error: 'Game not found.' };
+    if (game.is_simulated) return { error: 'Game already simulated.' };
+
+    const home = { id: game.home_team_id, city: game.home_city, name: game.home_name };
+    const away = { id: game.away_team_id, city: game.away_city, name: game.away_name };
+
+    const result = simulateGame(home.id, away.id, game.week, -1, 0,
+      undefined, getCpuGamePlan(home.id), getCpuGamePlan(away.id));
+
+    db.prepare(`
+      UPDATE games SET
+        home_score = ?, away_score = ?,
+        home_q1 = ?, home_q2 = ?, home_q3 = ?, home_q4 = ?,
+        away_q1 = ?, away_q2 = ?, away_q3 = ?, away_q4 = ?,
+        weather = ?, is_simulated = 1
+      WHERE id = ?
+    `).run(
+      result.homeScore, result.awayScore,
+      result.homeQuarters[0], result.homeQuarters[1], result.homeQuarters[2], result.homeQuarters[3],
+      result.awayQuarters[0], result.awayQuarters[1], result.awayQuarters[2], result.awayQuarters[3],
+      result.weather ?? 'clear', gameId,
+    );
+
+    const winner = result.homeScore > result.awayScore ? home : away;
+    const loser  = result.homeScore > result.awayScore ? away  : home;
+    const ws = Math.max(result.homeScore, result.awayScore);
+    const ls = Math.min(result.homeScore, result.awayScore);
+
+    const ROUND_LABELS: Record<number, string> = {
+      18: 'Wild Card', 19: 'Divisional', 20: 'Conference Championship', 21: 'Gridiron Cup',
+    };
+    logNewsEvent({
+      season: s, category: 'game',
+      headline: `${ROUND_LABELS[game.week] ?? 'Playoff'}: ${winner.city} ${winner.name} ${ws}, ${loser.city} ${loser.name} ${ls}`,
+      detail: `${winner.city} ${winner.name} advance`,
+    });
+
+    const roundGames = db.prepare(
+      'SELECT id, is_simulated, home_team_id, away_team_id, home_score, away_score FROM games WHERE season = ? AND week = ? AND is_playoff = 1'
+    ).all(s, game.week) as any[];
+
+    const roundComplete = roundGames.every(g => g.is_simulated);
+
+    if (roundComplete) {
+      const { afcSeeds, nfcSeeds } = getOrDerivePlayoffSeeds(s);
+      const afcIdSet = new Set(afcSeeds.map((t: any) => t.id));
+
+      const getWinnerId = (g: any): number =>
+        g.home_score > g.away_score ? g.home_team_id : g.away_team_id;
+
+      const insertPending = db.prepare(`
+        INSERT INTO games
+        (season, week, home_team_id, away_team_id, home_score, away_score,
+         home_q1, home_q2, home_q3, home_q4, away_q1, away_q2, away_q3, away_q4,
+         weather, is_playoff, is_simulated)
+        VALUES (?, ?, ?, ?, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 'clear', 1, 0)
+      `);
+
+      const seedIdx = (teamId: number, seeds: any[]): number =>
+        seeds.findIndex((t: any) => t.id === teamId);
+
+      if (game.week === 18) {
+        // Wild Card done → create Divisional games
+        const afcWC = roundGames
+          .filter(g => afcIdSet.has(g.home_team_id))
+          .sort((a, b) => seedIdx(a.home_team_id, afcSeeds) - seedIdx(b.home_team_id, afcSeeds));
+        const nfcWC = roundGames
+          .filter(g => !afcIdSet.has(g.home_team_id))
+          .sort((a, b) => seedIdx(a.home_team_id, nfcSeeds) - seedIdx(b.home_team_id, nfcSeeds));
+
+        const makeDiv = (seeds: any[], wc: any[], insertFn: typeof insertPending) => {
+          const wc0w = getWinnerId(wc[0]);
+          const wc1w = getWinnerId(wc[1]);
+          const wc2w = getWinnerId(wc[2]);
+          // Seed1 vs WC2w (Seed1 always home)
+          insertFn.run(s, 19, seeds[0].id, wc2w);
+          // WC0w vs WC1w (better original seed = home)
+          const homeD1 = seedIdx(wc0w, seeds) < seedIdx(wc1w, seeds) ? wc0w : wc1w;
+          const awayD1 = homeD1 === wc0w ? wc1w : wc0w;
+          insertFn.run(s, 19, homeD1, awayD1);
+        };
+
+        db.transaction(() => {
+          makeDiv(afcSeeds, afcWC, insertPending);
+          makeDiv(nfcSeeds, nfcWC, insertPending);
+        })();
+
+      } else if (game.week === 19) {
+        // Divisional done → create Championships
+        const afcDiv = roundGames.filter(g => afcIdSet.has(g.home_team_id));
+        const nfcDiv = roundGames.filter(g => !afcIdSet.has(g.home_team_id));
+
+        const makeChamp = (seeds: any[], divGms: any[], conf: string) => {
+          const winnerIds = divGms.map(getWinnerId);
+          const homeC = seedIdx(winnerIds[0], seeds) < seedIdx(winnerIds[1], seeds) ? winnerIds[0] : winnerIds[1];
+          const awayC = homeC === winnerIds[0] ? winnerIds[1] : winnerIds[0];
+          insertPending.run(s, 20, homeC, awayC);
+        };
+
+        db.transaction(() => {
+          makeChamp(afcSeeds, afcDiv, 'AFC');
+          makeChamp(nfcSeeds, nfcDiv, 'NFC');
+        })();
+
+      } else if (game.week === 20) {
+        // Championships done → create Gridiron Cup (AFC winner is home)
+        const afcChamp = roundGames.find(g => afcIdSet.has(g.home_team_id))!;
+        const nfcChamp = roundGames.find(g => !afcIdSet.has(g.home_team_id))!;
+        const afcW = getWinnerId(afcChamp);
+        const nfcW = getWinnerId(nfcChamp);
+        insertPending.run(s, 21, afcW, nfcW);
+
+      } else if (game.week === 21) {
+        // Gridiron Cup done → record champion
+        db.prepare('INSERT OR REPLACE INTO champions (season, team_id) VALUES (?, ?)').run(s, winner.id);
+        logNewsEvent({
+          season: s, category: 'game',
+          headline: `🏆 ${winner.city} ${winner.name} are Gridiron Cup Champions!`,
+          detail: `Defeated ${loser.city} ${loser.name} ${ws}–${ls} in the Gridiron Cup`,
+        });
+      }
+    }
+
+    return {
+      gameId,
+      winner,
+      loser,
+      homeScore: result.homeScore,
+      awayScore: result.awayScore,
+      roundComplete,
+      playoffsComplete: game.week === 21 && roundComplete,
     };
   });
 
@@ -476,7 +787,6 @@ export function registerSimHandlers(): void {
       stats: allStats,
     }, userTeamId);
 
-    // Generate and store play-by-play log
     try {
       const allPlayerIds = [...new Set(allStats.map((s: any) => s.player_id as number))];
       if (allPlayerIds.length > 0) {
@@ -495,7 +805,7 @@ export function registerSimHandlers(): void {
           pass_tds:     s.pass_tds     ?? 0,
           rec_tds:      s.rec_tds      ?? 0,
         }));
-                const playLog = generatePlayLog({
+        const playLog = generatePlayLog({
           homeTeamName: getTeamName(game.home_team_id),
           awayTeamName: getTeamName(game.away_team_id),
           homeScore: gameResult.homeScore,
@@ -543,8 +853,6 @@ export function registerSimHandlers(): void {
       ORDER BY CASE p.injury_status WHEN 'ir' THEN 1 WHEN 'out' THEN 2 ELSE 3 END, p.overall_rating DESC
     `).all(teamId));
 
-  // ─── Game Plan IPC ────────────────────────────────────────────────────────
-
   ipcMain.handle('set-gameplan', (_event: IpcEvent, payload: { season: number; week: number; offense: string; defense: string }) => {
     settingsRepo.set(`gameplan_${payload.season}_${payload.week}`, JSON.stringify({ offense: payload.offense, defense: payload.defense }));
     return { success: true };
@@ -554,8 +862,6 @@ export function registerSimHandlers(): void {
     const raw = settingsRepo.get(`gameplan_${payload.season}_${payload.week}`);
     return raw ? JSON.parse(raw) : { offense: 'balanced', defense: 'base' };
   });
-
-  // ─── Scout Opponent IPC ───────────────────────────────────────────────────
 
   ipcMain.handle('scout-opponent', (_event: IpcEvent, payload: { opponentTeamId: number; season: number; week: number }) => {
     const { opponentTeamId, season, week } = payload;
@@ -679,8 +985,6 @@ export function registerSimHandlers(): void {
     return raw ? JSON.parse(raw) : [];
   });
 
-  // ─── Scout Management IPC ─────────────────────────────────────────────────
-
   ipcMain.handle('get-scouts', (_event: IpcEvent, teamId: number) =>
     scoutRepo.getByTeam(teamId));
 
@@ -753,64 +1057,57 @@ export function registerSimHandlers(): void {
     return { afc: getSeeds('AFC'), nfc: getSeeds('NFC') };
   });
 
-    ipcMain.handle('apply-dynasty-template', () => {
-  const userTeamId = settingsRepo.getUserTeamId();
-  if (!userTeamId) return { success: false };
+  ipcMain.handle('apply-dynasty-template', () => {
+    const userTeamId = settingsRepo.getUserTeamId();
+    if (!userTeamId) return { success: false };
 
-  const template = settingsRepo.get('dynasty_template');
-  if (!template) return { success: true, template: 'none' };
+    const template = settingsRepo.get('dynasty_template');
+    if (!template) return { success: true, template: 'none' };
 
-  const players = db.prepare(
-    "SELECT id, overall_rating FROM players WHERE team_id = ? AND roster_status = 'active' ORDER BY overall_rating DESC"
-  ).all(userTeamId) as any[];
+    const players = db.prepare(
+      "SELECT id, overall_rating FROM players WHERE team_id = ? AND roster_status = 'active' ORDER BY overall_rating DESC"
+    ).all(userTeamId) as any[];
 
-  if (players.length === 0) return { success: true, template };
+    if (players.length === 0) return { success: true, template };
 
-  // Get current total salary so we can scale to a precise target cap room
-  const currentTotal = (db.prepare(
-    `SELECT COALESCE(SUM(c.annual_salary), 0) as total
-     FROM contracts c JOIN players p ON c.player_id = p.id
-     WHERE c.team_id = ? AND p.roster_status = 'active'`
-  ).get(userTeamId) as any).total as number;
+    const currentTotal = (db.prepare(
+      `SELECT COALESCE(SUM(c.annual_salary), 0) as total
+       FROM contracts c JOIN players p ON c.player_id = p.id
+       WHERE c.team_id = ? AND p.roster_status = 'active'`
+    ).get(userTeamId) as any).total as number;
 
-  const SALARY_CAP = 279.2;
-  const TARGET_ROOM: Record<string, number> = {
-    rebuild: 30,
-    contender: 15,
-    dynasty: 8,
-  };
-  const targetRoom = TARGET_ROOM[template] ?? 12;
-  const targetUsed = SALARY_CAP - targetRoom;
-  const scale = currentTotal > 0 ? targetUsed / currentTotal : 1;
+    const SALARY_CAP = 279.2;
+    const TARGET_ROOM: Record<string, number> = { rebuild: 30, contender: 15, dynasty: 8 };
+    const targetRoom = TARGET_ROOM[template] ?? 12;
+    const targetUsed = SALARY_CAP - targetRoom;
+    const scale = currentTotal > 0 ? targetUsed / currentTotal : 1;
 
-  db.transaction(() => {
-    if (template === 'rebuild') {
-      for (const p of players) {
-        const drop = Math.floor(Math.random() * 9) + 10;
-        db.prepare('UPDATE players SET overall_rating = ? WHERE id = ?')
-          .run(Math.max(50, p.overall_rating - drop), p.id);
+    db.transaction(() => {
+      if (template === 'rebuild') {
+        for (const p of players) {
+          const drop = Math.floor(Math.random() * 9) + 10;
+          db.prepare('UPDATE players SET overall_rating = ? WHERE id = ?')
+            .run(Math.max(50, p.overall_rating - drop), p.id);
+        }
+      } else if (template === 'contender') {
+        const half = Math.floor(players.length / 2);
+        for (const p of players.slice(half)) {
+          const drop = Math.floor(Math.random() * 5) + 2;
+          db.prepare('UPDATE players SET overall_rating = ? WHERE id = ?')
+            .run(Math.max(62, p.overall_rating - drop), p.id);
+        }
+      } else if (template === 'dynasty') {
+        for (const p of players.slice(0, 15)) {
+          const boost = Math.floor(Math.random() * 5) + 3;
+          db.prepare('UPDATE players SET overall_rating = ? WHERE id = ?')
+            .run(Math.min(99, p.overall_rating + boost), p.id);
+        }
       }
-    } else if (template === 'contender') {
-      const half = Math.floor(players.length / 2);
-      for (const p of players.slice(half)) {
-        const drop = Math.floor(Math.random() * 5) + 2;
-        db.prepare('UPDATE players SET overall_rating = ? WHERE id = ?')
-          .run(Math.max(62, p.overall_rating - drop), p.id);
-      }
-    } else if (template === 'dynasty') {
-      for (const p of players.slice(0, 15)) {
-        const boost = Math.floor(Math.random() * 5) + 3;
-        db.prepare('UPDATE players SET overall_rating = ? WHERE id = ?')
-          .run(Math.min(99, p.overall_rating + boost), p.id);
-      }
-    }
+      db.prepare(
+        'UPDATE contracts SET annual_salary = MAX(1.0, ROUND(annual_salary * ?, 1)) WHERE team_id = ?'
+      ).run(scale, userTeamId);
+    })();
 
-    // Scale contracts to hit the target cap room precisely
-    db.prepare(
-      'UPDATE contracts SET annual_salary = MAX(1.0, ROUND(annual_salary * ?, 1)) WHERE team_id = ?'
-    ).run(scale, userTeamId);
-  })();
-
-  return { success: true, template };
-});
+    return { success: true, template };
+  });
 }
