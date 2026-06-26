@@ -317,8 +317,7 @@ ipcMain.handle('get-all-team-finances', () =>
       if (row) capHistory.push({ season: s, cap: parseFloat(row.value) });
     }
 
-    const userVoteRow = db.prepare("SELECT value FROM settings WHERE key = ?")
-      .get(`expansion_user_vote_${currentSeason}`) as any;
+    const userVoteRow = db.prepare("SELECT value FROM settings WHERE key = 'user_expansion_vote'").get() as any;
     const userVote = userVoteRow ? userVoteRow.value : null;
 
     let recentExpansions: any[] = [];
@@ -346,7 +345,7 @@ ipcMain.handle('get-all-team-finances', () =>
 
   ipcMain.handle('cast-expansion-vote', (_event: any, vote: 'for' | 'against') => {
     const season = getCurrentSeason();
-    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(`expansion_user_vote_${season}`, vote);
+    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run('user_expansion_vote', vote);
     return { success: true };
   });
 
@@ -410,3 +409,4 @@ ipcMain.handle('get-all-team-finances', () =>
   });
   
 }
+
