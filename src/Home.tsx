@@ -69,6 +69,8 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
   const [generatingSchedule, setGeneratingSchedule] = useState(false);
   const [boxScore, setBoxScore] = useState<BoxScoreData | null>(null);
   const [boxScoreLoading, setBoxScoreLoading] = useState(false);
+  const [boxScorePlayLog, setBoxScorePlayLog] = useState<any[]>([]);
+  const [showBoxScorePlayLog, setShowBoxScorePlayLog] = useState(false);
   const [topAFC, setTopAFC] = useState<StandingEntry[]>([]);
   const [topNFC, setTopNFC] = useState<StandingEntry[]>([]);
   const [champions, setChampions] = useState<Champion[]>([]);
@@ -115,7 +117,7 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
     let cancelled = false;
     const init = async () => {
       setLoading(true);
-      setBoxScore(null); setConfirming(false); setPlayoffSeeds(null);
+      setBoxScore(null); setBoxScorePlayLog([]); setConfirming(false); setPlayoffSeeds(null);
       setPlayoffResults(null); setUserRecord(null); setInjuryReport([]);
       setSeasonAwards(null); setStaffSetupComplete(false);
 
@@ -262,18 +264,14 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
     if (weekResult?.userPSOpenSpots > 0)
       setPSAlert(`Practice squad has ${weekResult.userPSOpenSpots} open spot${weekResult.userPSOpenSpots !== 1 ? 's' : ''}. Go to My Team → Practice Squad.`);
     if (status.currentWeek === null && status.hasSchedule) {
-      let pState = await window.api.getPlayoffState(currentSeason);
-      if (!pState?.initialized) {
-        await window.api.initPlayoffs(currentSeason);
-        pState = await window.api.getPlayoffState(currentSeason);
-      }
-      setPlayoffState(pState);
+      setPlayoffSeeds(await window.api.getPlayoffSeeds());
+      setMatchups(await window.api.getWeekMatchups(18));
     } else if (status.currentWeek) {
       setMatchups(await window.api.getWeekMatchups(status.currentWeek));
     }
     setStatLeaders(await window.api.getStats(currentSeason));
     setFranchiseHealth(await window.api.getFranchiseHealth(userTeam.id));
-    setBoxScore(null);
+    setBoxScore(null); setBoxScorePlayLog([]);
     incrementSimCount();
     setSimulating(false);
   };
@@ -298,7 +296,7 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
     setAllStandings(standings);
     if (result.userPSOpenSpots > 0)
       setPSAlert(`Practice squad has ${result.userPSOpenSpots} open spot${result.userPSOpenSpots !== 1 ? 's' : ''}. Go to My Team → Practice Squad.`);
-        if (currentWeek) setMatchups(await window.api.getWeekMatchups(currentWeek));
+    if (currentWeek) setMatchups(await window.api.getWeekMatchups(currentWeek));
     setStatLeaders(await window.api.getStats(currentSeason));
     setFranchiseHealth(await window.api.getFranchiseHealth(userTeam.id));
     incrementSimCount();
@@ -306,10 +304,15 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
   };
 
   const handleBoxScore = async (gameId: number) => {
-    if (boxScore?.game?.id === gameId) { setBoxScore(null); return; }
+    if (boxScore?.game?.id === gameId) { setBoxScore(null); setBoxScorePlayLog([]); return; }
     setBoxScoreLoading(true);
-    const data = await window.api.getGameBoxScore(gameId);
+    const [data, log] = await Promise.all([
+      window.api.getGameBoxScore(gameId),
+      window.api.getGamePlayLog(gameId),
+    ]);
     setBoxScore(data);
+    setBoxScorePlayLog(log ?? []);
+    setShowBoxScorePlayLog(false);
     setBoxScoreLoading(false);
   };
 
@@ -585,6 +588,42 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
                         })}
                       </div>
                     ))}
+                    {boxScorePlayLog.length > 0 && (
+                      <div style={{ marginTop: 8, borderTop: `1px solid ${T.borderFaint}`, paddingTop: 8 }}>
+                        <button
+                          onClick={() => setShowBoxScorePlayLog(x => !x)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, padding: 0, marginBottom: showBoxScorePlayLog ? 8 : 0 }}
+                        >
+                          <span style={{ fontSize: 8, letterSpacing: 1.5, color: T.textMuted, textTransform: 'uppercase' }}>Play-by-Play</span>
+                          <span style={{ fontSize: 9, color: T.textDim }}>{showBoxScorePlayLog ? '▲' : '▼'}</span>
+                        </button>
+                        {showBoxScorePlayLog && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            {[1,2,3,4].map(q => {
+                              const plays = boxScorePlayLog.filter((p: any) => p.quarter === q);
+                              if (!plays.length) return null;
+                              const ICON: Record<string,string> = { td:'🏈', fg:'🎯', turnover:'⚡', bigplay:'💨' };
+                              const COLOR: Record<string,string> = { td:'#4caf50', fg:'#4FC3F7', turnover:'#FF8740', bigplay:'#FFD700' };
+                              return (
+                                <div key={q}>
+                                  <div style={{ fontSize: 8, color: T.textDim, letterSpacing: 1, padding: '4px 0 2px', borderBottom: `1px solid ${T.borderFaint}` }}>Q{q}</div>
+                                  {plays.map((play: any, i: number) => (
+                                    <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, padding: '4px 0', borderBottom: `1px solid ${T.borderFaint}` }}>
+                                      <span style={{ fontSize: 11, flexShrink: 0 }}>{ICON[play.type] ?? '•'}</span>
+                                      <div style={{ flex: 1 }}>
+                                        <div style={{ fontSize: 10, color: COLOR[play.type] ?? T.textSecondary, lineHeight: 1.3 }}>{play.description}</div>
+                                        <div style={{ fontSize: 8, color: T.textDim, marginTop: 1 }}>{play.teamName}</div>
+                                      </div>
+                                      <span style={{ fontSize: 9, fontFamily: 'monospace', color: T.textMuted, whiteSpace: 'nowrap' }}>{play.awayScore}–{play.homeScore}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </>
