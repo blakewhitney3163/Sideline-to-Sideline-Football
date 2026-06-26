@@ -18,8 +18,11 @@ interface Props {
   setExtendYears: (y: number) => void;
   releasingId: number | null;
   setReleasingId: (id: number | null) => void;
+  demotingId: number | null;
+  setDemotingId: (id: number | null) => void;
   handleExtend: (salary: string) => void;
   handleRelease: () => void;
+  handleDemoteToPs: (playerId: number) => void;
   working: boolean;
   onPlayerClick?: (playerId: number) => void;
 }
@@ -35,7 +38,8 @@ export default function ActiveRosterTab({
   posFilter, setPosFilter, sortBy, setSortBy, rosterSearch, setRosterSearch,
   extendingId, setExtendingId, extendYears, setExtendYears,
   releasingId, setReleasingId,
-  handleExtend, handleRelease, working, onPlayerClick,
+  demotingId, setDemotingId,
+  handleExtend, handleRelease, handleDemoteToPs, working, onPlayerClick,
 }: Props) {
   const salaryInputRef = useRef<HTMLInputElement>(null);
   const [capSalary, setCapSalary] = useState('');
@@ -101,7 +105,7 @@ export default function ActiveRosterTab({
         />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1.4fr 1fr 80px', gap: '0 8px', padding: '4px 8px', marginBottom: 4 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1.4fr 1fr 120px', gap: '0 8px', padding: '4px 8px', marginBottom: 4 }}>
         <span style={{ color: '#333', fontSize: 10, letterSpacing: 1 }}>PLAYER</span>
         <span style={{ color: '#333', fontSize: 10, letterSpacing: 1 }}>AGE / OVR</span>
         <span style={{ color: '#333', fontSize: 10, letterSpacing: 1 }}>DEV</span>
@@ -129,7 +133,7 @@ export default function ActiveRosterTab({
             border: `1px solid ${isExpiring ? '#3a2800' : '#1a1a1a'}`,
             borderRadius: 6, padding: '10px 12px', marginBottom: 6,
           }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1.4fr 1fr 80px', gap: '0 8px', alignItems: 'center' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1.4fr 1fr 120px', gap: '0 8px', alignItems: 'center' }}>
 
               {/* Player name + morale bar */}
               <div>
@@ -200,17 +204,34 @@ export default function ActiveRosterTab({
               </div>
 
               {/* Action buttons */}
-              <div style={{ display: 'flex', gap: 4 }}>
+              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                 <button
                   onClick={() => isExtending
                     ? setExtendingId(null)
-                    : (setExtendingId(contract.id), setReleasingId(null), setExtendYears(2))}
-                  style={{ padding: '4px 10px', background: isExtending ? '#1a3a1a' : '#141414', border: `1px solid ${isExtending ? '#4caf50' : '#2a2a2a'}`, borderRadius: 4, color: isExtending ? '#4caf50' : '#555', fontSize: 11, cursor: 'pointer' }}>
+                    : (setExtendingId(contract.id), setReleasingId(null), setDemotingId(null), setExtendYears(2))}
+                  style={{ padding: '4px 8px', background: isExtending ? '#1a3a1a' : '#141414', border: `1px solid ${isExtending ? '#4caf50' : '#2a2a2a'}`, borderRadius: 4, color: isExtending ? '#4caf50' : '#555', fontSize: 11, cursor: 'pointer' }}>
                   {isExtending ? 'Cancel' : 'Extend'}
                 </button>
                 <button
-                  onClick={() => isReleasing ? setReleasingId(null) : (setReleasingId(contract.id), setExtendingId(null))}
-                  style={{ padding: '4px 10px', background: isReleasing ? '#3a0a0a' : '#141414', border: `1px solid ${isReleasing ? '#e57373' : '#2a2a2a'}`, borderRadius: 4, color: isReleasing ? '#e57373' : '#555', fontSize: 11, cursor: 'pointer' }}>
+                  onClick={() => {
+                    const isDemoting = demotingId === contract.id;
+                    isDemoting ? setDemotingId(null) : (setDemotingId(contract.id), setExtendingId(null), setReleasingId(null));
+                  }}
+                  disabled={!!(rosterSpots && rosterSpots.psFree <= 0)}
+                  title={rosterSpots && rosterSpots.psFree <= 0 ? 'Practice squad full' : 'Send to practice squad'}
+                  style={{
+                    padding: '4px 8px', fontSize: 11, cursor: rosterSpots && rosterSpots.psFree <= 0 ? 'not-allowed' : 'pointer',
+                    borderRadius: 4,
+                    background: demotingId === contract.id ? '#1a1a3a' : '#141414',
+                    border: `1px solid ${demotingId === contract.id ? '#7986cb' : '#2a2a2a'}`,
+                    color: demotingId === contract.id ? '#7986cb' : rosterSpots && rosterSpots.psFree <= 0 ? '#2a2a2a' : '#555',
+                    opacity: rosterSpots && rosterSpots.psFree <= 0 ? 0.4 : 1,
+                  }}>
+                  ↓ PS
+                </button>
+                <button
+                  onClick={() => isReleasing ? setReleasingId(null) : (setReleasingId(contract.id), setExtendingId(null), setDemotingId(null))}
+                  style={{ padding: '4px 8px', background: isReleasing ? '#3a0a0a' : '#141414', border: `1px solid ${isReleasing ? '#e57373' : '#2a2a2a'}`, borderRadius: 4, color: isReleasing ? '#e57373' : '#555', fontSize: 11, cursor: 'pointer' }}>
                   {isReleasing ? 'Cancel' : 'Cut'}
                 </button>
               </div>
@@ -223,16 +244,16 @@ export default function ActiveRosterTab({
                 </div>
                 <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                   <div>
-  <div style={{ color: '#444', fontSize: 10, letterSpacing: 1, marginBottom: 6 }}>ADD YEARS</div>
-  <div style={{ display: 'flex', gap: 4 }}>
-    {[1,2,3,4,5].map(y => (
-      <button key={y} onClick={() => setExtendYears(y)} style={{ width: 32, height: 32, background: extendYears === y ? '#4caf50' : '#141414', border: `1px solid ${extendYears === y ? '#4caf50' : '#2a2a2a'}`, borderRadius: 4, color: extendYears === y ? '#000' : '#555', fontWeight: 'bold', fontSize: 12, cursor: 'pointer' }}>+{y}</button>
-    ))}
-  </div>
-  <div style={{ color: '#4caf50', fontSize: 10, marginTop: 4 }}>
-    {currentExtend.years_remaining}yr remaining → <strong>{currentExtend.years_remaining + extendYears}yr total</strong>
-  </div>
-</div>
+                    <div style={{ color: '#444', fontSize: 10, letterSpacing: 1, marginBottom: 6 }}>ADD YEARS</div>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      {[1,2,3,4,5].map(y => (
+                        <button key={y} onClick={() => setExtendYears(y)} style={{ width: 32, height: 32, background: extendYears === y ? '#4caf50' : '#141414', border: `1px solid ${extendYears === y ? '#4caf50' : '#2a2a2a'}`, borderRadius: 4, color: extendYears === y ? '#000' : '#555', fontWeight: 'bold', fontSize: 12, cursor: 'pointer' }}>+{y}</button>
+                      ))}
+                    </div>
+                    <div style={{ color: '#4caf50', fontSize: 10, marginTop: 4 }}>
+                      {currentExtend.years_remaining}yr remaining → <strong>{currentExtend.years_remaining + extendYears}yr total</strong>
+                    </div>
+                  </div>
                   <div>
                     <div style={{ color: '#444', fontSize: 10, letterSpacing: 1, marginBottom: 6 }}>ANNUAL SALARY (M)</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -278,6 +299,26 @@ export default function ActiveRosterTab({
                     {working ? '...' : 'Confirm Release'}
                   </button>
                   <button onClick={() => setReleasingId(null)} style={{ padding: '6px 16px', background: '#141414', border: '1px solid #2a2a2a', borderRadius: 4, color: '#555', fontSize: 12, cursor: 'pointer' }}>Cancel</button>
+                </div>
+              </div>
+            )}
+
+            {demotingId === contract.id && (
+              <div style={{ marginTop: 10, padding: '10px 14px', background: '#0d0d1a', border: '1px solid #2a2a5a', borderRadius: 6 }}>
+                <div style={{ color: '#aaa', fontSize: 12, marginBottom: 4 }}>
+                  Send {contract.first_name} {contract.last_name} to the practice squad?
+                </div>
+                <div style={{ color: '#555', fontSize: 11, marginBottom: 8 }}>
+                  Contract drops to PS minimum ($1.2M). Frees {fmtSalary(Math.max(0, contract.annual_salary - 1.165))} in cap space.
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => handleDemoteToPs(contract.id)}
+                    disabled={working}
+                    style={{ padding: '6px 16px', background: '#7986cb', border: 'none', borderRadius: 4, color: '#000', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+                    {working ? '...' : 'Confirm → PS'}
+                  </button>
+                  <button onClick={() => setDemotingId(null)} style={{ padding: '6px 16px', background: '#141414', border: '1px solid #2a2a2a', borderRadius: 4, color: '#555', fontSize: 12, cursor: 'pointer' }}>Cancel</button>
                 </div>
               </div>
             )}
