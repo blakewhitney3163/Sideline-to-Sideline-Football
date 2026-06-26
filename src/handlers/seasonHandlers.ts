@@ -31,7 +31,7 @@ export function registerSeasonHandlers(): void {
       ORDER BY wins DESC, losses ASC
     `).all(season));
 
-  ipcMain.handle('get-dashboard', (_event: any, season: number) => {
+    ipcMain.handle('get-dashboard', (_event: any, season: number) => {
     const userTeamId = settingsRepo.getUserTeamId();
     if (!userTeamId) return null;
     const team = db.prepare('SELECT id, city, name, abbreviation, conference, division FROM teams WHERE id = ?').get(userTeamId) as any;
@@ -53,6 +53,7 @@ export function registerSeasonHandlers(): void {
 
     const allStandings = db.prepare(`
       SELECT t.id, t.city, t.name, t.abbreviation, t.conference,
+        (t.city || ' ' || t.name) as team_name,
         COALESCE(SUM(CASE WHEN (g.home_team_id = t.id AND g.home_score > g.away_score)
                           OR (g.away_team_id = t.id AND g.away_score > g.home_score) THEN 1 ELSE 0 END), 0) as wins,
         COALESCE(SUM(CASE WHEN (g.home_team_id = t.id AND g.home_score < g.away_score)
