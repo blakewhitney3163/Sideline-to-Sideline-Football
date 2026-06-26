@@ -1,70 +1,90 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { T } from './theme';
 import { useGameStore } from './store/gameStore';
 
 declare const window: any;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface PlayoffTeam { id: number; city: string; name: string; wins: number; }
-interface PlayoffGame {
-  home: PlayoffTeam; away: PlayoffTeam;
-  homeScore: number; awayScore: number;
-  winner: PlayoffTeam;
+interface BracketTeam { id: number; city: string; name: string; }
+
+interface BracketGame {
+  id: number;
+  week: number;
+  homeTeam: BracketTeam;
+  awayTeam: BracketTeam;
+  homeScore: number;
+  awayScore: number;
+  isSimulated: boolean;
+  winner: BracketTeam | null;
 }
-interface ConferenceBracket {
-  seeds: PlayoffTeam[];
-  wildCard: PlayoffGame[];    // [2v7, 3v6, 4v5]
-  divisional: PlayoffGame[];  // [seed1 vs wc2w, wc0w vs wc1w]
-  championship: PlayoffGame;
+
+interface ConferenceBracketData {
+  wildCard: BracketGame[];
+  divisional: BracketGame[];
+  championship: BracketGame | null;
 }
-interface PlayoffData {
-  afc: ConferenceBracket;
-  nfc: ConferenceBracket;
-  gridironCup: PlayoffGame;
-}
-interface Props {
-  data?: PlayoffData | null;
-  setData?: (d: PlayoffData) => void;
+
+interface PlayoffState {
+  initialized: boolean;
+  complete: boolean;
+  champion: BracketTeam | null;
+  afcSeeds: BracketTeam[];
+  nfcSeeds: BracketTeam[];
+  afc: ConferenceBracketData;
+  nfc: ConferenceBracketData;
+  gridironCup: BracketGame | null;
 }
 
 // ─── Layout constants ─────────────────────────────────────────────────────────
 
-const SLOT    = 82;               // px per bracket slot
-const CONF_H  = 4 * SLOT;         // 328px — total bracket height
-const CARD_H  = 66;               // game card height
-const CARD_PAD = (SLOT - CARD_H) / 2;  // 8px — vertical offset within slot
-const COL_W   = 250;              // round column width
-const GAP     = 20;               // gap between columns (connector lane)
-const BRKT_W  = COL_W * 3 + GAP * 2; // 790px total bracket width
+const SLOT     = 82;
+const CONF_H   = 4 * SLOT;
+const CARD_H   = 66;
+const CARD_PAD = (SLOT - CARD_H) / 2;
+const COL_W    = 250;
+const GAP      = 20;
+const BRKT_W   = COL_W * 3 + GAP * 2;
 
-// Slot center y-coordinates
 const slotCY  = (i: number) => i * SLOT + SLOT / 2;
-const WC_CY   = [0, 1, 2, 3].map(slotCY);            // [41, 123, 205, 287]
-const DIV_CY  = [
-  (WC_CY[0] + WC_CY[1]) / 2,  // 82  — top divisional
-  (WC_CY[2] + WC_CY[3]) / 2,  // 246 — bottom divisional
-];
-const CHAMP_CY = (DIV_CY[0] + DIV_CY[1]) / 2;        // 164
+const WC_CY   = [0, 1, 2, 3].map(slotCY);
+const DIV_CY  = [(WC_CY[0] + WC_CY[1]) / 2, (WC_CY[2] + WC_CY[3]) / 2];
+const CHAMP_CY = (DIV_CY[0] + DIV_CY[1]) / 2;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function seed(seeds: PlayoffTeam[], teamId: number) {
-  const i = seeds.findIndex(s => s.id === teamId);
-  return i >= 0 ? i + 1 : 0;
+function seedNum(seeds: BracketTeam[], teamId: number): number {
+  const idx = seeds.findIndex(s => s.id === teamId);
+  return idx >= 0 ? idx + 1 : 0;
 }
 
-// ─── Team row inside a game card ──────────────────────────────────────────────
+function allGames(state: PlayoffState): BracketGame[] {
+  return [
+    ...state.afc.wildCard,
+    ...state.nfc.wildCard,
+    ...state.afc.divisional,
+    ...state.nfc.divisional,
+    state.afc.championship,
+    state.nfc.championship,
+    state.gridironCup,
+  ].filter((g): g is BracketGame => g !== null);
+}
 
-function TeamRow({ team, score, won, s, isUser }: {
-  team: PlayoffTeam; score: number; won: boolean; s: number; isUser: boolean;
+function currentRoundWeek(state: PlayoffState): number {
+  const pending = allGames(state).filter(g => !g.isSimulated);
+  if (pending.length === 0) return 21;
+  return Math.min(...pending.map(g => g.week));
+}
+
+// ─── Team row ─────────────────────────────────────────────────────────────────
+
+function TeamRow({ team, score, won, sn, isUser }: {
+  team: BracketTeam; score: number; won: boolean; sn: number; isUser: boolean;
 }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', padding: '4px 10px', gap: 6 }}>
-      <span style={{
-        color: '#2a2a2a', fontSize: 9, fontWeight: 700,
-        width: 12, textAlign: 'right', flexShrink: 0,
-      }}>
-        {s > 0 ? s : ''}
+      <span style={{ color: '#2a2a2a', fontSize: 9, fontWeight: 700, width: 12, textAlign: 'right', flexShrink: 0 }}>
+        {sn > 0 ? sn : ''}
       </span>
       <span style={{
         flex: 1, fontSize: 11,
@@ -85,40 +105,97 @@ function TeamRow({ team, score, won, s, isUser }: {
   );
 }
 
-// ─── Game card ────────────────────────────────────────────────────────────────
+// ─── Game card (completed or pending) ─────────────────────────────────────────
 
-function GameCard({ game, seeds, userTeamId, style }: {
-  game: PlayoffGame; seeds: PlayoffTeam[]; userTeamId: number;
+function GameCard({ game, seeds, userTeamId, onSimulate, isSimulating, style }: {
+  game: BracketGame;
+  seeds: BracketTeam[];
+  userTeamId: number;
+  onSimulate?: (gameId: number) => void;
+  isSimulating?: boolean;
   style?: React.CSSProperties;
 }) {
-  const homeWon = game.winner.id === game.home.id;
+  const isUserGame = game.homeTeam.id === userTeamId || game.awayTeam.id === userTeamId;
+
+  if (!game.isSimulated) {
+    return (
+      <div style={{
+        height: CARD_H,
+        background: '#080808',
+        border: `1px dashed ${isUserGame ? 'rgba(255,135,64,0.5)' : '#1c1c1c'}`,
+        borderRadius: 5,
+        display: 'flex', flexDirection: 'column', justifyContent: 'center',
+        padding: '6px 10px', gap: 4, ...style,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ color: '#2a2a2a', fontSize: 9, width: 12 }}>{seedNum(seeds, game.homeTeam.id) || ''}</span>
+          <span style={{ flex: 1, fontSize: 10, color: isUserGame ? '#FF8740' : '#444', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {game.homeTeam.city} {game.homeTeam.name}
+          </span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ color: '#2a2a2a', fontSize: 9, width: 12 }}>{seedNum(seeds, game.awayTeam.id) || ''}</span>
+          <span style={{ flex: 1, fontSize: 10, color: isUserGame ? '#FF8740' : '#444', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {game.awayTeam.city} {game.awayTeam.name}
+          </span>
+          {onSimulate && (
+            <button
+              onClick={() => onSimulate(game.id)}
+              disabled={isSimulating}
+              style={{
+                padding: '2px 8px', fontSize: 9, cursor: isSimulating ? 'not-allowed' : 'pointer',
+                borderRadius: 3, flexShrink: 0,
+                background: isUserGame ? 'rgba(255,135,64,0.12)' : '#0e0e0e',
+                border: `1px solid ${isUserGame ? '#FF8740' : '#2a2a2a'}`,
+                color: isUserGame ? '#FF8740' : '#555',
+              }}
+            >
+              {isSimulating ? '…' : isUserGame ? '▶ Play' : 'Sim'}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const homeWon = game.winner?.id === game.homeTeam.id;
   return (
     <div style={{
       height: CARD_H,
       background: '#0e0e0e', border: '1px solid #1e1e1e',
       borderRadius: 5, overflow: 'hidden',
-      display: 'flex', flexDirection: 'column', justifyContent: 'center',
-      ...style,
+      display: 'flex', flexDirection: 'column', justifyContent: 'center', ...style,
     }}>
-      <TeamRow
-        team={game.home} score={game.homeScore} won={homeWon}
-        s={seed(seeds, game.home.id)} isUser={game.home.id === userTeamId}
-      />
+      <TeamRow team={game.homeTeam} score={game.homeScore} won={homeWon}
+        sn={seedNum(seeds, game.homeTeam.id)} isUser={game.homeTeam.id === userTeamId} />
       <div style={{ height: 1, background: '#1a1a1a', margin: '0 6px' }} />
-      <TeamRow
-        team={game.away} score={game.awayScore} won={!homeWon}
-        s={seed(seeds, game.away.id)} isUser={game.away.id === userTeamId}
-      />
+      <TeamRow team={game.awayTeam} score={game.awayScore} won={!homeWon}
+        sn={seedNum(seeds, game.awayTeam.id)} isUser={game.awayTeam.id === userTeamId} />
     </div>
   );
 }
 
-// ─── Bye card (seed 1) ────────────────────────────────────────────────────────
+// ─── Placeholder for games not yet created ────────────────────────────────────
+
+function TbdCard({ style }: { style?: React.CSSProperties }) {
+  return (
+    <div style={{
+      height: CARD_H,
+      background: '#050505', border: '1px dashed #111',
+      borderRadius: 5,
+      display: 'flex', alignItems: 'center', justifyContent: 'center', ...style,
+    }}>
+      <span style={{ color: '#222', fontSize: 10, letterSpacing: 1 }}>TBD</span>
+    </div>
+  );
+}
+
+// ─── Bye card ─────────────────────────────────────────────────────────────────
 
 function ByeCard({ team, seeds, userTeamId }: {
-  team: PlayoffTeam; seeds: PlayoffTeam[]; userTeamId: number;
+  team: BracketTeam; seeds: BracketTeam[]; userTeamId: number;
 }) {
-  const s = seed(seeds, team.id);
+  const sn = seedNum(seeds, team.id);
   const isUser = team.id === userTeamId;
   return (
     <div style={{
@@ -127,7 +204,7 @@ function ByeCard({ team, seeds, userTeamId }: {
       borderRadius: 5,
       display: 'flex', alignItems: 'center', padding: '0 10px', gap: 6,
     }}>
-      <span style={{ color: '#2a2a2a', fontSize: 9, fontWeight: 700, width: 12, textAlign: 'right' }}>{s}</span>
+      <span style={{ color: '#2a2a2a', fontSize: 9, fontWeight: 700, width: 12, textAlign: 'right' }}>{sn}</span>
       <span style={{
         flex: 1, fontSize: 11,
         color: isUser ? '#FF8740' : '#3a3a3a',
@@ -145,36 +222,25 @@ function ByeCard({ team, seeds, userTeamId }: {
 function BracketLines() {
   const stroke = '#1e1e1e';
   const sw = 1.5;
-
   const wcR    = COL_W;
   const divL   = COL_W + GAP;
   const divR   = COL_W * 2 + GAP;
   const champL = COL_W * 2 + GAP * 2;
-  const m1     = wcR  + GAP / 2;   // midpoint between WC and DIV
-  const m2     = divR + GAP / 2;   // midpoint between DIV and CHAMP
-
+  const m1     = wcR  + GAP / 2;
+  const m2     = divR + GAP / 2;
   const [wc0, wc1, wc2, byeY] = WC_CY;
-  const [d0, d1] = DIV_CY;  // d0=top pair, d1=bottom pair
+  const [d0, d1] = DIV_CY;
   const ch = CHAMP_CY;
-
   return (
-    <svg
-      width={BRKT_W} height={CONF_H}
-      style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}
-    >
-      {/* ── WC pair 0+1 (2v7 & 3v6) → top divisional ── */}
+    <svg width={BRKT_W} height={CONF_H} style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}>
       <line x1={wcR} y1={wc0} x2={m1} y2={wc0} stroke={stroke} strokeWidth={sw} />
       <line x1={wcR} y1={wc1} x2={m1} y2={wc1} stroke={stroke} strokeWidth={sw} />
       <line x1={m1}  y1={wc0} x2={m1} y2={wc1} stroke={stroke} strokeWidth={sw} />
       <line x1={m1}  y1={d0}  x2={divL} y2={d0} stroke={stroke} strokeWidth={sw} />
-
-      {/* ── WC pair 2+bye (4v5 & seed1) → bottom divisional ── */}
       <line x1={wcR} y1={wc2}  x2={m1} y2={wc2}  stroke={stroke} strokeWidth={sw} />
       <line x1={wcR} y1={byeY} x2={m1} y2={byeY} stroke={stroke} strokeWidth={sw} />
       <line x1={m1}  y1={wc2}  x2={m1} y2={byeY} stroke={stroke} strokeWidth={sw} />
       <line x1={m1}  y1={d1}   x2={divL} y2={d1}  stroke={stroke} strokeWidth={sw} />
-
-      {/* ── DIV pair → championship ── */}
       <line x1={divR} y1={d0} x2={m2} y2={d0} stroke={stroke} strokeWidth={sw} />
       <line x1={divR} y1={d1} x2={m2} y2={d1} stroke={stroke} strokeWidth={sw} />
       <line x1={m2}   y1={d0} x2={m2} y2={d1} stroke={stroke} strokeWidth={sw} />
@@ -185,18 +251,31 @@ function BracketLines() {
 
 // ─── Conference bracket ───────────────────────────────────────────────────────
 
-function ConferenceBracket({ bracket, label, userTeamId }: {
-  bracket: ConferenceBracket; label: string; userTeamId: number;
+function ConferenceBracket({ bracket, seeds, label, userTeamId, onSimulate, simulatingId }: {
+  bracket: ConferenceBracketData;
+  seeds: BracketTeam[];
+  label: string;
+  userTeamId: number;
+  onSimulate: (gameId: number) => void;
+  simulatingId: number | null;
 }) {
-  const { seeds, wildCard, divisional, championship } = bracket;
-
+  const { wildCard, divisional, championship } = bracket;
   const wcTop    = (slot: number) => slot * SLOT + CARD_PAD;
-  const divTop   = (idx: number)  => DIV_CY[idx] - CARD_H / 2;
+  const divTop   = (idx: number) => DIV_CY[idx] - CARD_H / 2;
   const champTop = CHAMP_CY - CARD_H / 2;
+
+  const renderGame = (game: BracketGame | null | undefined) => {
+    if (!game) return <TbdCard />;
+    return (
+      <GameCard
+        game={game} seeds={seeds} userTeamId={userTeamId}
+        onSimulate={onSimulate} isSimulating={simulatingId === game.id}
+      />
+    );
+  };
 
   return (
     <div style={{ marginBottom: 12 }}>
-      {/* Round column labels */}
       <div style={{ display: 'flex', width: BRKT_W, marginBottom: 6 }}>
         {[
           { label: `${label} · WILD CARD`, w: COL_W },
@@ -218,37 +297,31 @@ function ConferenceBracket({ bracket, label, userTeamId }: {
         ))}
       </div>
 
-      {/* Bracket canvas */}
       <div style={{ position: 'relative', height: CONF_H, width: BRKT_W }}>
         <BracketLines />
 
-        {/* Wild Card — 3 games + bye */}
         <div style={{ position: 'absolute', left: 0, top: wcTop(0), width: COL_W }}>
-          <GameCard game={wildCard[0]} seeds={seeds} userTeamId={userTeamId} />
+          {renderGame(wildCard[0])}
         </div>
         <div style={{ position: 'absolute', left: 0, top: wcTop(1), width: COL_W }}>
-          <GameCard game={wildCard[1]} seeds={seeds} userTeamId={userTeamId} />
+          {renderGame(wildCard[1])}
         </div>
         <div style={{ position: 'absolute', left: 0, top: wcTop(2), width: COL_W }}>
-          <GameCard game={wildCard[2]} seeds={seeds} userTeamId={userTeamId} />
+          {renderGame(wildCard[2])}
         </div>
         <div style={{ position: 'absolute', left: 0, top: wcTop(3), width: COL_W }}>
-          <ByeCard team={seeds[0]} seeds={seeds} userTeamId={userTeamId} />
+          {seeds[0] ? <ByeCard team={seeds[0]} seeds={seeds} userTeamId={userTeamId} /> : <TbdCard />}
         </div>
 
-        {/* Divisional
-            divisional[1] = WC[0]w vs WC[1]w  → top pair → DIV_CY[0]
-            divisional[0] = seed1  vs WC[2]w  → bot pair → DIV_CY[1] */}
         <div style={{ position: 'absolute', left: COL_W + GAP, top: divTop(0), width: COL_W }}>
-          <GameCard game={divisional[1]} seeds={seeds} userTeamId={userTeamId} />
+          {renderGame(divisional[1])}
         </div>
         <div style={{ position: 'absolute', left: COL_W + GAP, top: divTop(1), width: COL_W }}>
-          <GameCard game={divisional[0]} seeds={seeds} userTeamId={userTeamId} />
+          {renderGame(divisional[0])}
         </div>
 
-        {/* Championship */}
         <div style={{ position: 'absolute', left: (COL_W + GAP) * 2, top: champTop, width: COL_W }}>
-          <GameCard game={championship} seeds={seeds} userTeamId={userTeamId} />
+          {renderGame(championship)}
         </div>
       </div>
     </div>
@@ -257,77 +330,178 @@ function ConferenceBracket({ bracket, label, userTeamId }: {
 
 // ─── Gridiron Cup ─────────────────────────────────────────────────────────────
 
-function GridironCup({ game, afcSeeds, nfcSeeds, userTeamId }: {
-  game: PlayoffGame; afcSeeds: PlayoffTeam[]; nfcSeeds: PlayoffTeam[]; userTeamId: number;
+function GridironCup({ game, afcSeeds, nfcSeeds, userTeamId, onSimulate, isSimulating }: {
+  game: BracketGame | null;
+  afcSeeds: BracketTeam[];
+  nfcSeeds: BracketTeam[];
+  userTeamId: number;
+  onSimulate: (gameId: number) => void;
+  isSimulating: boolean;
 }) {
-  const homeWon = game.winner.id === game.home.id;
   const allSeeds = [...afcSeeds, ...nfcSeeds];
 
-  const Block = ({ team, score, won }: { team: PlayoffTeam; score: number; won: boolean }) => (
+  if (!game) {
+    return (
+      <div style={{
+        width: BRKT_W, marginBottom: 12,
+        background: '#0a0a0a', border: '1px dashed #1a1a1a', borderRadius: 8,
+        padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <span style={{ color: '#1e1e1e', fontSize: 11, letterSpacing: 2 }}>GRIDIRON CUP — TBD</span>
+      </div>
+    );
+  }
+
+  if (!game.isSimulated) {
+    const isUserGame = game.homeTeam.id === userTeamId || game.awayTeam.id === userTeamId;
+    return (
+      <div style={{
+        width: BRKT_W, marginBottom: 12,
+        background: '#0a0a0a', border: `1px dashed ${isUserGame ? 'rgba(255,215,0,0.3)' : '#2a2a00'}`,
+        borderRadius: 8, padding: '16px 20px',
+      }}>
+        <div style={{ textAlign: 'center', color: '#3a3a00', fontSize: 9, letterSpacing: 2, marginBottom: 12 }}>
+          GRIDIRON CUP
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 20 }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ color: '#2a2a2a', fontSize: 9, marginBottom: 4 }}>#{seedNum(allSeeds, game.homeTeam.id)}</div>
+            <div style={{ fontSize: 13, color: game.homeTeam.id === userTeamId ? '#FF8740' : '#444' }}>
+              {game.homeTeam.city} {game.homeTeam.name}
+            </div>
+          </div>
+          <div style={{ color: '#2a2a2a', fontSize: 14, fontWeight: 700 }}>vs</div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ color: '#2a2a2a', fontSize: 9, marginBottom: 4 }}>#{seedNum(allSeeds, game.awayTeam.id)}</div>
+            <div style={{ fontSize: 13, color: game.awayTeam.id === userTeamId ? '#FF8740' : '#444' }}>
+              {game.awayTeam.city} {game.awayTeam.name}
+            </div>
+          </div>
+          <button
+            onClick={() => onSimulate(game.id)}
+            disabled={isSimulating}
+            style={{
+              padding: '7px 18px', fontSize: 11, cursor: isSimulating ? 'not-allowed' : 'pointer',
+              borderRadius: 4,
+              background: isUserGame ? 'rgba(255,215,0,0.1)' : '#111',
+              border: `1px solid ${isUserGame ? '#FFD700' : '#2a2a00'}`,
+              color: isUserGame ? '#FFD700' : '#555',
+              fontWeight: 600, marginLeft: 20,
+            }}
+          >
+            {isSimulating ? 'Simulating…' : isUserGame ? '▶ Play Gridiron Cup' : '🏆 Simulate Cup'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const homeWon = game.winner?.id === game.homeTeam.id;
+  const Block = ({ team, score, won }: { team: BracketTeam; score: number; won: boolean }) => (
     <div style={{
       flex: 1, textAlign: 'center', padding: '14px 16px', borderRadius: 6,
       background: won ? 'rgba(255,215,0,0.04)' : 'transparent',
       border: won ? '1px solid rgba(255,215,0,0.15)' : '1px solid transparent',
     }}>
       <div style={{ color: '#333', fontSize: 9, letterSpacing: 1, marginBottom: 4 }}>
-        #{seed(allSeeds, team.id)} SEED
+        #{seedNum(allSeeds, team.id)} SEED
       </div>
-      <div style={{
-        fontSize: 13, fontWeight: 700, marginBottom: 10,
-        color: team.id === userTeamId ? '#FF8740' : won ? '#FFD700' : '#555',
-      }}>
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, color: team.id === userTeamId ? '#FF8740' : won ? '#FFD700' : '#555' }}>
         {team.city} {team.name}
       </div>
-      <div style={{ fontSize: 36, fontWeight: 800, color: won ? '#fff' : '#222' }}>
-        {score}
-      </div>
-      {won && (
-        <div style={{ fontSize: 10, color: '#FFD700', marginTop: 8, letterSpacing: 1 }}>
-          🏆 GRIDIRON CUP CHAMPION
-        </div>
-      )}
+      <div style={{ fontSize: 36, fontWeight: 800, color: won ? '#fff' : '#222' }}>{score}</div>
+      {won && <div style={{ fontSize: 10, color: '#FFD700', marginTop: 8, letterSpacing: 1 }}>🏆 GRIDIRON CUP CHAMPION</div>}
     </div>
   );
-
   return (
     <div style={{
       width: BRKT_W, marginBottom: 12,
-      background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: 8,
-      padding: '12px 20px',
+      background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: 8, padding: '12px 20px',
     }}>
-      <div style={{ textAlign: 'center', color: '#2a2a2a', fontSize: 9, letterSpacing: 2, marginBottom: 10 }}>
-        GRIDIRON CUP
-      </div>
+      <div style={{ textAlign: 'center', color: '#2a2a2a', fontSize: 9, letterSpacing: 2, marginBottom: 10 }}>GRIDIRON CUP</div>
       <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-        <Block team={game.home} score={game.homeScore} won={homeWon} />
+        <Block team={game.homeTeam} score={game.homeScore} won={homeWon} />
         <div style={{ color: '#1e1e1e', fontSize: 20, fontWeight: 700, flexShrink: 0 }}>vs</div>
-        <Block team={game.away} score={game.awayScore} won={!homeWon} />
+        <Block team={game.awayTeam} score={game.awayScore} won={!homeWon} />
       </div>
     </div>
   );
 }
 
-// ─── Main export ──────────────────────────────────────────────────────────────
+// ─── Main component ───────────────────────────────────────────────────────────
 
-export default function Playoffs({ data: propData, setData: propSetData }: Props = {}) {
-  const { currentSeason, userTeam } = useGameStore();
-  const [simulating, setSimulating] = useState(false);
-  const [localData, setLocalData]   = useState<PlayoffData | null>(propData ?? null);
+export default function Playoffs() {
+  const { currentSeason, userTeam, setPlayoffsComplete, playoffsComplete } = useGameStore();
+  const [state, setState] = useState<PlayoffState | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [simulatingId, setSimulatingId] = useState<number | null>(null);
+  const [simulatingAll, setSimulatingAll] = useState(false);
+  const [starting, setStarting] = useState(false);
 
-  const data    = propData    !== undefined ? propData    : localData;
-  const setData = propSetData !== undefined ? propSetData : setLocalData;
   const userTeamId = userTeam?.id ?? -1;
 
-  const handleSimulate = async () => {
-    setSimulating(true);
-    const result = await window.api.simulatePlayoffs(currentSeason);
-    setData(result);
-    setSimulating(false);
+  const loadState = useCallback(async () => {
+    const result = await window.api.getPlayoffState(currentSeason);
+    setState(result?.initialized ? result : null);
+    setLoading(false);
+    if (result?.complete && !playoffsComplete) {
+      setPlayoffsComplete(true);
+    }
+  }, [currentSeason]);
+
+  useEffect(() => { loadState(); }, [loadState]);
+
+  const handleSimulateGame = async (gameId: number) => {
+    setSimulatingId(gameId);
+    await window.api.simulatePlayoffGame(gameId);
+    await loadState();
+    setSimulatingId(null);
   };
+
+  const handleSimulateAllRemaining = async () => {
+    setSimulatingAll(true);
+    try {
+      let iterations = 0;
+      while (iterations < 4) {
+        const current = await window.api.getPlayoffState(currentSeason);
+        if (!current?.initialized || current.complete) break;
+        const pending = allGames(current).filter((g: BracketGame) => !g.isSimulated);
+        if (pending.length === 0) break;
+        const roundWeek = Math.min(...pending.map((g: BracketGame) => g.week));
+        const roundPending = pending.filter((g: BracketGame) => g.week === roundWeek);
+        for (const game of roundPending) {
+          await window.api.simulatePlayoffGame(game.id);
+        }
+        iterations++;
+      }
+      await loadState();
+    } finally {
+      setSimulatingAll(false);
+    }
+  };
+
+  const handleStartPlayoffs = async () => {
+    setStarting(true);
+    await window.api.initPlayoffs(currentSeason);
+    await loadState();
+    setStarting(false);
+  };
+
+  if (loading) {
+    return (
+      <div style={{ padding: '60px 24px', textAlign: 'center', color: T.textDim, fontSize: 13 }}>
+        Loading…
+      </div>
+    );
+  }
+
+  const roundLabel = state ? (() => {
+    const week = currentRoundWeek(state);
+    return { 18: 'Wild Card', 19: 'Divisional', 20: 'Conference Championship', 21: 'Gridiron Cup' }[week] ?? '';
+  })() : '';
 
   return (
     <div style={{ padding: '20px 24px', maxWidth: 900, margin: '0 auto' }}>
-
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
         <div>
@@ -335,42 +509,69 @@ export default function Playoffs({ data: propData, setData: propSetData }: Props
             {currentSeason} Playoffs
           </h1>
           <p style={{ color: '#444', fontSize: 12, margin: '2px 0 0' }}>
-            14 teams · Wild Card → Divisional → Conference Championship → Gridiron Cup
+            {state?.complete
+              ? `🏆 ${state.champion?.city} ${state.champion?.name} — Gridiron Cup Champions`
+              : state
+              ? `${roundLabel} Round${state ? ' — click Sim on each game or simulate all at once' : ''}`
+              : '14 teams · Wild Card → Divisional → Conference Championship → Gridiron Cup'}
           </p>
         </div>
-        <button
-          onClick={handleSimulate}
-          disabled={simulating}
-          style={{
-            marginLeft: 'auto', padding: '8px 20px',
-            background: simulating ? '#141414' : '#FF8740',
-            border: 'none', borderRadius: 5,
-            color: simulating ? '#444' : '#000',
-            fontWeight: 700, fontSize: 12,
-            cursor: simulating ? 'not-allowed' : 'pointer',
-          }}
-        >
-          {simulating ? 'Simulating…' : data ? 'Re-Simulate' : 'Simulate Playoffs'}
-        </button>
+
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 10 }}>
+          {!state && (
+            <button
+              onClick={handleStartPlayoffs}
+              disabled={starting}
+              style={{
+                padding: '8px 20px', background: starting ? '#141414' : '#FF8740',
+                border: 'none', borderRadius: 5,
+                color: starting ? '#444' : '#000', fontWeight: 700, fontSize: 12,
+                cursor: starting ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {starting ? 'Setting up…' : '▶ Start Playoffs'}
+            </button>
+          )}
+          {state && !state.complete && (
+            <button
+              onClick={handleSimulateAllRemaining}
+              disabled={simulatingAll || simulatingId !== null}
+              style={{
+                padding: '8px 20px',
+                background: simulatingAll ? '#141414' : '#1a1a1a',
+                border: '1px solid #333', borderRadius: 5,
+                color: simulatingAll ? '#444' : '#888', fontSize: 12,
+                cursor: simulatingAll ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {simulatingAll ? 'Simulating…' : 'Simulate All Remaining'}
+            </button>
+          )}
+        </div>
       </div>
 
-      {!data ? (
+      {!state ? (
         <div style={{ textAlign: 'center', padding: '60px 0', color: '#2a2a2a', fontSize: 14 }}>
-          Click "Simulate Playoffs" to run the bracket.
+          Click "Start Playoffs" to begin. You'll be able to simulate each game individually.
         </div>
       ) : (
         <div style={{ overflowX: 'auto' }}>
-          <ConferenceBracket bracket={data.afc} label="AFC" userTeamId={userTeamId} />
-          <GridironCup
-            game={data.gridironCup}
-            afcSeeds={data.afc.seeds}
-            nfcSeeds={data.nfc.seeds}
-            userTeamId={userTeamId}
+          <ConferenceBracket
+            bracket={state.afc} seeds={state.afcSeeds} label="AFC"
+            userTeamId={userTeamId} onSimulate={handleSimulateGame} simulatingId={simulatingId}
           />
-          <ConferenceBracket bracket={data.nfc} label="NFC" userTeamId={userTeamId} />
+          <GridironCup
+            game={state.gridironCup}
+            afcSeeds={state.afcSeeds} nfcSeeds={state.nfcSeeds}
+            userTeamId={userTeamId}
+            onSimulate={handleSimulateGame} isSimulating={simulatingId === state.gridironCup?.id || simulatingAll}
+          />
+          <ConferenceBracket
+            bracket={state.nfc} seeds={state.nfcSeeds} label="NFC"
+            userTeamId={userTeamId} onSimulate={handleSimulateGame} simulatingId={simulatingId}
+          />
         </div>
       )}
-
     </div>
   );
 }
