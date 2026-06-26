@@ -168,7 +168,7 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
         if (!cancelled) setMatchups(data);
       } else if (seasonDone && !champForSeason) {
         const [seeds, weekData] = await Promise.all([window.api.getPlayoffSeeds(), window.api.getWeekMatchups(18)]);
-        if (!cancelled) { setPlayoffSeeds(seeds); setMatchups(weekData); }
+        if (!cancelled) { setPlayoffSeeds(seats); setMatchups(weekData); }
       } else if (seasonDone && champForSeason) {
         const [results, weekData, awards] = await Promise.all([
           window.api.getPlayoffs(currentSeason),
