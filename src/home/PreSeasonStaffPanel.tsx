@@ -98,6 +98,8 @@ export default function PreSeasonStaffPanel({
   const [working, setWorking]               = useState(false);
   const [confirmed, setConfirmed]           = useState(false);
   const [coachingBudget, setCoachingBudget] = useState(DEFAULT_BUDGET);
+  const [budgetRequestUsed, setBudgetRequestUsed] = useState(false);
+  const [budgetRequestMsg, setBudgetRequestMsg]   = useState<string | null>(null);
 
   const loadData = async () => {
     const [s, a, sc, asc, tmpl] = await Promise.all([
@@ -129,6 +131,25 @@ export default function PreSeasonStaffPanel({
   const getDuration = (coachId: number) => pendingDuration[coachId] ?? 2;
 
   const canAfford = (salary: number) => totalCoachSalary + salary <= coachingBudget;
+
+  const handleRequestBudget = async () => {
+    if (budgetRequestUsed) return;
+    setBudgetRequestUsed(true);
+    const patience = parseInt(await window.api.getSetting('owner_patience') ?? '75', 10);
+    let grant = 0;
+    let msg = '';
+    if (patience > 70) {
+      grant = (Math.floor(Math.random() * 3) + 4) * 1_000_000; // $4–6M
+      msg = `✓ The owner is confident in the direction — granted ${fmtM(grant)} in additional coaching budget.`;
+    } else if (patience >= 40) {
+      grant = (Math.floor(Math.random() * 2) + 2) * 1_000_000; // $2–3M
+      msg = `✓ The owner approved a modest increase — granted ${fmtM(grant)} in additional coaching budget.`;
+    } else {
+      msg = `✗ The owner isn't willing to invest further right now. Improve results to unlock more budget.`;
+    }
+    if (grant > 0) setCoachingBudget(prev => prev + grant);
+    setBudgetRequestMsg(msg);
+  };
 
   const handleHireCoach = async (coach: Coach) => {
     if (!canAfford(coach.salary)) return;
@@ -199,21 +220,38 @@ export default function PreSeasonStaffPanel({
         </div>
 
         {/* Coaching Budget */}
-        <div style={{
-          textAlign: 'right',
-          background: overBudget ? '#1a0000' : '#0a1a0a',
-          border: `1px solid ${overBudget ? '#3a1a1a' : '#1a3a1a'}`,
-          borderRadius: 6, padding: '8px 14px',
-        }}>
-          <div style={{ fontSize: 8, color: T.textMuted, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 2 }}>
-            Coaching Budget
+        <div style={{ textAlign: 'right' }}>
+          <div style={{
+            background: overBudget ? '#1a0000' : '#0a1a0a',
+            border: `1px solid ${overBudget ? '#3a1a1a' : '#1a3a1a'}`,
+            borderRadius: 6, padding: '8px 14px', marginBottom: 6,
+          }}>
+            <div style={{ fontSize: 8, color: T.textMuted, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 2 }}>
+              Coaching Budget
+            </div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: overBudget ? '#e57373' : '#4caf50' }}>
+              {fmtM(Math.max(0, budgetRemaining))}
+            </div>
+            <div style={{ fontSize: 8, color: T.textDim, marginTop: 1 }}>
+              {fmtM(totalCoachSalary)} of {fmtM(coachingBudget)} used
+            </div>
           </div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: overBudget ? '#e57373' : '#4caf50' }}>
-            {fmtM(Math.max(0, budgetRemaining))}
-          </div>
-          <div style={{ fontSize: 8, color: T.textDim, marginTop: 1 }}>
-            {fmtM(totalCoachSalary)} of {fmtM(coachingBudget)} used
-          </div>
+          {!budgetRequestUsed ? (
+            <button onClick={handleRequestBudget} style={{
+              fontSize: 9, padding: '4px 10px', borderRadius: 4, cursor: 'pointer',
+              background: 'none', border: '1px solid #2a1800',
+              color: '#FF8740', letterSpacing: 0.5, width: '100%',
+            }}>
+              💼 Request More Budget
+            </button>
+          ) : (
+            <div style={{
+              fontSize: 9, color: budgetRequestMsg?.startsWith('✓') ? '#4caf50' : '#e57373',
+              maxWidth: 180, lineHeight: 1.4, textAlign: 'right',
+            }}>
+              {budgetRequestMsg}
+            </div>
+          )}
         </div>
       </div>
 
@@ -547,3 +585,4 @@ export default function PreSeasonStaffPanel({
     </div>
   );
 }
+
