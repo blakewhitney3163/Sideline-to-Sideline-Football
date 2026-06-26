@@ -2,13 +2,14 @@ import { db } from '../database';
 import { playerRepo, contractRepo, settingsRepo } from '../repositories';
 import { HOF_MIN_GAMES, HOF_THRESHOLDS } from '../constants';
 import { AdvanceSeasonResult } from '../types';
-import { cpuRosterCuts, cpuResignAttempts } from './ContractService';
+import { cpuRosterCuts, cpuResignAttempts, checkHoldoutsAndDemands } from './ContractService';
 import { getCurrentSeason } from '../helpers/getCurrentSeason';
 import { logNewsEvent } from '../helpers/logNewsEvent';
 import { replenishFAPool } from '../generatePlayers';
 import { evaluateOwnerGoals } from './OwnerGoalsService';
 import { decrementCoachContracts } from './CoachingService';
 import { checkCapEscalation, checkExpansionVote, checkCpuRelocation } from './LeagueExpansionService';
+import { checkLeagueEvents } from './LeagueEventsService';
 
 function isHOFEligible(position: string, career: any): boolean {
   if ((career.games ?? 0) < HOF_MIN_GAMES) return false;
@@ -17,9 +18,51 @@ function isHOFEligible(position: string, career: any): boolean {
   return thresholds.some((t: any) => (parseFloat(career[t.stat]) || 0) >= t.value);
 }
 
+// ─── Dynamic Revenue Recalculation ────────────────────────────────────────────
+function recalculateTeamFinances(completedSeason: number): void {
+  const allTeams = db.prepare('SELECT id FROM teams').all() as any[];
+  const BASE_REVENUE: Record<string, number> = { large: 360, medium: 260, small: 185 };
+  const BASE_RATE: Record<string, number>  = { large: 0.82, medium: 0.72, small: 0.62 };
+
+  const recRows = db.prepare(`
+    SELECT t.id as team_id,
+      COALESCE(SUM(CASE WHEN (g.home_team_id=t.id AND g.home_score>g.away_score)
+                        OR (g.away_team_id=t.id AND g.away_score>g.home_score) THEN 1 ELSE 0 END),0) as wins,
+      COUNT(g.id) as played
+    FROM teams t
+    LEFT JOIN games g ON (g.home_team_id=t.id OR g.away_team_id=t.id)
+      AND g.season=? AND g.is_simulated=1 AND g.is_playoff=0
+    GROUP BY t.id
+  `).all(completedSeason) as any[];
+
+  const recordMap = new Map(recRows.map((r: any) => [r.team_id, r]));
+
+  const updFinances = db.prepare(
+    'UPDATE team_finances SET attendance_rate=?, season_revenue=?, owner_budget=? WHERE team_id=?'
+  );
+
+  db.transaction(() => {
+    for (const team of allTeams) {
+      const fin = db.prepare('SELECT * FROM team_finances WHERE team_id=?').get(team.id) as any;
+      if (!fin) continue;
+      const rec = recordMap.get(team.id);
+      const winPct = rec && rec.played >= 4 ? rec.wins / rec.played : 0.5;
+
+      const baseRate = BASE_RATE[fin.market_size] ?? 0.72;
+      const winBonus = (winPct - 0.5) * 0.18;  // ±9% based on winning
+      const newRate = Math.max(0.45, Math.min(0.97, baseRate + winBonus));
+
+      const baseRev = BASE_REVENUE[fin.market_size] ?? 260;
+      const winRevBonus = (winPct - 0.5) * 60;  // ±30M based on winning
+      const newRev = Math.max(baseRev * 0.6, Math.round((baseRev + winRevBonus) * 10) / 10);
+      const newBudget = Math.round(newRev * (fin.market_size === 'large' ? 1.08 : 1.06) * 10) / 10;
+
+      updFinances.run(Math.round(newRate * 1000) / 1000, newRev, newBudget, team.id);
+    }
+  })();
+}
+
 // ─── Open Free Agency ─────────────────────────────────────────────────────────
-// Idempotent — safe to call multiple times. Processes CPU GM operations and
-// releases expired contracts so FAs appear in the pool before season advance.
 export function openFreeAgency(userTeamId: number): { newFas: number; cpuResigns: number } {
   const season = getCurrentSeason();
   const key = `fa_open_${season}`;
@@ -51,19 +94,19 @@ export async function advanceSeason(): Promise<AdvanceSeasonResult> {
   const userTeamId = settingsRepo.getUserTeamId() ?? -1;
 
   // Force-retire any announcing_retirement players not resolved last offseason
-for (const p of db.prepare(`
-  SELECT id, first_name, last_name, position, age, overall_rating
-  FROM players WHERE roster_status = 'announcing_retirement'
-`).all() as any[]) {
-  db.prepare("UPDATE players SET roster_status = 'retired', team_id = NULL, is_free_agent = 0 WHERE id = ?").run(p.id);
-  contractRepo.delete(p.id);
-  logNewsEvent({
-    eventType: 'retirement', category: 'season',
-    headline: `${p.first_name} ${p.last_name} Retires`,
-    detail: `${p.position} · Age ${p.age} · ${p.overall_rating} OVR — a career comes to an end.`,
-    playerId: p.id, season: current,
-  });
-}
+  for (const p of db.prepare(`
+    SELECT id, first_name, last_name, position, age, overall_rating
+    FROM players WHERE roster_status = 'announcing_retirement'
+  `).all() as any[]) {
+    db.prepare("UPDATE players SET roster_status = 'retired', team_id = NULL, is_free_agent = 0 WHERE id = ?").run(p.id);
+    contractRepo.delete(p.id);
+    logNewsEvent({
+      eventType: 'retirement', category: 'season',
+      headline: `${p.first_name} ${p.last_name} Retires`,
+      detail: `${p.position} · Age ${p.age} · ${p.overall_rating} OVR — a career comes to an end.`,
+      playerId: p.id, season: current,
+    });
+  }
 
   // ── Age all active players ─────────────────────────────────────────────────
   db.prepare("UPDATE players SET age = age + 1 WHERE roster_status != 'retired'").run();
@@ -132,8 +175,7 @@ for (const p of db.prepare(`
            SUM(s.rush_yards) as rush_yards, SUM(s.rec_yards) as rec_yards,
            SUM(s.sacks) as sacks, SUM(s.def_interceptions) as def_int,
            SUM(s.tackles) + SUM(s.assisted_tackles) as total_tkl
-    FROM stats s
-    JOIN players p ON s.player_id = p.id
+    FROM stats s JOIN players p ON s.player_id = p.id
     WHERE s.season = ? AND s.is_playoff = 0
     GROUP BY s.player_id
   `).all(current) as any[]) {
@@ -144,7 +186,6 @@ for (const p of db.prepare(`
       row.sacks > 10 || row.def_int > 5 || row.total_tkl > 130;
     if (isBreakout && row.age <= 28) breakoutIds.add(row.player_id);
   }
-
   if (breakoutIds.size > 0) {
     db.transaction(() => {
       for (const pid of breakoutIds) {
@@ -168,8 +209,7 @@ for (const p of db.prepare(`
         ps.age <= 23 ? Math.min(headroom, Math.floor(Math.random() * 2) + 1) :
         Math.min(headroom, Math.random() < 0.45 ? 1 : 0);
       if (bonus > 0)
-        db.prepare('UPDATE players SET overall_rating = overall_rating + ? WHERE id = ?')
-          .run(bonus, ps.id);
+        db.prepare('UPDATE players SET overall_rating = overall_rating + ? WHERE id = ?').run(bonus, ps.id);
     }
   })();
 
@@ -193,45 +233,55 @@ for (const p of db.prepare(`
   })();
 
   // ── Retirement ────────────────────────────────────────────────────────────
-const retired: { id: number; name: string; position: string; age: number; ovr: number }[] = [];
-const announcingRetirements: { id: number; name: string; position: string; age: number; ovr: number }[] = [];
-db.transaction(() => {
-  for (const p of db.prepare(`
-    SELECT id, first_name, last_name, position, age, overall_rating, team_id
-    FROM players WHERE age >= 33 AND roster_status NOT IN ('retired', 'announcing_retirement')
-  `).all() as any[]) {
-    let chance = p.age >= 40 ? 0.95 : p.age >= 38 ? 0.75 : p.age >= 36 ? 0.40 : p.age >= 34 ? 0.18 : 0.07;
-    if (p.overall_rating < 72) chance = Math.min(0.95, chance * 1.5);
-    if (Math.random() < chance) {
-      const fullName = `${p.first_name} ${p.last_name}`;
-      if (p.team_id === userTeamId) {
-        db.prepare("UPDATE players SET roster_status = 'announcing_retirement' WHERE id = ?").run(p.id);
-        announcingRetirements.push({ id: p.id, name: fullName, position: p.position, age: p.age, ovr: p.overall_rating });
-      } else {
-        db.prepare("UPDATE players SET roster_status = 'retired', team_id = NULL, is_free_agent = 0 WHERE id = ?").run(p.id);
-        contractRepo.delete(p.id);
-        retired.push({ id: p.id, name: fullName, position: p.position, age: p.age, ovr: p.overall_rating });
-        logNewsEvent({
-          eventType: 'retirement', category: 'season',
-          headline: `${fullName} Retires`,
-          detail: `${p.position} · Age ${p.age} · ${p.overall_rating} OVR — a career comes to an end.`,
-          playerId: p.id, season: next,
-        });
+  const retired: { id: number; name: string; position: string; age: number; ovr: number }[] = [];
+  const announcingRetirements: { id: number; name: string; position: string; age: number; ovr: number }[] = [];
+  db.transaction(() => {
+    for (const p of db.prepare(`
+      SELECT id, first_name, last_name, position, age, overall_rating, team_id
+      FROM players WHERE roster_status IN ('active','free_agent') AND age >= 30
+    `).all() as any[]) {
+      const base =
+        p.age >= 40 ? 0.80 : p.age >= 38 ? 0.55 : p.age >= 36 ? 0.35 :
+        p.age >= 34 ? 0.18 : p.age >= 32 ? 0.08 : p.age >= 30 ? 0.03 : 0;
+      const retireChance = p.overall_rating < 65 ? base * 2.5 : p.overall_rating >= 88 ? base * 0.5 : base;
+      if (Math.random() < retireChance) {
+        const name = `${p.first_name} ${p.last_name}`;
+        if (p.team_id && p.roster_status === 'active' && p.overall_rating >= 72 && p.age <= 36) {
+          db.prepare("UPDATE players SET roster_status = 'announcing_retirement' WHERE id = ?").run(p.id);
+          announcingRetirements.push({ id: p.id, name, position: p.position, age: p.age, ovr: p.overall_rating });
+          logNewsEvent({
+            eventType: 'retirement_announcement', category: 'season',
+            headline: `${name} Announces Retirement Plans`,
+            detail: `${p.position} · Age ${p.age} · ${p.overall_rating} OVR — considering hanging up the cleats.`,
+            playerId: p.id, teamId: p.team_id, season: current,
+          });
+        } else {
+          db.prepare("UPDATE players SET roster_status = 'retired', team_id = NULL, is_free_agent = 0 WHERE id = ?").run(p.id);
+          contractRepo.delete(p.id);
+          retired.push({ id: p.id, name, position: p.position, age: p.age, ovr: p.overall_rating });
+          if (p.overall_rating >= 78) {
+            logNewsEvent({
+              eventType: 'retirement', category: 'season',
+              headline: `${name} Retires`,
+              detail: `${p.position} · Age ${p.age} · ${p.overall_rating} OVR`,
+              playerId: p.id, season: current,
+            });
+          }
+        }
       }
     }
-  }
-})();
+  })();
 
   // ── Morale Update ─────────────────────────────────────────────────────────
   const teamWinPcts: Record<number, number> = {};
   for (const row of db.prepare(`
     SELECT t.id,
-           SUM(CASE WHEN (g.home_team_id = t.id AND g.home_score > g.away_score)
-                OR (g.away_team_id = t.id AND g.away_score > g.home_score) THEN 1 ELSE 0 END) as wins,
-           COUNT(*) as played
+      SUM(CASE WHEN (g.home_team_id=t.id AND g.home_score>g.away_score)
+               OR (g.away_team_id=t.id AND g.away_score>g.home_score) THEN 1 ELSE 0 END) as wins,
+      COUNT(g.id) as played
     FROM teams t
-    JOIN games g ON (g.home_team_id = t.id OR g.away_team_id = t.id)
-    WHERE g.season = ? AND g.is_simulated = 1 AND g.is_playoff = 0
+    LEFT JOIN games g ON (g.home_team_id=t.id OR g.away_team_id=t.id)
+      AND g.season=? AND g.is_simulated=1 AND g.is_playoff=0
     GROUP BY t.id
   `).all(current) as any[]) {
     teamWinPcts[row.id] = row.played > 0 ? row.wins / row.played : 0.5;
@@ -257,20 +307,18 @@ db.transaction(() => {
     }
   })();
 
-  // ── Open Free Agency (idempotent — handles CPU GM + contract expiry) ───────
+  // ── Open Free Agency (idempotent) ─────────────────────────────────────────
   const { cpuResigns } = openFreeAgency(userTeamId);
 
   // ── Contract Demand Events ────────────────────────────────────────────────
   for (const row of db.prepare(`
     SELECT p.id, p.first_name, p.last_name, p.position, p.overall_rating, p.team_id,
            c.years_remaining,
-           COALESCE(SUM(s.pass_yards), 0) as pass_yards,
-           COALESCE(SUM(s.pass_tds), 0) as pass_tds,
-           COALESCE(SUM(s.rush_yards), 0) as rush_yards,
-           COALESCE(SUM(s.rec_yards), 0) as rec_yards,
+           COALESCE(SUM(s.pass_yards), 0) as pass_yards, COALESCE(SUM(s.pass_tds), 0) as pass_tds,
+           COALESCE(SUM(s.rush_yards), 0) as rush_yards, COALESCE(SUM(s.rec_yards), 0) as rec_yards,
            COALESCE(SUM(CAST(s.sacks AS REAL)), 0) as sacks,
            COALESCE(SUM(s.def_interceptions), 0) as def_int,
-           COALESCE(SUM(s.tackles) + SUM(s.assisted_tackles),0) as total_tkl
+           COALESCE(SUM(s.tackles) + SUM(s.assisted_tackles), 0) as total_tkl
     FROM players p
     JOIN contracts c ON c.player_id = p.id
     LEFT JOIN stats s ON s.player_id = p.id AND s.season = ? AND s.is_playoff = 0
@@ -297,7 +345,10 @@ db.transaction(() => {
   db.prepare("UPDATE players SET injury_status = 'healthy', weeks_out = 0, injury_type = NULL").run();
   db.prepare("UPDATE players SET roster_status = 'free_agent', is_free_agent = 1 WHERE roster_status = 'waivers'").run();
 
-    // ── Archive Career Stats ──────────────────────────────────────────────────
+  // Clear resolved holdouts/demands from prior season
+  db.prepare("UPDATE players SET holdout_status = NULL, holdout_weeks = 0, trade_demand = 0").run();
+
+  // ── Archive Career Stats ──────────────────────────────────────────────────
   db.prepare(`
     INSERT INTO career_stats_history (
       player_id, season, team_id, games, completions, pass_attempts, pass_yards,
@@ -311,39 +362,22 @@ db.transaction(() => {
       SUM(s.rush_tds), SUM(s.targets), SUM(s.receptions), SUM(s.rec_yards), SUM(s.rec_tds),
       SUM(s.tackles), SUM(s.assisted_tackles), SUM(s.sacks), SUM(s.tfl), SUM(s.forced_fumbles),
       SUM(s.fumble_recoveries), SUM(s.def_interceptions), SUM(s.pass_deflections), SUM(s.def_tds)
-    FROM stats s
-    WHERE s.season = ? AND s.is_playoff = 0
+    FROM stats s WHERE s.season = ? AND s.is_playoff = 0
     GROUP BY s.player_id, s.season
     ON CONFLICT(player_id, season) DO UPDATE SET
-      team_id           = excluded.team_id,
-      games             = excluded.games,
-      completions       = excluded.completions,
-      pass_attempts     = excluded.pass_attempts,
-      pass_yards        = excluded.pass_yards,
-      pass_tds          = excluded.pass_tds,
-      interceptions     = excluded.interceptions,
-      rush_attempts     = excluded.rush_attempts,
-      rush_yards        = excluded.rush_yards,
-      rush_tds          = excluded.rush_tds,
-      targets           = excluded.targets,
-      receptions        = excluded.receptions,
-      rec_yards         = excluded.rec_yards,
-      rec_tds           = excluded.rec_tds,
-      tackles           = excluded.tackles,
-      assisted_tackles  = excluded.assisted_tackles,
-      sacks             = excluded.sacks,
-      tfl               = excluded.tfl,
-      forced_fumbles    = excluded.forced_fumbles,
-      fumble_recoveries = excluded.fumble_recoveries,
-      def_interceptions = excluded.def_interceptions,
-      pass_deflections  = excluded.pass_deflections,
-      def_tds           = excluded.def_tds
+      team_id=excluded.team_id, games=excluded.games, completions=excluded.completions,
+      pass_attempts=excluded.pass_attempts, pass_yards=excluded.pass_yards,
+      pass_tds=excluded.pass_tds, interceptions=excluded.interceptions,
+      rush_attempts=excluded.rush_attempts, rush_yards=excluded.rush_yards,
+      rush_tds=excluded.rush_tds, targets=excluded.targets, receptions=excluded.receptions,
+      rec_yards=excluded.rec_yards, rec_tds=excluded.rec_tds, tackles=excluded.tackles,
+      assisted_tackles=excluded.assisted_tackles, sacks=excluded.sacks, tfl=excluded.tfl,
+      forced_fumbles=excluded.forced_fumbles, fumble_recoveries=excluded.fumble_recoveries,
+      def_interceptions=excluded.def_interceptions, pass_deflections=excluded.pass_deflections,
+      def_tds=excluded.def_tds
   `).run(current);
 
-  // ── Prune raw game stats (keep current + prior season; older data archived) 
   db.prepare('DELETE FROM stats WHERE season < ?').run(current - 1);
-
-  // ── Prune old news events (keep last 3 seasons) ──────────────────────────
   db.prepare('DELETE FROM news_events WHERE season < ?').run(next - 2);
 
   // ── HOF Inductions ────────────────────────────────────────────────────────
@@ -388,7 +422,7 @@ db.transaction(() => {
     }
   })();
 
-  // ── Season Award News Events ──────────────────────────────────────────────
+  // ── Season Awards ─────────────────────────────────────────────────────────
   const mvpRow = db.prepare(`
     SELECT p.id, p.first_name || ' ' || p.last_name as name, p.position
     FROM stats s JOIN players p ON s.player_id = p.id
@@ -396,48 +430,48 @@ db.transaction(() => {
     GROUP BY s.player_id
     ORDER BY (SUM(s.pass_yards)*0.04 + SUM(s.pass_tds)*6 - SUM(s.interceptions)*3
       + SUM(s.rush_yards)*0.1 + SUM(s.rush_tds)*6
-      + SUM(s.rec_yards)*0.1 + SUM(s.rec_tds)*6) DESC
-    LIMIT 1
+      + SUM(s.rec_yards)*0.1 + SUM(s.rec_tds)*6) DESC LIMIT 1
   `).get(current) as any;
-  if (mvpRow) {
-    logNewsEvent({
-      eventType: 'award', category: 'season',
-      headline: `${mvpRow.name} Named League MVP`,
-      detail: `${mvpRow.position} wins the most prestigious individual award of the ${current} season.`,
-      playerId: mvpRow.id, season: next,
-    });
-  }
+  if (mvpRow) logNewsEvent({
+    eventType: 'award', category: 'season',
+    headline: `${mvpRow.name} Named League MVP`,
+    detail: `${mvpRow.position} wins the most prestigious individual award of the ${current} season.`,
+    playerId: mvpRow.id, season: next,
+  });
 
   const dpoyRow = db.prepare(`
     SELECT p.id, p.first_name || ' ' || p.last_name as name, p.position
     FROM stats s JOIN players p ON s.player_id = p.id
     WHERE s.season = ? AND s.is_playoff = 0
-    AND p.position IN ('DL','LB','CB','S','DE','DT','LE','RE','IDL','MLB','OLB','FS','SS','LOLB','ROLB')
+      AND p.position IN ('DL','LB','CB','S','DE','DT','LE','RE','IDL','MLB','OLB','FS','SS','LOLB','ROLB')
     GROUP BY s.player_id
     ORDER BY (SUM(s.tackles)*2 + SUM(s.sacks)*10 + SUM(s.def_interceptions)*8
-      + SUM(s.pass_deflections)*2 + SUM(s.forced_fumbles)*5) DESC
-    LIMIT 1
+      + SUM(s.pass_deflections)*2 + SUM(s.forced_fumbles)*5) DESC LIMIT 1
   `).get(current) as any;
-  if (dpoyRow) {
-    logNewsEvent({
-      eventType: 'award', category: 'season',
-      headline: `${dpoyRow.name} Named Defensive Player of the Year`,
-      detail: `${dpoyRow.position} wins the top defensive honor of the ${current} season.`,
-      playerId: dpoyRow.id, season: next,
-    });
-  }
+  if (dpoyRow) logNewsEvent({
+    eventType: 'award', category: 'season',
+    headline: `${dpoyRow.name} Named Defensive Player of the Year`,
+    detail: `${dpoyRow.position} wins the top defensive honor of the ${current} season.`,
+    playerId: dpoyRow.id, season: next,
+  });
 
-// ── Replenish FA pool for the new offseason ───────────────────────────────
-replenishFAPool();
+  replenishFAPool();
+  decrementCoachContracts();
+  evaluateOwnerGoals(current, userTeamId);
 
-// ── Tick down coaching contracts; expired coaches return to FA pool ───────
-decrementCoachContracts();
-
-evaluateOwnerGoals(current, userTeamId);
-
-settingsRepo.set('current_season', String(next));
+  settingsRepo.set('current_season', String(next));
   checkCapEscalation(next);
   checkExpansionVote(next);
   checkCpuRelocation(next);
+
+  // ── Dynamic Revenue Update ────────────────────────────────────────────────
+  recalculateTeamFinances(current);
+
+  // ── Random League Events ──────────────────────────────────────────────────
+  checkLeagueEvents(next);
+
+  // ── Holdouts & Trade Demands ──────────────────────────────────────────────
+  checkHoldoutsAndDemands(userTeamId);
+
   return { nextSeason: next, retired, announcingRetirements, cpuResigns, breakouts: breakoutIds.size, hofInductees };
 }
