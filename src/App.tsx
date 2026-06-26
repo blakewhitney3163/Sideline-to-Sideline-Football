@@ -298,15 +298,25 @@ export default function App() {
     );
   }
   if (screen === 'loading') {
-    return (
-      <div style={{
-        minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: T.bgPage, fontFamily: 'monospace', color: T.textDim, fontSize: 13, letterSpacing: 2,
-      }}>
+  return (
+    <div style={{
+      height: '100vh', display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      background: '#0a0a0f', gap: 16,
+    }}>
+      <div style={{ fontSize: 11, letterSpacing: 4, color: '#FF8740', fontFamily: 'monospace', textTransform: 'uppercase' }}>
+        Sideline to Sideline
+      </div>
+      <div style={{ fontSize: 28, fontWeight: 900, color: '#fff', letterSpacing: 2, fontFamily: 'monospace' }}>
+        FOOTBALL
+      </div>
+      <div style={{ width: 40, height: 2, background: '#FF8740', borderRadius: 1, margin: '4px 0' }} />
+      <div style={{ fontSize: 10, color: '#444', letterSpacing: 3, fontFamily: 'monospace' }}>
         LOADING...
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   if (screen === 'custom-setup') {
     return (
