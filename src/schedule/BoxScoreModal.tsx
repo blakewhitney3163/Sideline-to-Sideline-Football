@@ -50,11 +50,26 @@ function kickerLine(p: BoxScorePlayer | undefined) {
   return parts.join(' ');
 }
 
+interface PlayEntry {
+  quarter: number;
+  teamName: string;
+  description: string;
+  type: 'td' | 'fg' | 'turnover' | 'bigplay';
+  homeScore: number;
+  awayScore: number;
+}
+
+const PLAY_ICON: Record<string, string> = { td: '🏈', fg: '🎯', turnover: '⚡', bigplay: '💨' };
+const PLAY_COLOR: Record<string, string> = { td: '#4caf50', fg: '#4FC3F7', turnover: '#FF8740', bigplay: '#FFD700' };
+
 export default function BoxScoreModal({ gameId, onClose }: Props) {
   const [data, setData] = useState<{ game: BoxScoreGame; players: BoxScorePlayer[] } | null>(null);
+  const [playLog, setPlayLog] = useState<PlayEntry[]>([]);
+  const [showPlayLog, setShowPlayLog] = useState(false);
 
   useEffect(() => {
     window.api.getGameBoxScore(gameId).then((d: any) => setData(d));
+    window.api.getGamePlayLog(gameId).then((log: PlayEntry[]) => setPlayLog(log ?? []));
   }, [gameId]);
 
   if (!data) return (
@@ -110,7 +125,7 @@ export default function BoxScoreModal({ gameId, onClose }: Props) {
         </div>
 
         {/* Key Stats */}
-        <div style={{ padding: '16px 20px' }}>
+        <div style={{ padding: '16px 20px', borderBottom: playLog.length > 0 ? `1px solid ${T.borderFaint}` : undefined }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 4, alignItems: 'center', marginBottom: 8 }}>
             <span style={{ color: T.textMuted, fontSize: 11, fontWeight: 700 }}>{game.away_team}</span>
             <span style={{ color: T.textDim, fontSize: 9, letterSpacing: 1 }}>KEY STATS</span>
@@ -118,11 +133,11 @@ export default function BoxScoreModal({ gameId, onClose }: Props) {
           </div>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <tbody>
-              <StatRow label="PASSING"  away={passerLine(topPasser(awayPlayers))}     home={passerLine(topPasser(homePlayers))} />
-              <StatRow label="RUSHING"  away={rusherLine(topRusher(awayPlayers))}     home={rusherLine(topRusher(homePlayers))} />
-              <StatRow label="RECEIVING" away={receiverLine(topReceiver(awayPlayers))} home={receiverLine(topReceiver(homePlayers))} />
-              <StatRow label="DEFENSE"  away={defenderLine(topDefender(awayPlayers))} home={defenderLine(topDefender(homePlayers))} />
-              <StatRow label="KICKER"   away={kickerLine(topKicker(awayPlayers))}     home={kickerLine(topKicker(homePlayers))} />
+              <StatRow label="PASSING"   away={passerLine(topPasser(awayPlayers))}       home={passerLine(topPasser(homePlayers))} />
+              <StatRow label="RUSHING"   away={rusherLine(topRusher(awayPlayers))}       home={rusherLine(topRusher(homePlayers))} />
+              <StatRow label="RECEIVING" away={receiverLine(topReceiver(awayPlayers))}   home={receiverLine(topReceiver(homePlayers))} />
+              <StatRow label="DEFENSE"   away={defenderLine(topDefender(awayPlayers))}   home={defenderLine(topDefender(homePlayers))} />
+              <StatRow label="KICKER"    away={kickerLine(topKicker(awayPlayers))}       home={kickerLine(topKicker(homePlayers))} />
               {(homeDefTDs + awayDefTDs) > 0 && (
                 <StatRow
                   label="DEF TDS"
@@ -133,6 +148,48 @@ export default function BoxScoreModal({ gameId, onClose }: Props) {
             </tbody>
           </table>
         </div>
+
+        {/* Play-by-Play */}
+        {playLog.length > 0 && (
+          <div style={{ padding: '12px 20px' }}>
+            <button
+              onClick={() => setShowPlayLog(x => !x)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, marginBottom: showPlayLog ? 10 : 0, padding: 0 }}
+            >
+              <span style={{ fontSize: 9, letterSpacing: 1.5, color: T.textMuted, textTransform: 'uppercase' }}>Play-by-Play</span>
+              <span style={{ fontSize: 9, color: T.textDim }}>{showPlayLog ? '▲' : '▼'}</span>
+            </button>
+            {showPlayLog && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {[1, 2, 3, 4].map(q => {
+                  const qPlays = playLog.filter(p => p.quarter === q);
+                  if (qPlays.length === 0) return null;
+                  return (
+                    <div key={q}>
+                      <div style={{ fontSize: 8, color: T.textDim, letterSpacing: 1, textTransform: 'uppercase', padding: '6px 0 3px', borderBottom: `1px solid ${T.borderFaint}` }}>
+                        Q{q}
+                      </div>
+                      {qPlays.map((play, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '5px 0', borderBottom: `1px solid ${T.borderFaint}` }}>
+                          <span style={{ fontSize: 12, flexShrink: 0, marginTop: 1 }}>{PLAY_ICON[play.type] ?? '•'}</span>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 11, color: PLAY_COLOR[play.type] ?? T.textSecondary, lineHeight: 1.3 }}>
+                              {play.description}
+                            </div>
+                            <div style={{ fontSize: 9, color: T.textDim, marginTop: 2 }}>{play.teamName}</div>
+                          </div>
+                          <div style={{ fontSize: 10, fontFamily: 'monospace', color: T.textMuted, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                            {play.awayScore}–{play.homeScore}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
