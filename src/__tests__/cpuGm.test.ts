@@ -42,8 +42,8 @@ function autoDetectStatus(
   const young    = avgAge <= 25.5;
   const winNow   = old || (hasXFactor && topQBAge >= 28);
   if (winning && talented && (winNow || eliteCount >= 4)) return 'Contender';
-  if (winning || (talented && !young && winNow))           return 'Buyer';
-  if (losing && talented && old)                           return 'Seller';
+  if (losing && talented && old) return 'Seller';
+  if (winning || (talented && !young && winNow)) return 'Buyer';
   if (losing || (young && !talented))                      return 'Rebuilding';
   return 'Neutral';
 }
