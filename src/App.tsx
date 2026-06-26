@@ -1,7 +1,7 @@
 import React, { useState, lazy, Suspense } from 'react';
 import { T } from './theme';
 import { useGameStore, UserTeam } from './store/gameStore';
-import TutorialModal, { hasTutorialBeenSeen } from './tutorial/TutorialModal';
+import TutorialModal, { ContextualTip, hasTutorialBeenSeen } from './tutorial/TutorialModal';
 
 declare const window: any;
 
@@ -528,36 +528,42 @@ export default function App() {
         ))}
       </div>
 
-      {/* Tab content — keep-alive */}
+            {/* Tab content — keep-alive */}
       <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
         <Suspense fallback={<TabFallback />}>
           {isMounted('home') && (
             <div style={tabStyle('home')}>
+              <ContextualTip tipKey="home" />
               <Home onSeasonAdvance={handleSeasonAdvance} onNavigate={handleTabChange} />
             </div>
           )}
           {isMounted('myteam') && (
             <div style={tabStyle('myteam')}>
+              <ContextualTip tipKey="myteam" />
               <MyTeam />
             </div>
           )}
           {isMounted('league') && (
             <div style={tabStyle('league')}>
+              <ContextualTip tipKey="league" />
               <League />
             </div>
           )}
           {isMounted('trades') && (
             <div style={tabStyle('trades')}>
+              <ContextualTip tipKey="trades" />
               <Trades />
             </div>
           )}
           {isMounted('news') && (
             <div style={tabStyle('news')}>
+              <ContextualTip tipKey="news" />
               <NewsFeed />
             </div>
           )}
           {isMounted('draft') && (
             <div style={tabStyle('draft')}>
+              <ContextualTip tipKey="draft" />
               <Suspense fallback={<TabFallback />}>
                 <Draft onDraftComplete={() => handleTabChange('home')} />
               </Suspense>
