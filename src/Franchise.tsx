@@ -10,7 +10,6 @@ import OffseasonTab from './franchise/OffseasonTab';
 import CoachingTab from './franchise/CoachingTab';
 import SchemesTab from './franchise/SchemesTab';
 import SalariesTab from './franchise/SalariesTab';
-import FinancesTab from './franchise/FinancesTab';
 import PlayerProfile from './teams/PlayerProfile';
 import { Player, PlayerStats, CareerSeasonStats } from './teams/types';
 
@@ -28,7 +27,7 @@ export default function Franchise() {
   const [expiringPlayers, setExpiringPlayers] = useState<Contract[]>([]);
   const [cap, setCap] = useState<CapSummary | null>(null);
   const [rosterSpots, setRosterSpots] = useState<RosterSpots | null>(null);
-const [activeTab, setActiveTab] = useState<'roster' | 'ps' | 'fa' | 'waivers' | 'offseason' | 'coaching' | 'schemes' | 'salaries' | 'finances'>('roster');
+  const [activeTab, setActiveTab] = useState<'roster' | 'ps' | 'fa' | 'waivers' | 'offseason' | 'coaching' | 'schemes' | 'salaries'>('roster');
   const [working, setWorking] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [teamNeeds, setTeamNeeds] = useState<string[]>([]);
@@ -39,6 +38,7 @@ const [activeTab, setActiveTab] = useState<'roster' | 'ps' | 'fa' | 'waivers' | 
   const [extendingId, setExtendingId] = useState<number | null>(null);
   const [extendYears, setExtendYears] = useState(3);
   const [releasingId, setReleasingId] = useState<number | null>(null);
+  const [demotingId, setDemotingId] = useState<number | null>(null);
 
   const [faPos, setFaPos] = useState('ALL');
   const [faSortBy, setFaSortBy] = useState<'ovr' | 'age' | 'value'>('ovr');
@@ -149,6 +149,22 @@ const [activeTab, setActiveTab] = useState<'roster' | 'ps' | 'fa' | 'waivers' | 
     await loadData();
     if (activeTab === 'fa') loadFreeAgents();
     if (activeTab === 'waivers') loadWaiverWire();
+    setWorking(false);
+  };
+
+  const handleDemoteToPs = async (playerId: number) => {
+    if (working) return;
+    const player = contracts.find(c => c.id === playerId);
+    setWorking(true);
+    const result = await window.api.demoteToPs(playerId);
+    if (!result.success) {
+      showToast(result.reason ?? 'Could not send to practice squad.', 'error');
+      setWorking(false);
+      return;
+    }
+    setDemotingId(null);
+    showToast(`${player?.first_name} ${player?.last_name} sent to practice squad.`, 'success');
+    await loadData();
     setWorking(false);
   };
 
@@ -306,7 +322,7 @@ const [activeTab, setActiveTab] = useState<'roster' | 'ps' | 'fa' | 'waivers' | 
   const capColor = capPct > 100 ? '#e57373' : capPct > 90 ? '#FF8740' : '#4caf50';
   const totalGuaranteed = contracts.reduce((s, c) => s + (c.guaranteed_amount ?? 0), 0);
 
-    const tabs = [
+  const tabs = [
     { key: 'roster' as const, label: `ACTIVE ROSTER (${contracts.length})`, warn: false },
     { key: 'salaries' as const, label: 'SALARIES', warn: false },
     { key: 'ps' as const, label: `PRACTICE SQUAD (${practiceSquad.length})`, warn: false },
@@ -314,7 +330,6 @@ const [activeTab, setActiveTab] = useState<'roster' | 'ps' | 'fa' | 'waivers' | 
     ...(!playoffsComplete ? [{ key: 'waivers' as const, label: `WAIVER WIRE${waiverWire.length > 0 ? ` (${waiverWire.length})` : ''}`, warn: false }] : []),
     { key: 'coaching' as const, label: 'COACHING STAFF', warn: false },
     { key: 'schemes' as const, label: 'SCHEMES', warn: false },
-    { key: 'finances' as const, label: 'FINANCES', warn: false },
     ...(playoffsComplete ? [{ key: 'offseason' as const, label: expiringCount > 0 ? `OFFSEASON ⚠ ${expiringCount}` : 'OFFSEASON', warn: expiringCount > 0 }] : []),
   ];
 
@@ -406,8 +421,11 @@ const [activeTab, setActiveTab] = useState<'roster' | 'ps' | 'fa' | 'waivers' | 
           setExtendYears={setExtendYears}
           releasingId={releasingId}
           setReleasingId={setReleasingId}
+          demotingId={demotingId}
+          setDemotingId={setDemotingId}
           handleExtend={handleExtend}
           handleRelease={handleRelease}
+          handleDemoteToPs={handleDemoteToPs}
           working={working}
           onPlayerClick={handlePlayerClick}
         />
@@ -476,7 +494,7 @@ const [activeTab, setActiveTab] = useState<'roster' | 'ps' | 'fa' | 'waivers' | 
           handleApplyTag={handleApplyTag}
           handleRemoveTag={handleRemoveTag}
           handleCpuFa={handleCpuFa}
-                    cpuFaResult={cpuFaResult}
+          cpuFaResult={cpuFaResult}
           cpuFaDone={cpuFaDone}
           setCpuFaDone={setCpuFaDone}
           setCpuFaResult={setCpuFaResult}
@@ -486,7 +504,7 @@ const [activeTab, setActiveTab] = useState<'roster' | 'ps' | 'fa' | 'waivers' | 
       )}
 
       {activeTab === 'coaching' && (
-                <CoachingTab
+        <CoachingTab
           staff={staff}
           teamId={userTeam.id}
           showToast={showToast}
@@ -500,17 +518,13 @@ const [activeTab, setActiveTab] = useState<'roster' | 'ps' | 'fa' | 'waivers' | 
           teamName={`${userTeam.city} ${userTeam.name}`}
           onToast={showToast}
         />
-    )}
+      )}
 
       {activeTab === 'salaries' && (
         <SalariesTab
-                    contracts={contracts}
+          contracts={contracts}
           cap={cap}
         />
-      )}
-
-            {activeTab === 'finances' && (
-        <FinancesTab teamId={userTeam.id} currentSeason={currentSeason} />
       )}
 
       {selectedPlayer && (
@@ -519,7 +533,7 @@ const [activeTab, setActiveTab] = useState<'roster' | 'ps' | 'fa' | 'waivers' | 
           display: 'flex', justifyContent: 'flex-end',
         }}>
           <div onClick={e => e.stopPropagation()} style={{ height: '100%', overflowY: 'auto' }}>
-                        <PlayerProfile
+            <PlayerProfile
               player={selectedPlayer}
               playerStats={playerStats}
               careerStats={careerStats}
