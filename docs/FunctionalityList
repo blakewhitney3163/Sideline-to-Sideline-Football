@@ -13,7 +13,7 @@ CORE INFRASTRUCTURE
   player_milestones, dead_cap_entries, coaching_staff, team_schemes,
   owner_goals, injury_history, team_chemistry, chemistry_events, scouts,
   team_finances, expansion_history
-- Schema version: v19. Migration runner in runMigrations() upgrades existing
+- Schema version: v20. Migration runner in runMigrations() upgrades existing
   saves on launch. Active migrations:
   v9:  team_id INTEGER on career_stats_history + idx_career_stats_team
   v10: Recalibrate all active-roster contract salaries to market-rate scale
@@ -38,6 +38,14 @@ CORE INFRASTRUCTURE
        columns added to teams table; expansion_history table created
        (id INTEGER PRIMARY KEY, team_name TEXT, city TEXT, abbrev TEXT,
        season INTEGER); salary_cap setting seeded to 279000000 on migration
+  v20: attendance_rate REAL DEFAULT 0.85 on team_finances;
+       gm_personality TEXT DEFAULT 'balanced' on teams;
+       is_rookie_deal INTEGER DEFAULT 0, fifth_year_option_eligible INTEGER
+       DEFAULT 0, fifth_year_option_picked_up INTEGER DEFAULT 0 on contracts;
+       holdout_status TEXT DEFAULT 'none', holdout_weeks INTEGER DEFAULT 0,
+       trade_demand INTEGER DEFAULT 0 on players;
+       GM personalities seeded randomly across all 32 teams;
+       attendance_rates seeded per team
 - Salary cap is dynamic: stored in settings under key 'salary_cap'. All
   contract logic reads it via getSalaryCap() helper (src/helpers/getSalaryCap.ts)
   which falls back to 279000000 if not set. Cap escalates via LeagueExpansionService.
@@ -92,7 +100,9 @@ CODE ARCHITECTURE
   stats.ts exposes: getGamePlayLog(gameId) — fetches play-by-play log for
   a completed game; fetched in parallel with box score via Promise.all
   season.ts exposes: getLeagueOfficeData(), castExpansionVote(vote),
-  getRelocationCities(), requestUserRelocation(cityObj)
+  getRelocationCities(), requestUserRelocation(cityObj), getRecentLeagueEvents(),
+  getAllGmPersonalities(), initPlayoffs(season), getPlayoffState(season),
+  simulatePlayoffGame(gameId)
   preload.ts merges all via spread into a single contextBridge exposure.
 - IPC handlers split by domain in src/handlers/:
   simHandlers, seasonHandlers, settingsHandlers, statsHandlers,
@@ -102,7 +112,13 @@ CODE ARCHITECTURE
 - Services layer in src/services/:
   SeasonService, SimulationService, StatsService, TradeService,
   ContractService, CoachingService, ProgressionService, OwnerGoalsService,
-  InjuryService, ChemistryService, ScoutingService, LeagueExpansionService
+  InjuryService, ChemistryService, ScoutingService, LeagueExpansionService,
+  LeagueEventsService
+  LeagueEventsService: 10 predefined narrative events (attendance_surge,
+  salary_cap_controversy, star_injury_scare, weather_disaster, stadium_upgrade,
+  blockbuster_trade_rumor, coaching_carousel, rule_change, expansion_fever,
+  record_contract); checkLeagueEvents() fires one per season at 45% chance;
+  getRecentLeagueEvents(n) retrieves last n events from news_events
   LeagueExpansionService: checkCapEscalation (10% chance/season, cap grows
   2–5%, stored in settings salary_cap), checkExpansionVote (city pool,
   user vote threshold 60%+, inserts expansion_history row), checkCpuRelocation
@@ -266,7 +282,7 @@ TEAMS TAB
 LEAGUE OFFICE TAB (src/LeagueOffice.tsx — OFFICE sub-tab in League view)
 ────────────────────────────────────────────────────────────────────────────────
 - Accessible via the OFFICE sub-tab in League.tsx navigation
-- Three panels rendered side-by-side:
+- Four panels:
   Salary Cap Panel:
     - Current cap displayed in $M format
     - Cap history table: last 5 seasons with season number and cap value
@@ -291,8 +307,16 @@ LEAGUE OFFICE TAB (src/LeagueOffice.tsx — OFFICE sub-tab in League view)
       to original city; owner_patience deducted by 20; news event logged
     - CPU teams may also relocate each offseason if patience is critically low
       (checkCpuRelocation in LeagueExpansionService)
+  League Events Panel:
+    - Displays recent random narrative events that fire each season at 45% chance
+    - 10 predefined events: attendance surge, salary cap controversy, star injury
+      scare, weather disaster, stadium upgrade, blockbuster trade rumor, coaching
+      carousel, rule change, expansion fever, record contract
+    - Each event shows season, headline, and detail text
+    - IPCs: get-recent-league-events
 - IPC calls used: get-league-office-data, cast-expansion-vote,
-  get-relocation-cities, request-user-relocation
+  get-relocation-cities, request-user-relocation, get-recent-league-events,
+  get-all-gm-personalities
 
 DEPTH CHART TAB
 ────────────────────────────────────────────────────────────────────────────────
@@ -323,6 +347,8 @@ Active Roster Tab:
 Salaries Tab:
   - Full salary + contract details; cap summary bar; grade badges (TEAM DEAL /
     FAIR / OVERPAID); guaranteed %; years remaining pips
+  - Rookie deal badge (orange "ROOKIE") on is_rookie_deal contracts
+  - 5th-year option badge on eligible first-round picks
 
 Practice Squad Tab:
   - View PS players; promote to active (53-man limit); auto-callup on injuries
@@ -335,6 +361,12 @@ Free Agents Tab:
 
 Offseason Tab:
   - Re-sign expiring; Counter Offer; Holdout Risk badge; Franchise/Transition Tag
+  - Holdout panel: lists all players in holdout_status != 'none' with resolution
+    buttons (Pay Up / Wait It Out / Request Trade). Triggered when morale is low
+    and player is in final contract year.
+  - Trade Demand panel: lists players with trade_demand = 1; same resolution flow
+  - Rookie deal badges + 5th-year option pickup/decline buttons for eligible
+    first-round picks
   - CPU Free Agency for all 31 other teams
 
 Coaching Staff Tab:
@@ -355,12 +387,17 @@ Finances Tab (src/franchise/FinancesTab.tsx):
   - market_size badge: Large Market (gold) / Mid Market (orange) / Small
     Market (blue)
   - Stadium Capacity tile
-  - Season Revenue tile (in $M)
+  - Season Revenue tile (in $M); recalculated each offseason based on
+    market size, win percentage, and attendance rate (dynamic revenue)
+  - Attendance Rate tile: shows current season % with color grade
   - Owner Budget progress bar: season_revenue / owner_budget with narrative
     text by market size (large = FA appeal, small = draft-reliant)
+  - GM Personality badge: displays the CPU GM's personality archetype
+    (aggressive, conservative, balanced, rebuilder, win_now) with description
+    of how it affects CPU trade/FA decisions
   - League Market Breakdown grid: all 32 teams with market size and revenue
-  - Data source: team_finances table (schema v18)
-  - IPCs: get-team-finances, get-all-team-finances
+  - Data source: team_finances table (schema v18–v20)
+  - IPCs: get-team-finances, get-all-team-finances, get-all-gm-personalities
 
 Cap Summary: total/used/available cap; dead cap per-player breakdown
 
@@ -375,15 +412,28 @@ TRADES TAB
   18% weekly chance gate; active weeks 1–10 only; deadline urgency bump +15%
   weeks 6–8
 - Trade deadline (locked after Week 10); CPU-vs-CPU trades (Weeks 2–8, <=2/week)
+- CPU GM Personality modifiers on trade offers: aggressive GMs offer higher
+  value / accept lower; conservative GMs more selective; rebuilder GMs
+  prefer draft picks over veterans
 
 DRAFT TAB
 ────────────────────────────────────────────────────────────────────────────────
 - Always visible year-round; 280 prospects auto-generated at season start
+- Draft Class Strength panel: per-position composite rating (QB/RB/WR/TE/OL/
+  DL/LB/CB/S/K) displayed with Elite/Strong/Average/Weak/Poor grade labels;
+  stored in settings as class_strength_{season}
 - In-season scouting budget: earned from scout quality sum (ceil(rating/15)
   per scout, capped at 70 total pts/season); added after each simulated week
   or game; used to reveal prospect ratings
 - Scouting reveals ratings; combine measurables always public
 - User picks; CPU auto-picks (position need-aware)
+- Slotted rookie contracts: auto-generated at draft time based on round/pick
+  number with salary scale by slot; first-round picks flagged is_rookie_deal=1
+  and fifth_year_option_eligible=1
+- In-Draft Trading: "🔄 Trade Pick" button opens modal during draft day;
+  user selects own pick + CPU team + their pick; backend evaluates value
+  balance (calcPickTradeValue) with random noise; accepted/declined response
+  shown inline; IPC: propose-draft-trade
 
 DRAFT COMBINE / DEEPER SCOUTING
 ────────────────────────────────────────────────────────────────────────────────
@@ -399,9 +449,24 @@ RECORDS TAB (5 modes)
 ────────────────────────────────────────────────────────────────────────────────
 All-Time Leaders / Season Records / Franchise Records / Season Awards / Hall of Fame
 
-PLAYOFFS TAB
+PLAYOFFS TAB (src/Playoffs.tsx)
 ────────────────────────────────────────────────────────────────────────────────
-- Bracket visual: AFC + NFC, Wild Card → Gridiron Cup; SVG connectors; champion banner
+- Bracket visual: AFC + NFC, Wild Card → Divisional → Conference Championship
+  → Gridiron Cup; SVG connectors; champion banner
+- Two simulation modes:
+  Game-by-game mode (primary): "Start Playoffs" creates Wild Card matchups as
+  pending games; each game shows individual "Sim" or "▶ Play" button (user's
+  game highlighted in orange with "▶ Play" label); simulating a game auto-creates
+  next round's matchups when the round completes; "Simulate All Remaining"
+  loops through all pending rounds sequentially
+  Bulk mode (from Home tab): "Simulate Playoffs" on Home sidebar runs all
+  games at once using existing simulate-playoffs IPC
+- IPCs: init-playoffs, get-playoff-state, simulate-playoff-game (game-by-game);
+  simulate-playoffs, get-playoffs (bulk)
+- Seeds stored in settings as playoff_seeds_AFC_{season} / playoff_seeds_NFC_{season};
+  used to reconstruct bracket positions after bulk or partial simulation
+- Pending games shown as dashed-border cards with TBD result; completed games
+  show full score and winner highlight
 
 NEWS CENTER TAB
 ────────────────────────────────────────────────────────────────────────────────
@@ -410,7 +475,7 @@ NEWS CENTER TAB
 - Expandable news items — click any item to reveal full detail text below it
 - Auto-logged: contracts, trades, injuries, IR moves, draft picks, game results,
   retirements, HOF, season awards, milestones, owner patience warnings, breakouts,
-  league expansions, team relocations
+  league expansions, team relocations, league events, holdouts, playoff results
 
 IMPORT TAB
 ────────────────────────────────────────────────────────────────────────────────
@@ -480,6 +545,15 @@ SEASON ADVANCE (advanceSeason in SeasonService.ts)
     CPU teams with critically low patience may relocate to an available city;
     updates team city/name/abbrev in DB; sets relocated_from to original city;
     logs a 'League' category news event via logNewsEvent()
+22. Recalculate dynamic revenue (recalculateTeamFinances) — updates
+    season_revenue in team_finances based on market_size × win_pct modifier
+    × attendance_rate; large market teams benefit more from winning
+23. Check holdouts and trade demands (checkHoldoutsAndDemands in
+    ContractService) — players with low morale + final year contracts may
+    enter holdout or demand a trade; sets holdout_status / trade_demand flags
+24. Check random league events (checkLeagueEvents in LeagueEventsService) —
+    45% chance one of 10 predefined events fires each season; logged to
+    news_events; effects may modify attendance_rate, revenue, or draft class
 
 IN-SEASON PLAYER PROGRESSION (ProgressionService.ts)
 ────────────────────────────────────────────────────────────────────────────────
@@ -493,8 +567,35 @@ IN-SEASON PLAYER PROGRESSION (ProgressionService.ts)
 CPU GM INTELLIGENCE
 ────────────────────────────────────────────────────────────────────────────────
 - Team classification: Contender / Buyer / Neutral / Seller / Rebuilding
+- gm_personality column on teams (schema v20): aggressive, conservative,
+  balanced, rebuilder, win_now — seeded randomly at v20 migration
+- Personality modifiers applied in ContractService CPU FA bidding and resign:
+  aggressive: bids 10–15% above market; win_now: 8% premium on vets;
+  rebuilder: -10% on vets, +20% value on youth; conservative: -5% all;
+  balanced: no modifier
 - Cap cleanup, CPU resign (78%–110% of market), FA bidding engine
 - CPU incoming trades: max 2/week; 18% weekly chance; weeks 1–10 only
+
+ROOKIE CONTRACT SYSTEM
+────────────────────────────────────────────────────────────────────────────────
+- Slotted salary scale applied at draft time (draftHandlers.ts):
+  Round 1 Picks 1–5: $7.5M–$5.0M; Picks 6–10: $4.5M–$3.2M;
+  Picks 11–32: $2.8M–$1.8M; Round 2: $1.2M–$0.9M; Rounds 3–7: $0.85M
+- Contracts marked is_rookie_deal = 1; all Round 1 picks get
+  fifth_year_option_eligible = 1
+- 5th-year option: pick up or decline via IPC pick-up-fifth-year-option /
+  decline-fifth-year-option; displayed in OffseasonTab and SalariesTab
+  with badge indicators
+
+HOLDOUT & TRADE DEMAND SYSTEM
+────────────────────────────────────────────────────────────────────────────────
+- checkHoldoutsAndDemands() runs at season advance (step 23)
+- Trigger conditions: morale < 50 AND final contract year AND OVR >= 75
+  → 30% chance of holdout; OVR >= 82 and morale < 40 → 20% trade demand
+- Resolution options (IPC resolve-holdout): pay (grant raise via extend),
+  wait (holdout continues, -5 morale), trade_request (mark for trade)
+- holdout_weeks incremented each season advance while unresolved
+- OffseasonTab displays holdout panel with player cards and action buttons
 
 MILESTONE SYSTEM
 ────────────────────────────────────────────────────────────────────────────────
@@ -559,3 +660,8 @@ get-weekly-scout-pts get-game-play-log apply-dynasty-template
 set-setting get-setting get-team-finances get-all-team-finances
 get-league-office-data cast-expansion-vote
 get-relocation-cities request-user-relocation
+get-recent-league-events get-all-gm-personalities
+pick-up-fifth-year-option decline-fifth-year-option
+get-holdout-players resolve-holdout
+get-draft-class-strength propose-draft-trade
+init-playoffs get-playoff-state simulate-playoff-game
