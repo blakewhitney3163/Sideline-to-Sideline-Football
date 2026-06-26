@@ -53,11 +53,6 @@ export function registerSeasonHandlers(): void {
     return { team, record, recentNews };
   });
 
-  ipcMain.handle('generate-schedule', () => {
-    const { generateSchedule } = require('../services/ScheduleService');
-    return generateSchedule();
-  });
-
   ipcMain.handle('get-schedule', (_event: any, season: number) =>
     db.prepare(`
       SELECT g.id, g.week, g.home_team_id, g.away_team_id,
@@ -70,59 +65,6 @@ export function registerSeasonHandlers(): void {
       WHERE g.season = ?
       ORDER BY g.week, g.id
     `).all(season));
-
-  ipcMain.handle('get-current-week', () => {
-    const season = getCurrentSeason();
-    const row = db.prepare(
-      'SELECT MAX(week) as week FROM games WHERE season = ? AND is_simulated = 1 AND is_playoff = 0'
-    ).get(season) as any;
-    return row?.week ?? 0;
-  });
-
-  ipcMain.handle('get-week-matchups', (_event: any, week: number) => {
-    const season = getCurrentSeason();
-    return db.prepare(`
-      SELECT g.id, g.week, g.home_team_id, g.away_team_id,
-        g.home_score, g.away_score, g.is_simulated, g.weather,
-        ht.city as home_city, ht.name as home_name, ht.abbreviation as home_abbr,
-        at.city as away_city, at.name as away_name, at.abbreviation as away_abbr
-      FROM games g
-      JOIN teams ht ON ht.id = g.home_team_id
-      JOIN teams at ON at.id = g.away_team_id
-      WHERE g.season = ? AND g.week = ? AND g.is_playoff = 0
-      ORDER BY g.id
-    `).all(season, week);
-  });
-
-  ipcMain.handle('simulate-week', (_event: any, week: number) => {
-    const { simulateWeek } = require('../services/SimulationService');
-    return simulateWeek(week);
-  });
-
-  ipcMain.handle('simulate-game', (_event: any, gameId: number) => {
-    const { simulateSingleGame } = require('../services/SimulationService');
-    return simulateSingleGame(gameId);
-  });
-
-  ipcMain.handle('get-game-box-score', (_event: any, gameId: number) => {
-    const { getGameBoxScore } = require('../services/SimulationService');
-    return getGameBoxScore(gameId);
-  });
-
-  ipcMain.handle('simulate-playoffs', (_event: any, season: number) => {
-    const { simulatePlayoffs } = require('../services/PlayoffService');
-    return simulatePlayoffs(season);
-  });
-
-  ipcMain.handle('get-playoffs', (_event: any, season: number) => {
-    const { getPlayoffs } = require('../services/PlayoffService');
-    return getPlayoffs(season);
-  });
-
-  ipcMain.handle('get-playoff-seeds', () => {
-    const { getPlayoffSeeds } = require('../services/PlayoffService');
-    return getPlayoffSeeds();
-  });
 
   ipcMain.handle('get-announcing-retirements', () =>
     db.prepare(`
@@ -278,10 +220,8 @@ export function registerSeasonHandlers(): void {
     return { success: true };
   });
 
-  // ── League Events ────────────────────────────────────────────────────────
   ipcMain.handle('get-recent-league-events', () => getRecentLeagueEvents(10));
 
-  // ── GM Personalities ─────────────────────────────────────────────────────
   ipcMain.handle('get-all-gm-personalities', () =>
     db.prepare(`
       SELECT t.id, t.city, t.name, t.gm_personality
