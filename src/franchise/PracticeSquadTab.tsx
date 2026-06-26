@@ -11,112 +11,188 @@ interface Props {
   rosterSpots: RosterSpots | null;
   showToast: (message: string, type: 'success' | 'error') => void;
   loadData: () => Promise<void>;
+  onDemoteConfirm?: (playerId: number) => void;
 }
 
 export default function PracticeSquadTab({ practiceSquad, rosterSpots, showToast, loadData }: Props) {
-  const [psPos, setPsPos] = useState('ALL');
+  const [posFilter, setPosFilter] = useState('ALL');
+  const [search, setSearch] = useState('');
+  const [cuttingId, setCuttingId] = useState<number | null>(null);
+  const [working, setWorking] = useState(false);
 
-  const filtered = psPos === 'ALL'
-    ? practiceSquad
-    : practiceSquad.filter(p => p.position === psPos || p.position_label === psPos);
+  const filtered = practiceSquad
+    .filter(p => posFilter === 'ALL' || p.position === posFilter || p.position_label === posFilter)
+    .filter(p => {
+      if (!search.trim()) return true;
+      return `${p.first_name} ${p.last_name}`.toLowerCase().includes(search.toLowerCase());
+    });
+
+  const psUsed = rosterSpots?.ps ?? practiceSquad.length;
+  const psMax = 16;
+  const psFree = rosterSpots?.psFree ?? (psMax - psUsed);
+  const activeMax = 53;
+  const activeFree = rosterSpots?.activeFree ?? 0;
+  const psPct = (psUsed / psMax) * 100;
+
+  const handlePromote = async (p: PracticePlayer) => {
+    if (working) return;
+    setWorking(true);
+    const result = await window.api.promoteFromPs(p.id);
+    if (result.success) {
+      showToast(`${p.first_name} ${p.last_name} promoted to active roster.`, 'success');
+      await loadData();
+    } else {
+      showToast(result.reason ?? 'Could not promote.', 'error');
+    }
+    setWorking(false);
+  };
+
+  const handleCutFromPS = async (p: PracticePlayer) => {
+    if (working) return;
+    setWorking(true);
+    const result = await window.api.cutFromPs(p.id);
+    if (result.success) {
+      showToast(`${p.first_name} ${p.last_name} released from practice squad.`, 'error');
+      setCuttingId(null);
+      await loadData();
+    } else {
+      showToast(result.reason ?? 'Could not release.', 'error');
+    }
+    setWorking(false);
+  };
 
   return (
-    <div style={{ padding: '12px 16px' }}>
-
-      {/* Position filter */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-        {PS_POSITIONS.map(pos => (
-          <button
-            key={pos}
-            onClick={() => setPsPos(pos)}
-            style={{
-              padding: '3px 10px', fontSize: 11, cursor: 'pointer', borderRadius: 4,
-              background: psPos === pos ? '#FF8740' : '#141414',
-              border: `1px solid ${psPos === pos ? '#FF8740' : '#2a2a2a'}`,
-              color: psPos === pos ? '#000' : '#555',
-              fontWeight: psPos === pos ? 'bold' : 'normal',
-            }}
-          >
-            {pos}
-          </button>
-        ))}
-        <span style={{ marginLeft: 'auto', fontSize: 11, color: '#444', alignSelf: 'center' }}>
-          {filtered.length} / {practiceSquad.length} players
-        </span>
+    <div>
+      {/* Capacity bars */}
+      <div style={{ display: 'flex', gap: 16, marginBottom: 14, flexWrap: 'wrap' }}>
+        <div style={{ background: '#111', border: '1px solid #1a1a1a', borderRadius: 6, padding: '10px 16px', minWidth: 180 }}>
+          <div style={{ fontSize: 10, color: '#333', letterSpacing: 1, marginBottom: 4 }}>PRACTICE SQUAD</div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+            <span style={{ fontSize: 18, fontWeight: 700, color: psUsed >= psMax ? '#e57373' : '#ccc' }}>{psUsed}</span>
+            <span style={{ color: '#333', fontSize: 11 }}>/ {psMax}</span>
+            <span style={{ color: psFree > 0 ? '#4caf50' : '#555', fontSize: 11, marginLeft: 2 }}>{psFree} open</span>
+          </div>
+          <div style={{ marginTop: 6, height: 3, background: '#1a1a1a', borderRadius: 2 }}>
+            <div style={{ height: '100%', width: `${Math.min(psPct, 100)}%`, background: psPct >= 100 ? '#e57373' : '#4caf50', borderRadius: 2, transition: 'width 0.3s' }} />
+          </div>
+        </div>
+        <div style={{ background: '#111', border: '1px solid #1a1a1a', borderRadius: 6, padding: '10px 16px', minWidth: 160 }}>
+          <div style={{ fontSize: 10, color: '#333', letterSpacing: 1, marginBottom: 4 }}>ACTIVE ROSTER</div>
+          <div style={{ fontSize: 11, color: activeFree > 0 ? '#4caf50' : '#555' }}>
+            {rosterSpots ? `${rosterSpots.active}/${activeMax}` : '—'}
+            {activeFree > 0 && <span style={{ marginLeft: 6 }}>{activeFree} spot{activeFree !== 1 ? 's' : ''} open</span>}
+          </div>
+          {activeFree <= 0 && <div style={{ fontSize: 10, color: '#555', marginTop: 3 }}>Full — cut to promote</div>}
+        </div>
       </div>
 
-      {/* Header */}
-      <div style={{ display: 'flex', gap: 8, padding: '4px 8px', fontSize: 9, letterSpacing: 1, color: '#444' }}>
-        <span style={{ flex: 2 }}>PLAYER</span>
-        <span style={{ width: 36, textAlign: 'center' }}>POS</span>
-        <span style={{ width: 32, textAlign: 'center' }}>AGE</span>
-        <span style={{ width: 40, textAlign: 'center' }}>OVR</span>
-        <span style={{ width: 70, textAlign: 'right' }}>SALARY</span>
-        <span style={{ width: 70 }} />
+      {/* Filters */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
+        {PS_POSITIONS.map(pos => (
+          <button key={pos} onClick={() => setPosFilter(pos)} style={{
+            padding: '3px 9px', background: posFilter === pos ? '#FF8740' : '#141414',
+            border: `1px solid ${posFilter === pos ? '#FF8740' : '#222'}`, borderRadius: 3,
+            color: posFilter === pos ? '#000' : '#555', fontSize: 11, cursor: 'pointer',
+            fontWeight: posFilter === pos ? 'bold' : 'normal',
+          }}>{pos}</button>
+        ))}
+        <input
+          placeholder="Search player…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{
+            marginLeft: 'auto', background: '#161616', border: '1px solid #2a2a2a',
+            borderRadius: 5, color: '#ccc', padding: '4px 10px', fontSize: 12, width: 160,
+          }}
+        />
+      </div>
+
+      {/* Column headers */}
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 90px 80px 90px', gap: '0 8px', padding: '4px 8px', marginBottom: 4 }}>
+        <span style={{ color: '#333', fontSize: 10, letterSpacing: 1 }}>PLAYER</span>
+        <span style={{ color: '#333', fontSize: 10, letterSpacing: 1 }}>AGE / OVR</span>
+        <span style={{ color: '#333', fontSize: 10, letterSpacing: 1 }}>SALARY</span>
+        <span />
       </div>
 
       {filtered.length === 0 ? (
-        <div style={{ color: '#444', fontSize: 12, padding: '20px 8px', textAlign: 'center' }}>
-          {practiceSquad.length === 0 ? 'No practice squad players' : `No ${psPos} on practice squad`}
+        <div style={{ color: '#333', fontSize: 13, padding: '20px 8px' }}>
+          {practiceSquad.length === 0 ? 'No practice squad players' : 'No players match filter'}
         </div>
       ) : filtered.map(p => {
         const traj = trajectory(p.age);
+        const isCutting = cuttingId === p.id;
+
         return (
           <div key={p.id} style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '7px 8px', borderBottom: '1px solid #1a1a1a',
+            background: '#111', border: '1px solid #1a1a1a',
+            borderRadius: 6, padding: '10px 12px', marginBottom: 6,
           }}>
-            <div style={{ flex: 2, minWidth: 0 }}>
-              <div style={{ fontSize: 13, color: '#ccc', fontWeight: 600 }}>
-                {p.first_name} {p.last_name}
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 90px 80px 90px', gap: '0 8px', alignItems: 'center' }}>
+              <div>
+                <div style={{ color: '#ddd', fontWeight: 600, fontSize: 13 }}>{p.first_name} {p.last_name}</div>
+                <div style={{ color: '#444', fontSize: 11, marginTop: 1 }}>{p.position_label || p.position}</div>
+              </div>
+
+              <div>
+                <div style={{ color: '#aaa', fontSize: 12 }}>{p.age} <span style={{ color: traj.color, fontSize: 10 }}>{traj.label}</span></div>
+                <div style={{ color: ratingColor(p.overall_rating), fontSize: 15, fontWeight: 700 }}>{p.overall_rating}</div>
+              </div>
+
+              <div style={{ color: '#888', fontSize: 12 }}>{fmtSalary(p.annual_salary ?? 1.165)}</div>
+
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button
+                  onClick={() => handlePromote(p)}
+                  disabled={working || activeFree <= 0}
+                  title={activeFree <= 0 ? 'Active roster full' : 'Promote to active roster'}
+                  style={{
+                    padding: '4px 8px', fontSize: 11, cursor: activeFree <= 0 ? 'not-allowed' : 'pointer',
+                    borderRadius: 4, background: '#0a1a0a', border: '1px solid #1a4a1a',
+                    color: '#4caf50', opacity: activeFree <= 0 ? 0.3 : 1, whiteSpace: 'nowrap',
+                  }}>
+                  ↑ Active
+                </button>
+                <button
+                  onClick={() => setCuttingId(isCutting ? null : p.id)}
+                  disabled={working}
+                  style={{
+                    padding: '4px 8px', fontSize: 11, cursor: 'pointer',
+                    borderRadius: 4, background: isCutting ? '#3a0a0a' : '#141414',
+                    border: `1px solid ${isCutting ? '#e57373' : '#2a2a2a'}`,
+                    color: isCutting ? '#e57373' : '#555',
+                  }}>
+                  {isCutting ? 'Cancel' : 'Cut'}
+                </button>
               </div>
             </div>
-            <span style={{
-              width: 36, textAlign: 'center', fontSize: 10, fontWeight: 700,
-              color: '#888', background: '#1a1a1a', borderRadius: 3, padding: '1px 4px',
-            }}>
-              {p.position_label || p.position}
-            </span>
-            <span style={{ width: 32, textAlign: 'center', fontSize: 12, color: '#666' }}>
-              {p.age} <span style={{ fontSize: 9, color: traj.color }}>{traj.label}</span>
-            </span>
-            <span style={{
-              width: 40, textAlign: 'center', fontSize: 15, fontWeight: 800,
-              color: ratingColor(p.overall_rating),
-            }}>
-              {p.overall_rating}
-            </span>
-            <span style={{ width: 70, textAlign: 'right', fontSize: 11, color: '#555', fontFamily: 'monospace' }}>
-              {fmtSalary(p.annual_salary ?? 1.165)}
-            </span>
-            <div style={{ width: 70, display: 'flex', gap: 4 }}>
-              <button
-                onClick={async () => {
-                  const result = await window.api.promoteFromPs(p.id);
-                  if (result.success) {
-                    showToast(`${result.name} promoted to active roster.`, 'success');
-                    loadData();
-                  } else {
-                    showToast(result.reason ?? 'Could not promote.', 'error');
-                  }
-                }}
-                disabled={!!(rosterSpots && rosterSpots.activeFree <= 0)}
-                style={{
-                  flex: 1, padding: '4px 0', fontSize: 11, cursor: 'pointer', borderRadius: 4,
-                  background: '#0a1a0a', border: '1px solid #1a4a1a', color: '#4caf50',
-                  opacity: rosterSpots && rosterSpots.activeFree <= 0 ? 0.3 : 1,
-                }}
-              >
-                Promote
-              </button>
-            </div>
+
+            {isCutting && (
+              <div style={{ marginTop: 10, padding: '10px 14px', background: '#1a0a0a', border: '1px solid #3a1a1a', borderRadius: 6 }}>
+                <div style={{ color: '#aaa', fontSize: 12, marginBottom: 8 }}>
+                  Release {p.first_name} {p.last_name} from the practice squad?
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => handleCutFromPS(p)}
+                    disabled={working}
+                    style={{ padding: '6px 16px', background: '#e57373', border: 'none', borderRadius: 4, color: '#000', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+                    {working ? '...' : 'Confirm Release'}
+                  </button>
+                  <button
+                    onClick={() => setCuttingId(null)}
+                    style={{ padding: '6px 16px', background: '#141414', border: '1px solid #2a2a2a', borderRadius: 4, color: '#555', fontSize: 12, cursor: 'pointer' }}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         );
       })}
 
-      <div style={{ fontSize: 10, color: '#333', padding: '10px 8px', textAlign: 'center' }}>
-        {practiceSquad.length} / 16 practice squad slots used
-        {rosterSpots && ` · ${rosterSpots.activeFree} active roster spot${rosterSpots.activeFree !== 1 ? 's' : ''} open`}
+      <div style={{ color: '#333', fontSize: 11, marginTop: 8, textAlign: 'right' }}>
+        {filtered.length} player{filtered.length !== 1 ? 's' : ''} shown · {psUsed}/{psMax} PS slots used
       </div>
     </div>
   );
