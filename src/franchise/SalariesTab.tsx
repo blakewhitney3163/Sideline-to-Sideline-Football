@@ -64,7 +64,6 @@ export default function SalariesTab({ contracts, cap, currentSeason }: Props) {
 
   const totalShown = filtered.reduce((s, c) => s + c.annual_salary, 0);
   const totalGuaranteed = filtered.reduce((s, c) => s + (c.guaranteed_amount ?? 0), 0);
-
   const maxYears = contracts.length > 0 ? Math.max(...contracts.map(c => c.years_remaining)) : 0;
   const totalCap = cap?.total_cap ?? 279.2;
 
@@ -164,6 +163,8 @@ export default function SalariesTab({ contracts, cap, currentSeason }: Props) {
             const valueLabel = ratio < 0.70 ? 'DEAL' : ratio > 2.00 ? 'OVER' : 'FAIR';
             const isExpiring = c.years_remaining === 1;
             const gtdPct = c.guaranteed_pct ?? 0;
+            const isRookie = (c as any).is_rookie_deal === 1;
+            const hasFifthOption = (c as any).fifth_year_option_eligible === 1;
 
             return (
               <div key={c.id} style={{
@@ -172,9 +173,11 @@ export default function SalariesTab({ contracts, cap, currentSeason }: Props) {
                 background: isExpiring ? '#140a00' : 'transparent', alignItems: 'center',
               }}>
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
                     <span style={{ color: '#ddd', fontSize: 12, fontWeight: 600 }}>{c.first_name} {c.last_name}</span>
                     {trait.short && <span style={{ background: trait.bg, color: trait.color, fontSize: 9, fontWeight: 700, padding: '1px 4px', borderRadius: 3 }}>{trait.short}</span>}
+                    {isRookie && <span style={{ background: '#4FC3F722', color: '#4FC3F7', fontSize: 9, fontWeight: 700, padding: '1px 4px', borderRadius: 3 }}>ROOKIE</span>}
+                    {hasFifthOption && <span style={{ background: '#66BB6A22', color: '#66BB6A', fontSize: 9, fontWeight: 700, padding: '1px 4px', borderRadius: 3 }}>5th Opt</span>}
                     {isExpiring && <span style={{ color: '#FF8740', fontSize: 9, fontWeight: 700 }}>⚠ EXP</span>}
                   </div>
                 </div>
@@ -215,20 +218,15 @@ export default function SalariesTab({ contracts, cap, currentSeason }: Props) {
             <div style={{ color: '#333', fontSize: 13, padding: '20px 10px', textAlign: 'center' }}>No contracts on books</div>
           ) : scheduleYears.map(({ yr, active, expiring, totalHit, available, byGroup }) => {
             const hitPct = (totalHit / totalCap) * 100;
-            const barColor = hitPct > 100 ? '#e57373' : hitPct > 90 ? '#FF8740' : hitPct > 70 ? '#FF8740' : '#4caf50';
+            const barColor = hitPct > 100 ? '#e57373' : hitPct > 90 ? '#FF8740' : '#4caf50';
             const isExpanded = expandedYear === yr;
             const seasonLabel = currentSeason ? currentSeason + yr - 1 : `Year ${yr}`;
-
             return (
               <div key={yr} style={{ marginBottom: 8, border: '1px solid #1a1a1a', borderRadius: 6, overflow: 'hidden' }}>
-                <div
-                  onClick={() => setExpandedYear(isExpanded ? null : yr)}
-                  style={{ padding: '12px 14px', background: '#111', cursor: 'pointer', userSelect: 'none' }}
-                >
+                <div onClick={() => setExpandedYear(isExpanded ? null : yr)}
+                  style={{ padding: '12px 14px', background: '#111', cursor: 'pointer', userSelect: 'none' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-                    <span style={{ color: '#FF8740', fontSize: 12, fontWeight: 700, letterSpacing: 1, minWidth: 80 }}>
-                      {seasonLabel}
-                    </span>
+                    <span style={{ color: '#FF8740', fontSize: 12, fontWeight: 700, letterSpacing: 1, minWidth: 80 }}>{seasonLabel}</span>
                     <span style={{ color: '#ccc', fontSize: 14, fontWeight: 700 }}>{fmtSalary(totalHit)}</span>
                     <span style={{ color: barColor, fontSize: 11 }}>{hitPct.toFixed(1)}% of cap</span>
                     <span style={{ color: available >= 0 ? '#4caf50' : '#e57373', fontSize: 11, marginLeft: 'auto' }}>
@@ -237,75 +235,55 @@ export default function SalariesTab({ contracts, cap, currentSeason }: Props) {
                     <span style={{ color: '#333', fontSize: 11 }}>{active.length} players</span>
                     <span style={{ color: '#444', fontSize: 14 }}>{isExpanded ? '▲' : '▼'}</span>
                   </div>
-
                   <div style={{ height: 5, background: '#1a1a1a', borderRadius: 3, overflow: 'hidden', marginBottom: 8 }}>
                     <div style={{ width: `${Math.min(hitPct, 100)}%`, height: '100%', background: barColor, borderRadius: 3, transition: 'width 0.3s' }} />
                   </div>
-
                   <div style={{ display: 'flex', height: 6, borderRadius: 3, overflow: 'hidden', gap: 1 }}>
-                    {Object.entries(byGroup)
-                      .sort((a, b) => b[1].hit - a[1].hit)
-                      .map(([group, { hit }]) => (
-                        <div key={group} title={`${group}: ${fmtSalary(hit)}`}
-                          style={{ flex: hit, background: GROUP_COLOR[group] ?? '#555', minWidth: 2 }} />
-                      ))}
+                    {Object.entries(byGroup).sort((a, b) => b[1].hit - a[1].hit).map(([group, { hit }]) => (
+                      <div key={group} title={`${group}: ${fmtSalary(hit)}`}
+                        style={{ flex: hit, background: GROUP_COLOR[group] ?? '#555', minWidth: 2 }} />
+                    ))}
                   </div>
-
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 6 }}>
-                    {Object.entries(byGroup)
-                      .sort((a, b) => b[1].hit - a[1].hit)
-                      .map(([group, { hit }]) => (
-                        <span key={group} style={{ fontSize: 10, color: GROUP_COLOR[group] ?? '#555' }}>
-                          {group} {fmtSalary(hit)}
-                        </span>
-                      ))}
+                    {Object.entries(byGroup).sort((a, b) => b[1].hit - a[1].hit).map(([group, { hit }]) => (
+                      <span key={group} style={{ fontSize: 10, color: GROUP_COLOR[group] ?? '#555' }}>{group} {fmtSalary(hit)}</span>
+                    ))}
                   </div>
-
                   {expiring.length > 0 && (
                     <div style={{ marginTop: 6, fontSize: 10, color: '#FF8740' }}>
                       ⚠ {expiring.length} expiring: {expiring.map(p => `${p.first_name} ${p.last_name}`).join(', ')}
                     </div>
                   )}
                 </div>
-
                 {isExpanded && (
                   <div style={{ background: '#0d0d0d', borderTop: '1px solid #1a1a1a' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '2fr 60px 50px 80px 60px', padding: '4px 14px', fontSize: 10, color: '#333', letterSpacing: 1, borderBottom: '1px solid #141414' }}>
-                      <span>PLAYER</span>
-                      <span style={{ textAlign: 'center' }}>POS</span>
-                      <span style={{ textAlign: 'center' }}>OVR</span>
-                      <span style={{ textAlign: 'right' }}>SALARY</span>
-                      <span style={{ textAlign: 'center' }}>YRS LEFT</span>
+                      <span>PLAYER</span><span style={{ textAlign: 'center' }}>POS</span><span style={{ textAlign: 'center' }}>OVR</span><span style={{ textAlign: 'right' }}>SALARY</span><span style={{ textAlign: 'center' }}>YRS LEFT</span>
                     </div>
-                    {active
-                      .slice()
-                      .sort((a, b) => b.annual_salary - a.annual_salary)
-                      .map(c => {
-                        const isLastYear = c.years_remaining === yr;
-                        const trait = TRAIT_META[c.dev_trait] ?? TRAIT_META['Normal'];
-                        return (
-                          <div key={c.id} style={{
-                            display: 'grid', gridTemplateColumns: '2fr 60px 50px 80px 60px',
-                            padding: '5px 14px', borderBottom: '1px solid #111',
-                            background: isLastYear ? '#1a0e00' : 'transparent',
-                            alignItems: 'center',
-                          }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                              <span style={{ color: isLastYear ? '#FF8740' : '#bbb', fontSize: 12, fontWeight: isLastYear ? 700 : 400 }}>
-                                {c.first_name} {c.last_name}
-                              </span>
-                              {trait.short && <span style={{ background: trait.bg, color: trait.color, fontSize: 9, fontWeight: 700, padding: '1px 4px', borderRadius: 3 }}>{trait.short}</span>}
-                              {isLastYear && <span style={{ color: '#FF8740', fontSize: 9, fontWeight: 700 }}>EXP</span>}
-                            </div>
-                            <div style={{ textAlign: 'center', color: '#555', fontSize: 11 }}>{c.position_label || c.position}</div>
-                            <div style={{ textAlign: 'center', color: ratingColor(c.overall_rating), fontSize: 12, fontWeight: 700 }}>{c.overall_rating}</div>
-                            <div style={{ textAlign: 'right', color: '#ccc', fontSize: 12 }}>{fmtSalary(c.annual_salary)}</div>
-                            <div style={{ textAlign: 'center', color: isLastYear ? '#FF8740' : '#444', fontSize: 11 }}>
-                              {c.years_remaining}yr
-                            </div>
+                    {active.slice().sort((a, b) => b.annual_salary - a.annual_salary).map(c => {
+                      const isLastYear = c.years_remaining === yr;
+                      const trait = TRAIT_META[c.dev_trait] ?? TRAIT_META['Normal'];
+                      return (
+                        <div key={c.id} style={{
+                          display: 'grid', gridTemplateColumns: '2fr 60px 50px 80px 60px',
+                          padding: '5px 14px', borderBottom: '1px solid #111',
+                          background: isLastYear ? '#1a0e00' : 'transparent', alignItems: 'center',
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <span style={{ color: isLastYear ? '#FF8740' : '#bbb', fontSize: 12, fontWeight: isLastYear ? 700 : 400 }}>
+                              {c.first_name} {c.last_name}
+                            </span>
+                            {trait.short && <span style={{ background: trait.bg, color: trait.color, fontSize: 9, fontWeight: 700, padding: '1px 4px', borderRadius: 3 }}>{trait.short}</span>}
+                            {(c as any).is_rookie_deal === 1 && <span style={{ color: '#4FC3F7', fontSize: 9, fontWeight: 700 }}>R</span>}
+                            {isLastYear && <span style={{ color: '#FF8740', fontSize: 9, fontWeight: 700 }}>EXP</span>}
                           </div>
-                        );
-                      })}
+                          <div style={{ textAlign: 'center', color: '#555', fontSize: 11 }}>{c.position_label || c.position}</div>
+                          <div style={{ textAlign: 'center', color: ratingColor(c.overall_rating), fontSize: 12, fontWeight: 700 }}>{c.overall_rating}</div>
+                          <div style={{ textAlign: 'right', color: '#ccc', fontSize: 12 }}>{fmtSalary(c.annual_salary)}</div>
+                          <div style={{ textAlign: 'center', color: isLastYear ? '#FF8740' : '#444', fontSize: 11 }}>{c.years_remaining}yr</div>
+                        </div>
+                      );
+                    })}
                     <div style={{ padding: '6px 14px', fontSize: 11, color: '#444', display: 'flex', gap: 20 }}>
                       <span>{active.length} players on books</span>
                       <span>Total hit: <span style={{ color: '#ccc' }}>{fmtSalary(totalHit)}</span></span>
@@ -316,7 +294,6 @@ export default function SalariesTab({ contracts, cap, currentSeason }: Props) {
               </div>
             );
           })}
-
           <div style={{ marginTop: 6, fontSize: 10, color: '#333', textAlign: 'right' }}>
             Cap ceiling: {fmtSalary(totalCap)} · {maxYears} contract year{maxYears !== 1 ? 's' : ''} on books
           </div>
