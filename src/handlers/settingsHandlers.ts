@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron';
 import { db, generateContracts } from '../database';
 import { balanceRosters } from '../helpers/balanceRosters';
+import { getSalaryCap } from '../helpers/getSalaryCap';
 import { settingsRepo } from '../repositories';
 import type { IpcEvent, CountRow, CntRow } from '../types/ipc';
 
@@ -28,7 +29,7 @@ export function registerSettingsHandlers(): void {
 
   ipcMain.handle('get-user-team', () => settingsRepo.getUserTeam());
 
-    ipcMain.handle('get-teams', () =>
+  ipcMain.handle('get-teams', () =>
     db.prepare(
       'SELECT id, city, name, abbreviation, conference, division FROM teams ORDER BY conference, division, city'
     ).all()
@@ -98,16 +99,32 @@ export function registerSettingsHandlers(): void {
     return row.cnt > 0;
   });
 
-    ipcMain.handle('apply-dynasty-template', () => {
+  ipcMain.handle('apply-dynasty-template', () => {
     const template = settingsRepo.get('dynasty_template');
     const teamIdStr = settingsRepo.get('user_team_id');
     if (!teamIdStr) return { success: false, reason: 'No user team set' };
     const teamId = parseInt(teamIdStr, 10);
 
-    // Always clear coaches from user's team so they hire fresh in pre-season
+    // Always clear coaches so the user hires fresh in pre-season
     db.prepare('UPDATE coaching_staff SET team_id = NULL, years_remaining = 3 WHERE team_id = ?').run(teamId);
 
     if (!template) return { success: true };
+
+    const getActiveCapUsage = (): number =>
+      (db.prepare(
+        `SELECT COALESCE(SUM(c.annual_salary), 0) as total
+         FROM contracts c JOIN players p ON c.player_id = p.id
+         WHERE c.team_id = ? AND p.roster_status = 'active'`
+      ).get(teamId) as any).total as number;
+
+    const scaleSalariesToTarget = (targetUsed: number) => {
+      const current = getActiveCapUsage();
+      if (current <= 0) return;
+      const mult = Math.min(targetUsed / current, 1);
+      db.prepare(
+        'UPDATE contracts SET annual_salary = MAX(0.87, annual_salary * ?) WHERE team_id = ?'
+      ).run(mult, teamId);
+    };
 
     if (template === 'rebuild') {
       const players = db.prepare(
@@ -118,9 +135,9 @@ export function registerSettingsHandlers(): void {
         const newOvr = Math.max(50, p.overall_rating - drop);
         db.prepare('UPDATE players SET overall_rating = ? WHERE id = ?').run(newOvr, p.id);
       }
-      db.prepare(
-        'UPDATE contracts SET annual_salary = MAX(0.87, annual_salary * 0.55) WHERE team_id = ?'
-      ).run(teamId);
+      // Target ~$32M cap space
+      scaleSalariesToTarget(getSalaryCap() - 32);
+
     } else if (template === 'contender') {
       const players = db.prepare(
         "SELECT id, overall_rating FROM players WHERE team_id = ? AND roster_status = 'active' ORDER BY overall_rating ASC"
@@ -131,9 +148,9 @@ export function registerSettingsHandlers(): void {
         const newOvr = Math.max(55, p.overall_rating - drop);
         db.prepare('UPDATE players SET overall_rating = ? WHERE id = ?').run(newOvr, p.id);
       }
-      db.prepare(
-        'UPDATE contracts SET annual_salary = MAX(0.87, annual_salary * 0.80) WHERE team_id = ?'
-      ).run(teamId);
+      // Target ~$15M cap space
+      scaleSalariesToTarget(getSalaryCap() - 15);
+
     } else if (template === 'dynasty') {
       const players = db.prepare(
         "SELECT id, overall_rating FROM players WHERE team_id = ? AND roster_status = 'active' ORDER BY overall_rating DESC LIMIT 15"
@@ -143,6 +160,8 @@ export function registerSettingsHandlers(): void {
         const newOvr = Math.min(99, p.overall_rating + boost);
         db.prepare('UPDATE players SET overall_rating = ? WHERE id = ?').run(newOvr, p.id);
       }
+      // Target ~$8M cap space (tight cap for a dynasty squad)
+      scaleSalariesToTarget(getSalaryCap() - 8);
     }
 
     return { success: true };
