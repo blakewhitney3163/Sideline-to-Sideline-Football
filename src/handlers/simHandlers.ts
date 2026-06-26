@@ -754,46 +754,63 @@ export function registerSimHandlers(): void {
   });
 
     ipcMain.handle('apply-dynasty-template', () => {
-    const userTeamId = settingsRepo.getUserTeamId();
-    if (!userTeamId) return { success: false };
+  const userTeamId = settingsRepo.getUserTeamId();
+  if (!userTeamId) return { success: false };
 
-const template = settingsRepo.get('dynasty_template');
-if (!template) return { success: true, template: 'none' };
-    const players = db.prepare(
-      "SELECT id, overall_rating FROM players WHERE team_id = ? AND roster_status = 'active' ORDER BY overall_rating DESC"
-    ).all(userTeamId) as any[];
+  const template = settingsRepo.get('dynasty_template');
+  if (!template) return { success: true, template: 'none' };
 
-    if (players.length === 0) return { success: true, template };
+  const players = db.prepare(
+    "SELECT id, overall_rating FROM players WHERE team_id = ? AND roster_status = 'active' ORDER BY overall_rating DESC"
+  ).all(userTeamId) as any[];
 
-    db.transaction(() => {
-      if (template === 'rebuild') {
-        for (const p of players) {
-          const drop = Math.floor(Math.random() * 9) + 10;
-          db.prepare('UPDATE players SET overall_rating = ? WHERE id = ?')
-            .run(Math.max(50, p.overall_rating - drop), p.id);
-        }
-        db.prepare(
-          'UPDATE contracts SET annual_salary = MAX(1.0, ROUND(annual_salary * 0.55, 1)) WHERE team_id = ?'
-        ).run(userTeamId);
-      } else if (template === 'contender') {
-        const half = Math.floor(players.length / 2);
-        for (const p of players.slice(half)) {
-          const drop = Math.floor(Math.random() * 5) + 2;
-          db.prepare('UPDATE players SET overall_rating = ? WHERE id = ?')
-            .run(Math.max(62, p.overall_rating - drop), p.id);
-        }
-        db.prepare(
-          'UPDATE contracts SET annual_salary = MAX(1.0, ROUND(annual_salary * 0.80, 1)) WHERE team_id = ?'
-        ).run(userTeamId);
-      } else if (template === 'dynasty') {
-        for (const p of players.slice(0, 15)) {
-          const boost = Math.floor(Math.random() * 5) + 3;
-          db.prepare('UPDATE players SET overall_rating = ? WHERE id = ?')
-            .run(Math.min(99, p.overall_rating + boost), p.id);
-        }
+  if (players.length === 0) return { success: true, template };
+
+  // Get current total salary so we can scale to a precise target cap room
+  const currentTotal = (db.prepare(
+    `SELECT COALESCE(SUM(c.annual_salary), 0) as total
+     FROM contracts c JOIN players p ON c.player_id = p.id
+     WHERE c.team_id = ? AND p.roster_status = 'active'`
+  ).get(userTeamId) as any).total as number;
+
+  const SALARY_CAP = 279.2;
+  const TARGET_ROOM: Record<string, number> = {
+    rebuild: 30,
+    contender: 15,
+    dynasty: 8,
+  };
+  const targetRoom = TARGET_ROOM[template] ?? 12;
+  const targetUsed = SALARY_CAP - targetRoom;
+  const scale = currentTotal > 0 ? targetUsed / currentTotal : 1;
+
+  db.transaction(() => {
+    if (template === 'rebuild') {
+      for (const p of players) {
+        const drop = Math.floor(Math.random() * 9) + 10;
+        db.prepare('UPDATE players SET overall_rating = ? WHERE id = ?')
+          .run(Math.max(50, p.overall_rating - drop), p.id);
       }
-    })();
+    } else if (template === 'contender') {
+      const half = Math.floor(players.length / 2);
+      for (const p of players.slice(half)) {
+        const drop = Math.floor(Math.random() * 5) + 2;
+        db.prepare('UPDATE players SET overall_rating = ? WHERE id = ?')
+          .run(Math.max(62, p.overall_rating - drop), p.id);
+      }
+    } else if (template === 'dynasty') {
+      for (const p of players.slice(0, 15)) {
+        const boost = Math.floor(Math.random() * 5) + 3;
+        db.prepare('UPDATE players SET overall_rating = ? WHERE id = ?')
+          .run(Math.min(99, p.overall_rating + boost), p.id);
+      }
+    }
 
-    return { success: true, template };
-  });
+    // Scale contracts to hit the target cap room precisely
+    db.prepare(
+      'UPDATE contracts SET annual_salary = MAX(1.0, ROUND(annual_salary * ?, 1)) WHERE team_id = ?'
+    ).run(scale, userTeamId);
+  })();
+
+  return { success: true, template };
+});
 }
