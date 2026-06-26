@@ -31,6 +31,9 @@ export const seasonApi = {
   simulateGame: (gameId: number) =>
     ipcRenderer.invoke('simulate-game', gameId),
 
+  simulateOneGame: (gameId: number) =>
+    ipcRenderer.invoke('simulate-game', gameId),
+
   getGameBoxScore: (gameId: number) =>
     ipcRenderer.invoke('get-game-box-score', gameId),
 
