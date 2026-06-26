@@ -4,6 +4,13 @@ import { TRAIT_META, ratingColor, trajectory, fmtSalary, askingPrice } from './u
 
 interface CpuFaResult { totalSigned: number; teamsActive: number; }
 
+interface HoldoutPlayer {
+  id: number; first_name: string; last_name: string; position: string;
+  overall_rating: number; morale: number;
+  holdout_status: string | null; holdout_weeks: number; trade_demand: number;
+  annual_salary: number; years_remaining: number;
+}
+
 interface Props {
   expiringPlayers: Contract[];
   cap: CapSummary | null;
@@ -27,6 +34,9 @@ interface Props {
   pendingCounters: Record<number, { salary: number; years: number }>;
   handleAcceptCounter: (playerId: number, salary: number, years: number) => void;
   handleDeclineCounter: (playerId: number) => void;
+  holdoutPlayers?: HoldoutPlayer[];
+  onResolveHoldout?: (playerId: number, action: 'pay' | 'wait' | 'trade_request') => void;
+  onFifthYearOption?: (playerId: number, action: 'pick_up' | 'decline') => void;
   working: boolean;
 }
 
@@ -35,12 +45,13 @@ export default function OffseasonTab({
   resigningId, setResigningId, resignYears, setResignYears, resignSalary, setResignSalary,
   cpuFaResult, cpuFaDone, setCpuFaDone, setCpuFaResult,
   handleResign, handleLetWalk, handleCpuFa, handleApplyTag, handleRemoveTag,
-  pendingCounters, handleAcceptCounter, handleDeclineCounter, working,
+  pendingCounters, handleAcceptCounter, handleDeclineCounter,
+  holdoutPlayers = [], onResolveHoldout, onFifthYearOption,
+  working,
 }: Props) {
   const resignSalaryNum = parseFloat(resignSalary) || 0;
   const resignCapLeft = cap ? cap.available_cap - resignSalaryNum : 0;
   const pendingCount = Object.values(playerDecisions).filter(d => d === 'pending').length;
-
   const franchiseTagUsed = expiringPlayers.some(p => p.franchise_tagged === 1);
   const transitionTagUsed = expiringPlayers.some(p => p.franchise_tagged === 2);
 
@@ -57,8 +68,87 @@ export default function OffseasonTab({
     letterSpacing: 0.8, background: `${color}22`, border: `1px solid ${color}`, color,
   });
 
+  const activeHoldouts = holdoutPlayers.filter(p => p.holdout_status === 'holdout');
+  const tradeDemands   = holdoutPlayers.filter(p => p.trade_demand === 1 && p.holdout_status !== 'holdout');
+
   return (
     <div>
+
+      {/* ── Holdouts & Trade Demands ─────────────────────────────────── */}
+      {(activeHoldouts.length > 0 || tradeDemands.length > 0) && (
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 11, color: '#555', letterSpacing: 1, marginBottom: 8 }}>HOLDOUTS & TRADE DEMANDS</div>
+
+          {activeHoldouts.map(p => (
+            <div key={p.id} style={{
+              background: '#140800', border: '1px solid #e5737344',
+              borderRadius: 6, marginBottom: 8, padding: '12px 14px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 13, color: '#ccc', fontWeight: 'bold' }}>
+                  {p.first_name} {p.last_name}
+                </span>
+                <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 2, background: '#e5737322', border: '1px solid #e57373', color: '#e57373', fontWeight: 700 }}>
+                  HOLDING OUT
+                </span>
+                <span style={{ fontSize: 11, color: '#777' }}>{p.position} · {p.overall_rating} OVR</span>
+                <span style={{ fontSize: 10, color: '#555' }}>Morale: {p.morale}</span>
+                <span style={{ fontSize: 10, color: '#e57373', marginLeft: 'auto' }}>
+                  ~{p.holdout_weeks} week{p.holdout_weeks !== 1 ? 's' : ''} expected
+                </span>
+              </div>
+              {onResolveHoldout && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                  <button onClick={() => onResolveHoldout(p.id, 'pay')} disabled={working} style={{
+                    padding: '5px 14px', fontSize: 11, cursor: 'pointer', borderRadius: 3,
+                    background: '#4caf50', color: '#000', border: 'none', fontWeight: 'bold',
+                  }}>Pay Up (~+8% market)</button>
+                  <button onClick={() => onResolveHoldout(p.id, 'wait')} disabled={working} style={{
+                    padding: '5px 14px', fontSize: 11, cursor: 'pointer', borderRadius: 3,
+                    background: 'transparent', border: '1px solid #2a2a2a', color: '#555',
+                  }}>Wait It Out</button>
+                  <button onClick={() => onResolveHoldout(p.id, 'trade_request')} disabled={working} style={{
+                    padding: '5px 14px', fontSize: 11, cursor: 'pointer', borderRadius: 3,
+                    background: 'transparent', border: '1px solid #FF874044', color: '#FF8740',
+                  }}>Shop Player</button>
+                </div>
+              )}
+            </div>
+          ))}
+
+          {tradeDemands.map(p => (
+            <div key={p.id} style={{
+              background: '#0a0e14', border: '1px solid #4FC3F744',
+              borderRadius: 6, marginBottom: 8, padding: '12px 14px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 13, color: '#ccc', fontWeight: 'bold' }}>
+                  {p.first_name} {p.last_name}
+                </span>
+                <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 2, background: '#4FC3F722', border: '1px solid #4FC3F7', color: '#4FC3F7', fontWeight: 700 }}>
+                  TRADE DEMAND
+                </span>
+                <span style={{ fontSize: 11, color: '#777' }}>{p.position} · {p.overall_rating} OVR</span>
+                <span style={{ fontSize: 10, color: '#555', marginLeft: 'auto' }}>
+                  {p.years_remaining}yr / ${p.annual_salary?.toFixed(1)}M
+                </span>
+              </div>
+              {onResolveHoldout && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                  <button onClick={() => onResolveHoldout(p.id, 'trade_request')} disabled={working} style={{
+                    padding: '5px 14px', fontSize: 11, cursor: 'pointer', borderRadius: 3,
+                    background: '#4FC3F7', color: '#000', border: 'none', fontWeight: 'bold',
+                  }}>Begin Trade Process</button>
+                  <button onClick={() => onResolveHoldout(p.id, 'wait')} disabled={working} style={{
+                    padding: '5px 14px', fontSize: 11, cursor: 'pointer', borderRadius: 3,
+                    background: 'transparent', border: '1px solid #2a2a2a', color: '#555',
+                  }}>Deny Request</button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* ── Tag Usage Banner ─────────────────────────────────────────── */}
       <div style={{
@@ -116,8 +206,10 @@ export default function OffseasonTab({
         const isTransitionTagged = tagged === 2;
         const isTagged = tagged > 0;
         const counter = pendingCounters[player.id];
+        const isRookie = (player as any).is_rookie_deal === 1;
+        const hasFifthOption = (player as any).fifth_year_option_eligible === 1 && !(player as any).fifth_year_option_picked_up;
+        const fifthPickedUp = (player as any).fifth_year_option_picked_up === 1;
 
-        // Holdout risk: elite player, unhappy, not yet resolved
         const isHoldoutRisk = player.overall_rating >= 85 &&
           (player.dev_trait === 'Superstar' || player.dev_trait === 'X-Factor') &&
           (player.morale ?? 75) < 65 &&
@@ -148,14 +240,17 @@ export default function OffseasonTab({
 
               {/* Name + badges */}
               <div style={{ minWidth: 150 }}>
-                <div style={{ fontSize: 13, color: '#ccc', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ fontSize: 13, color: '#ccc', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                   {player.first_name} {player.last_name}
                   {trait.short && <span style={{ fontSize: 9, color: trait.color }}>{trait.short}</span>}
+                  {isRookie && (
+                    <span style={{ fontSize: 9, fontWeight: 'bold', padding: '1px 5px', borderRadius: 2, background: '#4FC3F722', border: '1px solid #4FC3F7', color: '#4FC3F7' }}>ROOKIE</span>
+                  )}
+                  {fifthPickedUp && (
+                    <span style={{ fontSize: 9, fontWeight: 'bold', padding: '1px 5px', borderRadius: 2, background: '#66BB6A22', border: '1px solid #66BB6A', color: '#66BB6A' }}>5TH YR ✓</span>
+                  )}
                   {isHoldoutRisk && (
-                    <span style={{
-                      fontSize: 9, fontWeight: 'bold', padding: '1px 5px', borderRadius: 2,
-                      background: '#1a0d00', border: '1px solid #FF874066', color: '#FF8740',
-                    }}>⚠ HOLDOUT RISK</span>
+                    <span style={{ fontSize: 9, fontWeight: 'bold', padding: '1px 5px', borderRadius: 2, background: '#1a0d00', border: '1px solid #FF874066', color: '#FF8740' }}>⚠ HOLDOUT RISK</span>
                   )}
                 </div>
                 <div style={{ fontSize: 10, color: '#555' }}>{player.position_label || player.position}</div>
@@ -193,7 +288,6 @@ export default function OffseasonTab({
               <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 10, color: decisionColor, fontWeight: 'bold' }}>{decisionLabel}</span>
 
-                {/* Tagged: Remove Tag */}
                 {isTagged && (
                   <button onClick={() => handleRemoveTag(player.id)} disabled={working} style={{
                     padding: '3px 9px', fontSize: 10, cursor: 'pointer', borderRadius: 3,
@@ -201,7 +295,14 @@ export default function OffseasonTab({
                   }}>Remove Tag</button>
                 )}
 
-                {/* Pending + no counter: Re-Sign, Let Walk, Tag buttons */}
+                {/* 5th Year Option button */}
+                {isRookie && hasFifthOption && !isTagged && !counter && decision === 'pending' && onFifthYearOption && (
+                  <button onClick={() => onFifthYearOption(player.id, 'pick_up')} disabled={working} style={{
+                    padding: '3px 9px', fontSize: 10, cursor: 'pointer', borderRadius: 3,
+                    background: '#0a1800', border: '1px solid #66BB6A55', color: '#66BB6A', fontWeight: 'bold',
+                  }}>5th Yr Option</button>
+                )}
+
                 {!isTagged && !counter && decision === 'pending' && (
                   <>
                     <button onClick={() => isResigning ? setResigningId(null) : openResign(player)} style={{
@@ -231,7 +332,6 @@ export default function OffseasonTab({
                   </>
                 )}
 
-                {/* Walking: Undo */}
                 {!isTagged && !counter && decision === 'walking' && (
                   <button onClick={() => setPlayerDecisions(prev => ({ ...prev, [player.id]: 'pending' }))} style={{
                     padding: '3px 9px', fontSize: 10, cursor: 'pointer', borderRadius: 3,
@@ -244,9 +344,7 @@ export default function OffseasonTab({
             {/* Counter Offer Panel */}
             {counter && decision === 'pending' && !isTagged && (
               <div style={{ borderTop: '1px solid #2a1a0a', padding: '12px 14px', background: '#0e0a06' }}>
-                <div style={{ fontSize: 11, color: '#FF8740', marginBottom: 6, fontWeight: 'bold' }}>
-                  ⚡ COUNTER OFFER
-                </div>
+                <div style={{ fontSize: 11, color: '#FF8740', marginBottom: 6, fontWeight: 'bold' }}>⚡ COUNTER OFFER</div>
                 <div style={{ fontSize: 12, color: '#ccc', marginBottom: 10 }}>
                   {player.first_name} {player.last_name} will sign for{' '}
                   <strong style={{ color: '#FF8740' }}>${counter.salary.toFixed(1)}M/yr</strong> ·{' '}
@@ -305,9 +403,9 @@ export default function OffseasonTab({
                     <div style={{ fontSize: 9, color: '#444', marginBottom: 4 }}>ANNUAL SALARY (M)</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                       <span style={{ color: '#555', fontSize: 12 }}>$</span>
-                                            <input type="text" inputMode="decimal" key={`resign-${resigningId}`} defaultValue={resignSalary} onChange={e => setResignSalary(e.target.value)}
-  placeholder="0.0"
-  style={{ background: '#141414', border: '1px solid #2a2a2a', borderRadius: 4, color: '#ccc', padding: '6px 10px', fontSize: 13, width: 80 }} />
+                      <input type="text" inputMode="decimal" key={`resign-${resigningId}`} defaultValue={resignSalary} onChange={e => setResignSalary(e.target.value)}
+                        placeholder="0.0"
+                        style={{ background: '#141414', border: '1px solid #2a2a2a', borderRadius: 4, color: '#ccc', padding: '6px 10px', fontSize: 13, width: 80 }} />
                       <span style={{ color: '#555', fontSize: 12 }}>M</span>
                     </div>
                     <div style={{ fontSize: 9, color: '#444', marginTop: 3 }}>Asking: ~{fmtSalary(ap)}/yr</div>
