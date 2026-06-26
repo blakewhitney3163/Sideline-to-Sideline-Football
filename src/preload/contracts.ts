@@ -40,7 +40,7 @@ export const contractsApi = {
   promoteFromPs: (playerId: number) =>
     ipcRenderer.invoke('promote-from-ps', playerId),
 
-    demoteToPs: (playerId: number) =>
+  demoteToPs: (playerId: number) =>
     ipcRenderer.invoke('demote-to-ps', playerId),
 
   cutFromPs: (playerId: number) =>
@@ -66,4 +66,16 @@ export const contractsApi = {
 
   openFreeAgency: () =>
     ipcRenderer.invoke('open-free-agency'),
+
+  pickUpFifthYearOption: (playerId: number) =>
+    ipcRenderer.invoke('pick-up-fifth-year-option', playerId),
+
+  declineFifthYearOption: (playerId: number) =>
+    ipcRenderer.invoke('decline-fifth-year-option', playerId),
+
+  getHoldoutPlayers: () =>
+    ipcRenderer.invoke('get-holdout-players'),
+
+  resolveHoldout: (payload: { playerId: number; action: 'pay' | 'wait' | 'trade_request' }) =>
+    ipcRenderer.invoke('resolve-holdout', payload),
 };
