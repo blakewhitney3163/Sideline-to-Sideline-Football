@@ -19,6 +19,9 @@ export const statsApi = {
   getTeamNeeds: (teamId: number) =>
     ipcRenderer.invoke('get-team-needs', teamId),
 
+    getGamePlayLog: (gameId: number) =>
+    ipcRenderer.invoke('get-game-play-log', gameId),
+
   getNewsFeed: (opts?: { season?: number; category?: string; limit?: number }) =>
     ipcRenderer.invoke('get-news-feed', opts),
 
