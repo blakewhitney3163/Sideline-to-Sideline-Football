@@ -49,7 +49,7 @@ export default function MeetTheTeam({ team, season, onStart }: Props) {
       ]);
       setContracts(c);
       setCap(s);
-      setNeeds(Array.isArray(n) ? n : []);
+      setNeeds(Array.isArray(n) ? n.map((item: any) => item.position ?? item) : []);
       setLoading(false);
     })();
   }, [team.id]);
