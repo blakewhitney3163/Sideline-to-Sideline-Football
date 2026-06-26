@@ -298,8 +298,10 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
     setAllStandings(standings);
     if (result.userPSOpenSpots > 0)
       setPSAlert(`Practice squad has ${result.userPSOpenSpots} open spot${result.userPSOpenSpots !== 1 ? 's' : ''}. Go to My Team → Practice Squad.`);
-    if (currentWeek) setMatchups(await window.api.getWeekMatchups(currentWeek));
+        if (currentWeek) setMatchups(await window.api.getWeekMatchups(currentWeek));
+    setStatLeaders(await window.api.getStats(currentSeason));
     setFranchiseHealth(await window.api.getFranchiseHealth(userTeam.id));
+    incrementSimCount();
     setSimulatingGameId(null);
   };
 
