@@ -7,7 +7,7 @@ import { getCurrentSeason } from '../helpers/getCurrentSeason';
 import { logNewsEvent } from '../helpers/logNewsEvent';
 import { replenishFAPool } from '../generatePlayers';
 import { evaluateOwnerGoals } from './OwnerGoalsService';
-import { decrementCoachContracts } from './CoachingService';
+import { decrementCoachContracts, progressCoachXP } from './CoachingService';
 import { checkCapEscalation, checkExpansionVote, checkCpuRelocation } from './LeagueExpansionService';
 import { checkLeagueEvents } from './LeagueEventsService';
 
@@ -469,6 +469,7 @@ export async function advanceSeason(): Promise<AdvanceSeasonResult> {
 
   replenishFAPool();
   decrementCoachContracts();
+  progressCoachXP(current);
   evaluateOwnerGoals(current, userTeamId);
 
   settingsRepo.set('current_season', String(next));
