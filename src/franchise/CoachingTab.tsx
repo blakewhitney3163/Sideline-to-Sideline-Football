@@ -32,6 +32,8 @@ export interface Coach {
   experience: number;
   salary: number;
   years_remaining: number;
+  coaching_xp?: number;
+  coaching_level?: number;
 }
 
 const ROLE_META: Record<string, {
@@ -44,6 +46,36 @@ const ROLE_META: Record<string, {
 };
 
 const ROLES: Array<'HC' | 'OC' | 'DC' | 'ST'> = ['HC', 'OC', 'DC', 'ST'];
+
+const XP_THRESHOLDS = [0, 0, 150, 400, 800, 1400, 2250, 3400, 4900, 6850, 9350];
+const MAX_COACH_LEVEL = 10;
+
+function getCoachTierLabel(level: number): string {
+  if (level >= 9) return 'Legendary';
+  if (level >= 7) return 'Elite';
+  if (level >= 5) return 'Experienced';
+  if (level >= 3) return 'Competent';
+  return 'Developing';
+}
+
+function getTierColor(level: number): string {
+  if (level >= 9) return '#FFD700';
+  if (level >= 7) return '#FF8740';
+  if (level >= 5) return '#4caf50';
+  if (level >= 3) return '#4FC3F7';
+  return '#888';
+}
+
+function xpProgress(totalXp: number, level: number): { pct: number; into: number; needed: number } {
+  if (level >= MAX_COACH_LEVEL) return { pct: 100, into: 0, needed: 0 };
+  const floorXp = XP_THRESHOLDS[level];
+  const nextXp  = XP_THRESHOLDS[level + 1];
+  const into    = totalXp - floorXp;
+  const needed  = nextXp - floorXp;
+  return { pct: Math.min(100, Math.round((into / needed) * 100)), into, needed };
+}
+
+
 
 interface Props {
   teamId: number;
@@ -58,6 +90,36 @@ function StatBox({ label, value, text }: { label: string; value?: number; text?:
       <div style={{ fontSize: 9, color: '#444', letterSpacing: 1, marginBottom: 2 }}>{label}</div>
       <div style={{ fontSize: 14, fontWeight: 'bold', color: value !== undefined ? ratingColor(value) : '#888' }}>
         {text ?? value}
+      </div>
+    </div>
+  );
+}
+
+
+function CoachXPBar({ coach }: { coach: Coach }) {
+  const level = coach.coaching_level ?? 1;
+  const xp    = coach.coaching_xp   ?? 0;
+  const tier  = getCoachTierLabel(level);
+  const color = getTierColor(level);
+  const { pct, into, needed } = xpProgress(xp, level);
+  const atMax = level >= MAX_COACH_LEVEL;
+
+  return (
+    <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #1a1a1a' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{
+            fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 3,
+            background: `${color}22`, border: `1px solid ${color}55`, color,
+          }}>LVL {level}</span>
+          <span style={{ fontSize: 9, color: color }}>{tier}</span>
+        </div>
+        <span style={{ fontSize: 9, color: '#444' }}>
+          {atMax ? 'MAX LEVEL' : `${into} / ${needed} XP`}
+        </span>
+      </div>
+      <div style={{ background: '#111', borderRadius: 3, height: 4, overflow: 'hidden' }}>
+        <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 3, transition: 'width 0.3s' }} />
       </div>
     </div>
   );
@@ -202,7 +264,8 @@ export default function CoachingTab({ teamId, staff, onRefresh, showToast }: Pro
                 <StatBox label="Dev" value={coach.development_rating} />
                 <StatBox label="Exp" text={`${coach.experience}yr`} />
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <CoachXPBar coach={coach} />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
                 <div style={{ fontSize: 10, color: '#444' }}>${coach.salary.toFixed(1)}M · {coach.years_remaining}yr left</div>
                 <button onClick={() => handleFire(coach)} disabled={working} style={{
                   padding: '3px 10px', fontSize: 10, cursor: 'pointer', borderRadius: 3,
