@@ -76,7 +76,9 @@ export function registerSeasonHandlers(): void {
       SELECT g.id, g.week, g.home_team_id, g.away_team_id,
         g.home_score, g.away_score, g.is_simulated, g.is_playoff, g.weather,
         ht.city as home_city, ht.name as home_name, ht.abbreviation as home_abbr,
-        at.city as away_city, at.name as away_name, at.abbreviation as away_abbr
+        at.city as away_city, at.name as away_name, at.abbreviation as away_abbr,
+        ht.city || ' ' || ht.name AS home_team,
+        at.city || ' ' || at.name AS away_team
       FROM games g
       JOIN teams ht ON ht.id = g.home_team_id
       JOIN teams at ON at.id = g.away_team_id
