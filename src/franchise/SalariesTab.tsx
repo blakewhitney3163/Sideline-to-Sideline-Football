@@ -9,7 +9,7 @@ interface Props {
 }
 
 type SortKey = 'salary' | 'years' | 'ovr' | 'age' | 'gtd';
-type View = 'players' | 'schedule';
+type View = 'players' | 'schedule' | 'burndown';
 
 const POS_GROUPS: Record<string, string[]> = {
   QB:  ['QB'],
@@ -83,6 +83,21 @@ export default function SalariesTab({ contracts, cap, currentSeason }: Props) {
     return { yr, active, expiring, totalHit, available, byGroup };
   });
 
+  const BURNDOWN_YEARS = [1, 2, 3, 4];
+
+  const burndownYearData = BURNDOWN_YEARS.map(yr => {
+    const active = contracts.filter(c => c.years_remaining >= yr);
+    const expiring = contracts.filter(c => c.years_remaining === yr);
+    const totalHit = active.reduce((s, c) => s + c.annual_salary, 0);
+    const available = totalCap - totalHit;
+    const hitPct = (totalHit / totalCap) * 100;
+    const barColor = hitPct > 100 ? '#e57373' : hitPct > 90 ? '#FF8740' : '#4caf50';
+    const seasonLabel = currentSeason ? String(currentSeason + yr - 1) : `Year ${yr}`;
+    return { yr, active, expiring, totalHit, available, hitPct, barColor, seasonLabel };
+  });
+
+  const burndownPlayers = contracts.slice().sort((a, b) => b.annual_salary - a.annual_salary);
+
   return (
     <>
       {cap && (
@@ -103,7 +118,7 @@ export default function SalariesTab({ contracts, cap, currentSeason }: Props) {
       )}
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-        {(['players', 'schedule'] as View[]).map(v => (
+        {(['players', 'schedule', 'burndown'] as View[]).map(v => (
           <button key={v} onClick={() => setView(v)} style={{
             padding: '5px 16px', fontSize: 11, letterSpacing: 1, cursor: 'pointer', borderRadius: 4,
             background: view === v ? '#FF8740' : '#111',
@@ -112,7 +127,7 @@ export default function SalariesTab({ contracts, cap, currentSeason }: Props) {
             fontWeight: view === v ? 'bold' : 'normal',
             textTransform: 'uppercase',
           }}>
-            {v === 'players' ? 'Players' : 'Cap Schedule'}
+            {v === 'players' ? 'Players' : v === 'schedule' ? 'Cap Schedule' : '4-Yr Burndown'}
           </button>
         ))}
       </div>
@@ -296,6 +311,119 @@ export default function SalariesTab({ contracts, cap, currentSeason }: Props) {
           })}
           <div style={{ marginTop: 6, fontSize: 10, color: '#333', textAlign: 'right' }}>
             Cap ceiling: {fmtSalary(totalCap)} · {maxYears} contract year{maxYears !== 1 ? 's' : ''} on books
+          </div>
+        </div>
+      )}
+
+      {view === 'burndown' && (
+        <div>
+          {/* 4-year summary cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 16 }}>
+            {burndownYearData.map(({ yr, active, expiring, totalHit, available, hitPct, barColor, seasonLabel }) => (
+              <div key={yr} style={{ background: '#111', border: '1px solid #1a1a1a', borderRadius: 6, padding: '10px 12px' }}>
+                <div style={{ fontSize: 10, color: '#444', letterSpacing: 1, marginBottom: 4 }}>{seasonLabel}</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: totalHit > 0 ? '#ccc' : '#2a2a2a', marginBottom: 2 }}>
+                  {totalHit > 0 ? fmtSalary(totalHit) : '—'}
+                </div>
+                <div style={{ fontSize: 10, color: totalHit > 0 ? barColor : '#333', marginBottom: 6 }}>
+                  {totalHit > 0 ? `${hitPct.toFixed(1)}% of cap` : 'No commitments'}
+                </div>
+                <div style={{ height: 3, background: '#1a1a1a', borderRadius: 2, overflow: 'hidden', marginBottom: 4 }}>
+                  <div style={{ width: `${Math.min(hitPct, 100)}%`, height: '100%', background: barColor, borderRadius: 2, transition: 'width 0.3s' }} />
+                </div>
+                <div style={{ fontSize: 10, color: available >= 0 ? '#4caf50' : '#e57373' }}>
+                  {totalHit > 0
+                    ? (available >= 0 ? `${fmtSalary(available)} free` : `⚠ +${fmtSalary(Math.abs(available))}`)
+                    : `${fmtSalary(totalCap)} free`
+                  }
+                </div>
+                {expiring.length > 0 && (
+                  <div style={{ fontSize: 10, color: '#FF8740', marginTop: 3 }}>{expiring.length} expiring</div>
+                )}
+                <div style={{ fontSize: 10, color: '#333', marginTop: 2 }}>{active.length} on books</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Player salary matrix */}
+          <div>
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 50px 40px repeat(4, 1fr)', padding: '4px 10px', fontSize: 10, color: '#444', letterSpacing: 1, borderBottom: '1px solid #1a1a1a' }}>
+              <span>PLAYER</span>
+              <span style={{ textAlign: 'center' }}>POS</span>
+              <span style={{ textAlign: 'center' }}>OVR</span>
+              {burndownYearData.map(({ yr, seasonLabel }) => (
+                <span key={yr} style={{ textAlign: 'right' }}>{seasonLabel}</span>
+              ))}
+            </div>
+
+            {burndownPlayers.length === 0 ? (
+              <div style={{ color: '#333', fontSize: 13, padding: '20px 10px', textAlign: 'center' }}>No contracts on books</div>
+            ) : burndownPlayers.map(c => {
+              const trait = TRAIT_META[c.dev_trait] ?? TRAIT_META['Normal'];
+              const isExpiring = c.years_remaining === 1;
+              return (
+                <div key={c.id} style={{
+                  display: 'grid', gridTemplateColumns: '2fr 50px 40px repeat(4, 1fr)',
+                  padding: '5px 10px', borderBottom: '1px solid #111',
+                  background: isExpiring ? '#140a00' : 'transparent', alignItems: 'center',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ color: isExpiring ? '#FF8740' : '#ccc', fontSize: 12 }}>
+                      {c.first_name} {c.last_name}
+                    </span>
+                    {trait.short && (
+                      <span style={{ background: trait.bg, color: trait.color, fontSize: 9, fontWeight: 700, padding: '1px 4px', borderRadius: 3 }}>
+                        {trait.short}
+                      </span>
+                    )}
+                    {isExpiring && <span style={{ color: '#FF8740', fontSize: 9, fontWeight: 700 }}>EXP</span>}
+                  </div>
+                  <div style={{ textAlign: 'center', color: '#555', fontSize: 11 }}>{c.position_label || c.position}</div>
+                  <div style={{ textAlign: 'center', color: ratingColor(c.overall_rating), fontSize: 12, fontWeight: 700 }}>{c.overall_rating}</div>
+                  {BURNDOWN_YEARS.map(yr => (
+                    <div key={yr} style={{ textAlign: 'right', fontSize: 12 }}>
+                      {c.years_remaining >= yr
+                        ? <span style={{ color: yr === c.years_remaining ? '#FF8740' : '#aaa' }}>{fmtSalary(c.annual_salary)}</span>
+                        : <span style={{ color: '#222' }}>—</span>
+                      }
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+
+            {/* Totals row */}
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 50px 40px repeat(4, 1fr)', padding: '7px 10px', borderTop: '1px solid #2a2a2a', background: '#0f0f0f' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#444', letterSpacing: 1 }}>CAP HIT</div>
+              <div /><div />
+              {burndownYearData.map(({ yr, totalHit }) => {
+                const pct = (totalHit / totalCap) * 100;
+                const color = pct > 100 ? '#e57373' : pct > 90 ? '#FF8740' : '#ccc';
+                return (
+                  <div key={yr} style={{ textAlign: 'right', color, fontSize: 12, fontWeight: 700 }}>
+                    {totalHit > 0 ? fmtSalary(totalHit) : <span style={{ color: '#2a2a2a' }}>—</span>}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Available row */}
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 50px 40px repeat(4, 1fr)', padding: '5px 10px', background: '#0a0a0a', borderBottom: '1px solid #1a1a1a' }}>
+              <div style={{ fontSize: 11, color: '#333', letterSpacing: 1 }}>CAP SPACE</div>
+              <div /><div />
+              {burndownYearData.map(({ yr, available, totalHit }) => {
+                const space = totalHit === 0 ? totalCap : available;
+                return (
+                  <div key={yr} style={{ textAlign: 'right', fontSize: 11, color: space >= 0 ? '#4caf50' : '#e57373' }}>
+                    {space >= 0 ? fmtSalary(space) : `(${fmtSalary(Math.abs(space))})`}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div style={{ marginTop: 8, fontSize: 10, color: '#333', textAlign: 'right' }}>
+            Cap ceiling: {fmtSalary(totalCap)} · {burndownPlayers.length} players under contract
           </div>
         </div>
       )}
