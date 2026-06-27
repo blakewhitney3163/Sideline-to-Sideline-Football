@@ -68,12 +68,11 @@ function getDraftOrderTeamSlots(season: number): any[] {
   `).all(season) as any[];
 }
 
-// Slotted rookie salary scale (4-year deal)
 function getSlottedRookieSalary(round: number, pickInRound: number): number {
   if (round === 1) {
-    if (pickInRound <= 5)  return Math.round((22 - (pickInRound - 1) * 2.0) * 10) / 10; // 22→14
-    if (pickInRound <= 16) return Math.round((12 - (pickInRound - 6) * 0.64) * 10) / 10; // 12→5
-    return Math.round(Math.max(2.5, 5 - (pickInRound - 17) * 0.15) * 10) / 10;           // 5→2.5
+    if (pickInRound <= 5)  return Math.round((22 - (pickInRound - 1) * 2.0) * 10) / 10;
+    if (pickInRound <= 16) return Math.round((12 - (pickInRound - 6) * 0.64) * 10) / 10;
+    return Math.round(Math.max(2.5, 5 - (pickInRound - 17) * 0.15) * 10) / 10;
   }
   if (round === 2) return Math.round(Math.max(1.2, 2.5 - (pickInRound - 1) * 0.04) * 10) / 10;
   if (round === 3) return 1.3;
@@ -81,7 +80,6 @@ function getSlottedRookieSalary(round: number, pickInRound: number): number {
   return 0.9;
 }
 
-// Class strength per position (stored in settings as label)
 function generateClassStrength(season: number, isDrought: boolean, isStrong: boolean): Record<string, string> {
   const POSITIONS = ['QB','RB','WR','TE','OL','DL','LB','CB','S','K'];
   const GRADES = ['elite','strong','average','weak','barren'];
@@ -233,7 +231,6 @@ export function registerDraftHandlers(): void {
     const playerId = rookie.lastInsertRowid as number;
     contractRepo.create(playerId, teamId, 4, sal, Math.round(sal * 4 * 0.5 * 10) / 10, 50);
 
-    // Flag as rookie deal; round 1 picks get 5th year option eligibility
     db.prepare('UPDATE contracts SET is_rookie_deal = 1 WHERE player_id = ?').run(playerId);
     if (round === 1) {
       db.prepare('UPDATE contracts SET fifth_year_option_eligible = 1 WHERE player_id = ?').run(playerId);
@@ -258,7 +255,8 @@ export function registerDraftHandlers(): void {
   ipcMain.handle('scout-prospect', (_event: any, prospectId: number) => {
     const season = getCurrentSeason();
     const prospect = draftRepo.getById(prospectId);
-    if (!prospect || prospect.scouted) return { success: false, reason: 'Already scouted.' };
+    if (!prospect) return { success: false, reason: 'Prospect not found.' };
+    if ((prospect.scouted ?? 0) >= 2) return { success: false, reason: 'Already fully scouted.' };
     const used = draftRepo.countScouted(season);
     const rawBudget = parseInt(settingsRepo.get(`scouting_budget_${season}`) ?? '25');
     const userTeamId = settingsRepo.getUserTeamId() ?? -1;
@@ -267,7 +265,8 @@ export function registerDraftHandlers(): void {
     const effectiveBudget = hasCollegeScout ? Math.floor(rawBudget / 0.7) : rawBudget;
     if (used >= effectiveBudget) return { success: false, reason: 'No scouting budget remaining.' };
     draftRepo.markScouted(prospectId);
-    return { success: true };
+    const newLevel = (prospect.scouted ?? 0) + 1;
+    return { success: true, level: newLevel };
   });
 
   ipcMain.handle('get-scout-count', () => {
@@ -277,8 +276,8 @@ export function registerDraftHandlers(): void {
     const userTeamId = settingsRepo.getUserTeamId() ?? -1;
     const myScouts = userTeamId > 0 ? (scoutRepo.getByTeam(userTeamId) as any[]) : [];
     const hasCollegeScout = myScouts.some((s: any) => s.specialty === 'College');
-    const budget = hasCollegeScout ? Math.floor(rawBudget / 0.7) : rawBudget;
-    return { used, budget, hasCollegeScout };
+    const effectiveBudget = hasCollegeScout ? Math.floor(rawBudget / 0.7) : rawBudget;
+    return { used, budget: effectiveBudget, hasCollegeScout };
   });
 
   ipcMain.handle('run-cpu-round', (_event: any, { round, userTeamId }: { round: number; userTeamId: number }) => {
@@ -289,6 +288,7 @@ export function registerDraftHandlers(): void {
       FROM pick_assets pa WHERE pa.season = ? AND pa.round = ? AND pa.is_used = 0
     `).all(season, round) as any[];
     const teamIds = teamSlots.map((ts: any) => ts.team_id);
+
     const ph = teamIds.map(() => '?').join(',');
     const posRows = db.prepare(`
       SELECT team_id, position, COUNT(*) as cnt FROM players
@@ -383,17 +383,16 @@ export function registerDraftHandlers(): void {
     return { undrafted: undrafted.length };
   });
 
-  // ── In-Draft Pick Trading ─────────────────────────────────────────────────
   ipcMain.handle('propose-draft-trade', (_event: any, payload: {
     userTeamId: number;
-    myPickId: number;       // pick_asset id the user is offering
-    theirTeamId: number;    // CPU team
-    theirPickId: number;    // pick_asset id the user wants in return
+    myPickId: number;
+    theirTeamId: number;
+    theirPickId: number;
   }) => {
     const { userTeamId, myPickId, theirTeamId, theirPickId } = payload;
     const season = getCurrentSeason();
 
-    const myPick   = db.prepare('SELECT * FROM pick_assets WHERE id = ? AND owner_team_id = ? AND is_used = 0').get(myPickId, userTeamId) as any;
+    const myPick    = db.prepare('SELECT * FROM pick_assets WHERE id = ? AND owner_team_id = ? AND is_used = 0').get(myPickId, userTeamId) as any;
     const theirPick = db.prepare('SELECT * FROM pick_assets WHERE id = ? AND owner_team_id = ? AND is_used = 0').get(theirPickId, theirTeamId) as any;
 
     if (!myPick)    return { accepted: false, reason: 'Your pick is not available.' };
@@ -403,7 +402,6 @@ export function registerDraftHandlers(): void {
     const theirVal = calcPickTradeValue(theirPick.round, theirPick.season);
     const diff = myVal - theirVal;
 
-    // CPU accepts if they get equal or better value (with small random window)
     const noise = Math.floor(Math.random() * 12) - 4;
     if (diff + noise < -5) {
       return { accepted: false, reason: `Not enough value. Your pick (Round ${myPick.round}) grades below their pick (Round ${theirPick.round}).` };
