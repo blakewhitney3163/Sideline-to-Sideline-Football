@@ -10,6 +10,7 @@ import { useGameStore } from './store/gameStore';
 import TradeOfferCard from './home/TradeOfferCard';
 import TradeDeadlineTicker from './home/TradeDeadlineTicker';
 import { CpuOffer } from './trades/types';
+import LiveGameView from './home/LiveGameView';
 
 declare const window: any;
 
@@ -30,6 +31,7 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
   const [matchups, setMatchups] = useState<Matchup[]>([]);
   const [simulating, setSimulating] = useState(false);
   const [simulatingGameId, setSimulatingGameId] = useState<number | null>(null);
+  const [liveGameId, setLiveGameId] = useState<number | null>(null);
   const [generatingSchedule, setGeneratingSchedule] = useState(false);
   const [boxScore, setBoxScore] = useState<BoxScoreData | null>(null);
   const [boxScoreLoading, setBoxScoreLoading] = useState(false);
@@ -185,6 +187,29 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
     setBoxScore(null);
     incrementSimCount();
     setSimulating(false);
+  };
+
+  const handleLiveGameComplete = async () => {
+    setLiveGameId(null);
+    if (!userTeam) return;
+    const [status, dashboard, standings, injuries] = await Promise.all([
+      window.api.getCurrentWeek(),
+      window.api.getDashboard(currentSeason),
+      window.api.getStandings(currentSeason),
+      window.api.getInjuryReport(userTeam.id),
+    ]);
+    setCurrentWeek(status.currentWeek);
+    if (dashboard) { setTopAFC(dashboard.topAFC); setTopNFC(dashboard.topNFC); }
+    setInjuryReport(injuries ?? []);
+    const mine = standings.find((t: any) => t.id === userTeam.id);
+    if (mine) setUserRecord({ wins: mine.wins, losses: mine.losses });
+    if (status.currentWeek) {
+      setMatchups(await window.api.getWeekMatchups(status.currentWeek));
+    }
+    setStatLeaders(await window.api.getStats(currentSeason));
+    setFranchiseHealth(await window.api.getFranchiseHealth(userTeam.id));
+    setBoxScore(null);
+    incrementSimCount();
   };
 
   const handleSimulateGame = async (gameId: number) => {
@@ -372,17 +397,30 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
                 </div>
                 <div style={{ display: 'flex', gap: 10 }}>
                   <button
-                    onClick={() => handleSimulateGame(userGame.id)}
-                    disabled={!!simulating || !!simulatingGameId}
+                    onClick={() => setLiveGameId(userGame.id)}
+                    disabled={!!simulating || !!simulatingGameId || !!liveGameId}
                     style={{
                       flex: 1, padding: '10px 0',
-                      background: simulatingGameId === userGame.id ? '#1a3a1a' : '#0a2a0a',
-                      border: '1px solid #4caf50', borderRadius: 5, color: '#4caf50',
-                      fontWeight: 700, fontSize: 12, cursor: (simulating || !!simulatingGameId) ? 'not-allowed' : 'pointer',
-                      opacity: (simulating || !!simulatingGameId) ? 0.5 : 1,
+                      background: '#0a1a2a',
+                      border: '1px solid #4FC3F7', borderRadius: 5, color: '#4FC3F7',
+                      fontWeight: 700, fontSize: 12, cursor: (simulating || !!simulatingGameId || !!liveGameId) ? 'not-allowed' : 'pointer',
+                      opacity: (simulating || !!simulatingGameId || !!liveGameId) ? 0.5 : 1,
                     }}
                   >
-                    {simulatingGameId === userGame.id ? 'Simulating...' : '▶ Sim My Game'}
+                    {liveGameId === userGame.id ? '● LIVE' : '▶ Watch Live'}
+                  </button>
+                  <button
+                    onClick={() => handleSimulateGame(userGame.id)}
+                    disabled={!!simulating || !!simulatingGameId || !!liveGameId}
+                    style={{
+                      padding: '10px 12px',
+                      background: simulatingGameId === userGame.id ? '#1a3a1a' : '#0a0a0a',
+                      border: '1px solid #2a2a2a', borderRadius: 5, color: '#555',
+                      fontSize: 11, cursor: (simulating || !!simulatingGameId || !!liveGameId) ? 'not-allowed' : 'pointer',
+                      opacity: (simulating || !!simulatingGameId || !!liveGameId) ? 0.5 : 1,
+                    }}
+                  >
+                    {simulatingGameId === userGame.id ? '...' : '⚡ Sim'}
                   </button>
                   <button
                     onClick={handleSimulateWeek}
@@ -560,5 +598,14 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
         onSetTradeStatus={handleSetTradeStatus}
       />
     </div>
+
+      {liveGameId !== null && userTeam && (
+        <LiveGameView
+          gameId={liveGameId}
+          userTeamId={userTeam.id}
+          onGameComplete={handleLiveGameComplete}
+          onClose={() => setLiveGameId(null)}
+        />
+      )}
   );
 }
