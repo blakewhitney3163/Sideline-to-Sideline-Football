@@ -4,6 +4,7 @@ import type { GamePlayerStat } from '../sim/types';
 import { ipcMain } from 'electron';
 import { db, getDbPath } from '../database';
 import { simulateGame, GamePlanOptions } from '../simulateGame';
+import { hasActiveGame } from '../sim/LiveGameEngine';
 import { getCurrentSeason } from '../helpers/getCurrentSeason';
 import { getDifficultyFactor } from './settingsHandlers';
 import { MAX_ACTIVE_ROSTER } from '../constants';
@@ -738,6 +739,7 @@ export function registerSimHandlers(): void {
   ipcMain.handle('simulate-game', async (_event: IpcEvent, gameId: number) => {
     const game = db.prepare(`SELECT * FROM games WHERE id = ?`).get(gameId) as any;
     if (!game)            return { success: false, reason: 'Game not found.' };
+    if (hasActiveGame(gameId)) return { success: false, reason: 'A live game is in progress for this matchup.' };
     if (game.is_simulated) return { success: false, reason: 'Game already simulated.' };
 
     const insertStat = db.prepare(`
