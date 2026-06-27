@@ -43,7 +43,6 @@ export function initDatabase(dbPath: string): void {
   _dbPath = dbPath;
   openDatabase(dbPath);
 
-  // ── Base Schema ─────────────────────────────────────────────────────────────
   _db!.exec(`
     CREATE TABLE IF NOT EXISTS teams (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,7 +53,8 @@ export function initDatabase(dbPath: string): void {
     division TEXT NOT NULL,
     is_expansion INTEGER DEFAULT 0,
     stadium_name TEXT,
-    relocated_from TEXT
+    relocated_from TEXT,
+    gm_personality TEXT DEFAULT 'balanced'
   );
     CREATE TABLE IF NOT EXISTS players (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -410,7 +410,6 @@ export function initDatabase(dbPath: string): void {
     );
   `);
 
-  // ── Safe indexes ───────────────────────────────────────────────────────────
   _db!.exec(`
     CREATE INDEX IF NOT EXISTS idx_stats_game_id ON stats(game_id);
     CREATE INDEX IF NOT EXISTS idx_stats_player_id ON stats(player_id);
@@ -433,7 +432,6 @@ export function initDatabase(dbPath: string): void {
     CREATE INDEX IF NOT EXISTS idx_news_season_cat ON news_events(season, category);
   `);
 
-  // ── Roster trimming ───────────────────────────────────────────────────────
   const ACTIVE_LIMIT = 53;
   const PS_LIMIT = 16;
   const oversizedTeams = _db!.prepare(
@@ -455,7 +453,6 @@ export function initDatabase(dbPath: string): void {
     })();
   }
 
-  // ── Bootstrap defaults ────────────────────────────────────────────────────
   if (!_db!.prepare("SELECT value FROM settings WHERE key = 'current_season'").get())
     _db!.prepare("INSERT INTO settings (key, value) VALUES ('current_season', '2025')").run();
   if (!_db!.prepare("SELECT value FROM settings WHERE key = 'salary_cap'").get())
@@ -464,8 +461,6 @@ export function initDatabase(dbPath: string): void {
   runMigrations();
   try { _db!.exec('CREATE INDEX IF NOT EXISTS idx_career_stats_team ON career_stats_history(team_id)'); } catch {}
 }
-
-// ─── Contract Generation ──────────────────────────────────────────────────────
 
 const CONTRACT_MARKET_RATES: Record<string, [number, number][]> = {
   QB: [[99,65],[93,50],[88,35],[83,20],[78,10],[73,4],[70,1.5]],
@@ -569,8 +564,6 @@ export function generateContracts(): void {
 
   console.log(`Contracts generated: ${activePlayers.length} active + ${psPlayers.length} PS`);
 }
-
-// ─── Migration Versioning ─────────────────────────────────────────────────────
 
 const CURRENT_SCHEMA_VERSION = 20;
 
@@ -809,17 +802,14 @@ const MIGRATIONS: Migration[] = [
     version: 20,
     description: 'Add GM personalities, rookie deal flags, holdout/trade demand columns, attendance rate',
     up: () => {
-      // team_finances: attendance_rate for dynamic revenue
       const finCols = (db.prepare('PRAGMA table_info(team_finances)').all() as any[]).map((c: any) => c.name);
       if (!finCols.includes('attendance_rate'))
         db.prepare('ALTER TABLE team_finances ADD COLUMN attendance_rate REAL DEFAULT 0.72').run();
 
-      // teams: CPU GM personality
       const teamCols = (db.prepare('PRAGMA table_info(teams)').all() as any[]).map((c: any) => c.name);
       if (!teamCols.includes('gm_personality'))
         db.prepare("ALTER TABLE teams ADD COLUMN gm_personality TEXT DEFAULT 'balanced'").run();
 
-      // Seed personalities for existing teams
       const PERSONALITIES = ['win_now', 'analytics', 'old_school', 'rebuilder', 'star_chaser', 'balanced'];
       const teams = db.prepare('SELECT id FROM teams').all() as any[];
       const updPersonality = db.prepare('UPDATE teams SET gm_personality = ? WHERE id = ?');
@@ -830,7 +820,6 @@ const MIGRATIONS: Migration[] = [
         }
       })();
 
-      // contracts: rookie deal flags
       const contractCols = (db.prepare('PRAGMA table_info(contracts)').all() as any[]).map((c: any) => c.name);
       if (!contractCols.includes('is_rookie_deal'))
         db.prepare('ALTER TABLE contracts ADD COLUMN is_rookie_deal INTEGER DEFAULT 0').run();
@@ -839,7 +828,6 @@ const MIGRATIONS: Migration[] = [
       if (!contractCols.includes('fifth_year_option_picked_up'))
         db.prepare('ALTER TABLE contracts ADD COLUMN fifth_year_option_picked_up INTEGER DEFAULT 0').run();
 
-      // players: holdout / trade demand
       const playerCols = (db.prepare('PRAGMA table_info(players)').all() as any[]).map((c: any) => c.name);
       if (!playerCols.includes('holdout_status'))
         db.prepare('ALTER TABLE players ADD COLUMN holdout_status TEXT').run();
@@ -848,7 +836,6 @@ const MIGRATIONS: Migration[] = [
       if (!playerCols.includes('trade_demand'))
         db.prepare('ALTER TABLE players ADD COLUMN trade_demand INTEGER DEFAULT 0').run();
 
-      // Seed attendance_rate for existing team_finances rows
       db.prepare(`
         UPDATE team_finances SET attendance_rate = CASE
           WHEN market_size = 'large'  THEN 0.82
@@ -875,9 +862,20 @@ function setSchemaVersion(version: number): void {
 export function runMigrations(): void {
   const currentVersion = getSchemaVersion();
   if (currentVersion === 0) {
-    setSchemaVersion(CURRENT_SCHEMA_VERSION);
-    console.log(`Schema stamped at v${CURRENT_SCHEMA_VERSION} (baseline)`);
-    return;
+    // Distinguish a brand-new database from an old save that predates schema versioning.
+    // If the teams table already has rows it's an existing save — run all migrations.
+    let hasExistingData = false;
+    try {
+      const row = db.prepare('SELECT COUNT(*) as cnt FROM teams').get() as any;
+      hasExistingData = row && row.cnt > 0;
+    } catch {}
+    if (!hasExistingData) {
+      setSchemaVersion(CURRENT_SCHEMA_VERSION);
+      console.log(`Schema stamped at v${CURRENT_SCHEMA_VERSION} (baseline)`);
+      return;
+    }
+    // Old save — run every migration in order
+    console.log('Old save detected (no schema_version). Running all migrations...');
   }
   const pending = MIGRATIONS.filter(m => m.version > currentVersion).sort((a, b) => a.version - b.version);
   if (pending.length === 0) { console.log(`Schema up to date (v${currentVersion})`); return; }
