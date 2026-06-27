@@ -17,6 +17,23 @@ import { replenishFAPool } from '../generatePlayers';
 
 export { calcFairMarket };
 
+const OFFSEASON_PHASES = ['resign', 'fa_week1', 'fa_week2', 'combine', 'draft', 'roster_review'] as const;
+
+function getOffseasonPhase(season: number, status: { faOpen: boolean; draftGenerated: boolean; draftComplete: boolean }): string {
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(`offseason_phase_${season}`) as any;
+  let phase: string = row?.value ?? 'resign';
+
+  let changed = false;
+  if (phase === 'resign' && status.faOpen) { phase = 'fa_week1'; changed = true; }
+  if (['fa_week1', 'fa_week2', 'combine'].includes(phase) && status.draftGenerated) { phase = 'draft'; changed = true; }
+  if (phase === 'draft' && status.draftComplete) { phase = 'roster_review'; changed = true; }
+
+  if (changed) {
+    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(`offseason_phase_${season}`, phase);
+  }
+  return phase;
+}
+
 export function registerContractHandlers(): void {
 
   ipcMain.handle('get-team-contracts', (_event: IpcEvent, teamId: number) =>
@@ -63,8 +80,24 @@ export function registerContractHandlers(): void {
   ipcMain.handle('release-player', (_event: IpcEvent, playerId: number) =>
     releasePlayer(playerId));
 
-  ipcMain.handle('get-offseason-status', () =>
-    getOffseasonStatus(settingsRepo.getUserTeamId()));
+  ipcMain.handle('get-offseason-status', () => {
+    const { getCurrentSeason } = require('../helpers/getCurrentSeason');
+    const season = getCurrentSeason();
+    const status = getOffseasonStatus(settingsRepo.getUserTeamId());
+    const offseasonPhase = getOffseasonPhase(season, status);
+    return { ...status, offseasonPhase };
+  });
+
+  ipcMain.handle('advance-offseason-phase', () => {
+    const { getCurrentSeason } = require('../helpers/getCurrentSeason');
+    const season = getCurrentSeason();
+    const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(`offseason_phase_${season}`) as any;
+    const current = row?.value ?? 'resign';
+    const idx = OFFSEASON_PHASES.indexOf(current as any);
+    const next = idx >= 0 && idx < OFFSEASON_PHASES.length - 1 ? OFFSEASON_PHASES[idx + 1] : current;
+    db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(`offseason_phase_${season}`, next);
+    return { phase: next };
+  });
 
   ipcMain.handle('promote-from-ps', (_event: IpcEvent, playerId: number) => {
     const teamId = settingsRepo.getUserTeamId();
