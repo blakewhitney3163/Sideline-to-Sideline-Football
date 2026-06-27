@@ -91,6 +91,9 @@ export function initDatabase(dbPath: string): void {
       morale INTEGER DEFAULT 75,
       archetype TEXT NOT NULL DEFAULT 'normal',
       injury_prone INTEGER DEFAULT 0,
+      holdout_status TEXT,
+      holdout_weeks INTEGER DEFAULT 0,
+      trade_demand INTEGER DEFAULT 0,
       FOREIGN KEY (team_id) REFERENCES teams(id)
     );
     CREATE TABLE IF NOT EXISTS games (
@@ -112,6 +115,8 @@ export function initDatabase(dbPath: string): void {
       away_q3 INTEGER DEFAULT 0,
       away_q4 INTEGER DEFAULT 0,
       weather TEXT,
+      play_log TEXT,
+      is_preseason INTEGER DEFAULT 0,
       FOREIGN KEY (home_team_id) REFERENCES teams(id),
       FOREIGN KEY (away_team_id) REFERENCES teams(id)
     );
@@ -161,6 +166,9 @@ export function initDatabase(dbPath: string): void {
       annual_salary REAL NOT NULL,
       guaranteed_amount REAL DEFAULT 0,
       guaranteed_pct REAL DEFAULT 0,
+      is_rookie_deal INTEGER DEFAULT 0,
+      fifth_year_option_eligible INTEGER DEFAULT 0,
+      fifth_year_option_picked_up INTEGER DEFAULT 0,
       FOREIGN KEY (player_id) REFERENCES players(id),
       FOREIGN KEY (team_id) REFERENCES teams(id)
     );
@@ -338,7 +346,9 @@ export function initDatabase(dbPath: string): void {
       development_rating INTEGER NOT NULL DEFAULT 70,
       experience INTEGER NOT NULL DEFAULT 5,
       salary REAL NOT NULL DEFAULT 1.5,
-      years_remaining INTEGER NOT NULL DEFAULT 2
+      years_remaining INTEGER NOT NULL DEFAULT 2,
+      coaching_xp INTEGER DEFAULT 0,
+      coaching_level INTEGER DEFAULT 1
     );
     CREATE TABLE IF NOT EXISTS team_schemes (
       team_id INTEGER PRIMARY KEY,
@@ -363,7 +373,10 @@ export function initDatabase(dbPath: string): void {
       market_size TEXT NOT NULL DEFAULT 'medium',
       stadium_capacity INTEGER NOT NULL DEFAULT 65000,
       season_revenue REAL NOT NULL DEFAULT 250.0,
-      owner_budget REAL NOT NULL DEFAULT 280.0
+      owner_budget REAL NOT NULL DEFAULT 280.0,
+      attendance_rate REAL DEFAULT 0.72,
+      stadium_upgrade_level INTEGER DEFAULT 0,
+      pending_upgrade INTEGER DEFAULT 0
     );
     CREATE TABLE IF NOT EXISTS owner_goals (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -407,6 +420,19 @@ export function initDatabase(dbPath: string): void {
       delta INTEGER NOT NULL,
       reason TEXT NOT NULL,
       FOREIGN KEY (team_id) REFERENCES teams(id)
+    );
+    CREATE TABLE IF NOT EXISTS player_goals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      player_id INTEGER NOT NULL,
+      first_name TEXT,
+      last_name TEXT,
+      position TEXT,
+      overall_rating INTEGER,
+      goal_type TEXT NOT NULL,
+      target_value REAL,
+      season INTEGER NOT NULL,
+      status TEXT DEFAULT 'active',
+      FOREIGN KEY (player_id) REFERENCES players(id)
     );
   `);
 
