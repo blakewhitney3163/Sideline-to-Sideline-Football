@@ -26,7 +26,7 @@ export function registerSeasonHandlers(): void {
                           AND g.home_score = g.away_score THEN 1 ELSE 0 END), 0) as ties
       FROM teams t
       LEFT JOIN games g ON (g.home_team_id = t.id OR g.away_team_id = t.id)
-        AND g.season = ? AND g.is_simulated = 1 AND g.is_playoff = 0
+        AND g.season = ? AND g.is_simulated = 1 AND g.is_playoff = 0 AND (g.is_preseason = 0 OR g.is_preseason IS NULL)
       GROUP BY t.id
       ORDER BY wins DESC, losses ASC
     `).all(season));
@@ -45,7 +45,7 @@ export function registerSeasonHandlers(): void {
                   AND g.home_score = g.away_score THEN 1 ELSE 0 END) as ties
       FROM games g
       WHERE (g.home_team_id = ? OR g.away_team_id = ?)
-        AND g.season = ? AND g.is_simulated = 1 AND g.is_playoff = 0
+        AND g.season = ? AND g.is_simulated = 1 AND g.is_playoff = 0 AND (g.is_preseason = 0 OR g.is_preseason IS NULL)
     `).get(userTeamId, userTeamId, userTeamId, userTeamId, userTeamId, userTeamId, userTeamId, userTeamId, season) as any;
     const recentNews = db.prepare(
       "SELECT headline, detail, event_type, category, season, week FROM news_events ORDER BY id DESC LIMIT 8"
@@ -60,7 +60,7 @@ export function registerSeasonHandlers(): void {
                           OR (g.away_team_id = t.id AND g.away_score < g.home_score) THEN 1 ELSE 0 END), 0) as losses
       FROM teams t
       LEFT JOIN games g ON (g.home_team_id = t.id OR g.away_team_id = t.id)
-        AND g.season = ? AND g.is_simulated = 1 AND g.is_playoff = 0
+        AND g.season = ? AND g.is_simulated = 1 AND g.is_playoff = 0 AND (g.is_preseason = 0 OR g.is_preseason IS NULL)
       GROUP BY t.id
       ORDER BY wins DESC, losses ASC
     `).all(season) as any[];
@@ -241,4 +241,9 @@ export function registerSeasonHandlers(): void {
       SELECT t.id, t.city, t.name, t.gm_personality
       FROM teams t ORDER BY t.city
     `).all());
+  ipcMain.handle('get-team-player-goals', (_event: any, teamId: number, season: number) => {
+    const { getTeamPlayerGoals } = require('../services/PlayerGoalsService');
+    return getTeamPlayerGoals(teamId, season);
+  });
+
 }
