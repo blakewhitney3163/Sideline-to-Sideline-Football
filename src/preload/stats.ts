@@ -42,7 +42,6 @@ export const statsApi = {
 
     importHistoricalRecords: (recordType: 'alltime' | 'season') =>
     ipcRenderer.invoke('import-historical-records', recordType),
-
   importCareerStats: () =>
     ipcRenderer.invoke('import-career-stats'),
 
