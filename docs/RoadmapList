@@ -42,6 +42,12 @@ Features that bring the game to a competitive level with top sports sims.
 
 ROSTER / PLAYER MANAGEMENT
 ────────────────────────────────────────────────────────────────────────────────
+[DONE June 27, 2026] Trade Deadline Ticker — see NEXT OOTP-TIER FEATURES for
+ full detail.
+
+[DONE June 27, 2026] Coaching Development — see NEXT OOTP-TIER FEATURES for
+ full detail.
+
 [DONE June 27, 2026] FA Pool Increase — MIN_FA_PER_POSITION doubled across all
  positions (QB 5→10, RB 12→22, WR 14→28, TE 7→14, OL 16→28, DL 14→24, LB 14→24,
  CB 14→24, S 10→18, K 4→6) in generatePlayers.ts replenishFAPool(). Creates a
@@ -100,6 +106,18 @@ ROSTER / PLAYER MANAGEMENT
 
 SIMULATION & SCHEDULE
 ────────────────────────────────────────────────────────────────────────────────
+[DONE June 27, 2026] Stadium Upgrades — 5-level upgrade system in FinancesTab.
+ pending_upgrade flag + applyPendingStadiumUpgrades() in SeasonService. Schema v21.
+ IPC: buy-stadium-upgrade. Each level +8,000 seats +$15M/season revenue. Max level 5.
+
+[DONE June 27, 2026] Coaching Development — XP + level system for all 4 coaching roles.
+ progressCoachXP() in CoachingService awards XP per season. 10 levels. Rating boosts
+ on level-up. HC candidate news events for elite coordinators. Schema v22. CoachingTab
+ shows level badge + XP bar.
+
+[DONE June 27, 2026] Trade Deadline Ticker — TradeDeadlineTicker.tsx live news ticker
+ on Home tab weeks 6–10. Scrolling CSS marquee of CPU trade headlines. Refresh on simCount.
+
 [DONE June 26, 2026] Game-by-Game Playoff Simulation — Playoffs.tsx rewritten
  to support individual game simulation. "Start Playoffs" creates Wild Card
  matchups as pending (is_simulated=0) games. Each pending game shows a "Sim"
@@ -154,6 +172,8 @@ LEAGUE & FINANCIALS
  attendance_rate, revenue, draft class strength, or are purely narrative.
  Recent events displayed in LeagueOffice.tsx panel. IPC: get-recent-league-events.
 
+[DONE June 27, 2026] Stadium Upgrades — see NEXT OOTP-TIER FEATURES for full detail.
+
 [DONE June 26, 2026] Draft Class Strength — per-position composite class ratings
  generated and stored at draft class creation (settings key
  class_strength_{season}). Displayed in Draft.tsx scouting season view as
@@ -166,29 +186,46 @@ LEAGUE & FINANCIALS
  Accepted/declined response shown inline. Round pick slots refresh on accept.
  IPC: propose-draft-trade.
 
-Stadium Upgrades — spend owner budget to increase stadium capacity and
- base revenue over multiple seasons, tying the financial system into a
- long-term investment loop. Pending.
 
 ================================================================================
 NEXT OOTP-TIER FEATURES (queued)
 ================================================================================
 
-[ ] Coaching Development — coaches improve overall_rating year over year
-    based on team performance; coordinators develop into HC candidates over time.
+[DONE June 27, 2026] Coaching Development — XP-based level system (schema v22)
+    added to all coaches. progressCoachXP(season) in CoachingService.ts awards XP
+    each season advance: base 20 XP + 8/win + 30 (playoffs) + 50 (division) +
+    80 (conf. championship) + 150 (Super Bowl). 10 levels with cumulative thresholds
+    (150/400/800/1400/2250/3400/4900/6850/9350 XP). Level-up grants +1 overall_rating
+    and +1 primary rating (offense for OC, defense for DC), capped at 97. Five tier
+    labels: Developing / Competent / Experienced / Elite / Legendary. OC/DC reaching
+    level 6 fires an HC candidate news event. CoachingTab.tsx updated with level
+    badge, tier label, and XP progress bar on every coach card.
 
 [ ] Preseason Games — 2–4 preseason games before Week 1 to evaluate depth
     chart placement and practice squad development.
 
-[ ] Stadium Upgrades — spend owner budget to increase stadium_capacity and
-    base revenue; ties Finances tab into a long-term investment loop.
+[DONE June 27, 2026] Stadium Upgrades — 5-level upgrade system (schema v21)
+    added to FinancesTab. Each upgrade costs $50M/$75M/$110M/$150M/$200M (indexed
+    by current level) and adds +8,000 stadium capacity + +$15M/season base revenue.
+    Purchasing sets pending_upgrade=1; upgrade applied at next season advance by
+    applyPendingStadiumUpgrades() before revenue recalculation. IPC:
+    buy-stadium-upgrade (settingsHandlers.ts). Preload: buyStadiumUpgrade(teamId)
+    in core.ts. UI: upgrade panel with level pips, capacity tile, revenue bonus
+    tile, cost vs. budget display, and action button. Button disabled if at max
+    level (5), pending upgrade active, or owner_budget insufficient.
 
 [ ] Player Goals & Contract Demands — individual players demand starter roles,
     specific salary figures, or particular teams based on morale + OVR beyond
     the existing holdout flag system.
 
-[ ] Trade Deadline Ticker — CPU-vs-CPU trades shown as a live news-style
-    ticker around the trade deadline, making the world feel active.
+[DONE June 27, 2026] Trade Deadline Ticker — CPU-vs-CPU trades shown as a
+    live news-style ticker around the trade deadline. TradeDeadlineTicker.tsx
+    renders on Home tab during weeks 6–10 via conditional check on current week.
+    Fetches trade events from get-news-feed IPC (filtered by event_type='trade').
+    Color-coded urgency badge (weeks remaining). Infinite-scroll CSS marquee
+    animation. Refresh key tied to simCount from Zustand store so it updates
+    after every sim. See also: TradeService.runCpuTrades() logs trades as
+    category='transactions', event_type='trade' to news_events table.
 
 [ ] Multi-Season Batch Sim — "Sim N seasons" with a progress bar for
     fast-forwarding dynasties. Low priority until core OOTP loop is polished.
@@ -295,6 +332,18 @@ MAINTENANCE
 ================================================================================
 COMPLETED ITEMS
 ================================================================================
+
+[DONE June 27, 2026] Stadium Upgrades — 5-level upgrade system in FinancesTab.
+ pending_upgrade flag + applyPendingStadiumUpgrades() in SeasonService. Schema v21.
+ IPC: buy-stadium-upgrade. Each level +8,000 seats +$15M/season revenue. Max level 5.
+
+[DONE June 27, 2026] Coaching Development — XP + level system for all 4 coaching roles.
+ progressCoachXP() in CoachingService awards XP per season. 10 levels. Rating boosts
+ on level-up. HC candidate news events for elite coordinators. Schema v22. CoachingTab
+ shows level badge + XP bar.
+
+[DONE June 27, 2026] Trade Deadline Ticker — TradeDeadlineTicker.tsx live news ticker
+ on Home tab weeks 6–10. Scrolling CSS marquee of CPU trade headlines. Refresh on simCount.
 
 [DONE June 26, 2026] Game-by-Game Playoff Simulation — Playoffs.tsx rewritten
  with individual game simulate buttons; "Start Playoffs" creates pending Wild
