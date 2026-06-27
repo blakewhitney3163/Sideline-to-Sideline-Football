@@ -8,6 +8,9 @@ interface ImportState { status: ImportStatus; message: string; }
 const IDLE: ImportState = { status: 'idle', message: '' };
 
 function formatResult(res: any): string {
+  if (res.imported !== undefined && res.skipped !== undefined) {
+    return `${res.imported} rows imported. ${res.skipped} skipped (no matching player).`;
+  }
   if (res.imported !== undefined && res.contractsGenerated !== undefined) {
     return `${res.imported} players imported. Contracts ${res.contractsGenerated ? 'auto-generated from ratings' : 'loaded from CSV'}.`;
   }
@@ -16,8 +19,11 @@ function formatResult(res: any): string {
 }
 
 export default function Import() {
-  const [teams,   setTeams]   = useState<ImportState>(IDLE);
-  const [players, setPlayers] = useState<ImportState>(IDLE);
+  const [teams,          setTeams]          = useState<ImportState>(IDLE);
+  const [players,        setPlayers]        = useState<ImportState>(IDLE);
+  const [careerStats,    setCareerStats]    = useState<ImportState>(IDLE);
+  const [alltimeRecords, setAlltimeRecords] = useState<ImportState>(IDLE);
+  const [seasonRecords,  setSeasonRecords]  = useState<ImportState>(IDLE);
 
   const run = async (
     apiFn: () => Promise<any>,
@@ -48,8 +54,7 @@ export default function Import() {
         Replace generated content with your own CSV data.
       </div>
       <div style={{ fontSize: 10, color: T.textDim, marginBottom: 32, lineHeight: 1.8 }}>
-        Recommended order: import <strong style={{ color: T.textMuted }}>Teams</strong> first (if customizing), then <strong style={{ color: T.textMuted }}>Players</strong>.
-        Historical record benchmarks are imported from the <strong style={{ color: T.textMuted }}>Records</strong> tab.
+        Recommended order: <strong style={{ color: T.textMuted }}>Teams</strong> → <strong style={{ color: T.textMuted }}>Players</strong> → <strong style={{ color: T.textMuted }}>Career Stats</strong> → <strong style={{ color: T.textMuted }}>Records</strong>.
       </div>
 
       <ImportCard
@@ -69,11 +74,47 @@ export default function Import() {
         badge="STEP 2"
         description="Replace all players and contracts with a custom roster from a CSV. Teams remain unchanged. If annual_salary and years_remaining columns are present they are used directly; otherwise contracts are auto-generated from ratings."
         warning="CLEARS all players, contracts, depth charts, and career history across every team."
-        hint="Required: first_name, last_name, position. Key optional: team_abbreviation (leave blank or use FA for free agents), age, overall_rating, dev_trait, speed, strength, awareness, throw_accuracy, throw_power, catching, route_running, tackle_rating, coverage, pass_rush, kickpower, kickaccuracy, runblocking, passblocking, annual_salary, years_remaining."
+        hint="Required: first_name, last_name, position. Key optional: team_abbreviation (blank or FA for free agents), age, overall_rating, dev_trait, speed, strength, awareness, throw_accuracy, throw_power, catching, route_running, tackle_rating, coverage, pass_rush, kickpower, kickaccuracy, runblocking, passblocking, annual_salary, years_remaining."
         docsLink="See docs/csv-schema.md for full schema and example."
         state={players}
         onImport={() => run(() => window.api.importCustomPlayers(), setPlayers)}
         onReset={() => setPlayers(IDLE)}
+      />
+
+      <ImportCard
+        title="CAREER STATS"
+        badge="STEP 3"
+        description="Seed historical per-season career stat lines for imported players. Each row is matched to a player by first and last name. Rows with no matching player are skipped and reported."
+        warning="Overwrites existing career stat entries for any matched player + season combination."
+        hint="Required: first_name, last_name, season. Optional: games, pass_yards, pass_tds, interceptions, completions, pass_attempts, rush_yards, rush_tds, rush_attempts, targets, receptions, rec_yards, rec_tds, tackles, assisted_tackles, sacks, tfl, forced_fumbles, fumble_recoveries, def_interceptions, pass_deflections, def_tds, team_abbreviation."
+        docsLink="See docs/csv-schema.md for full schema and example."
+        state={careerStats}
+        onImport={() => run(() => window.api.importCareerStats(), setCareerStats)}
+        onReset={() => setCareerStats(IDLE)}
+      />
+
+      <ImportCard
+        title="ALL-TIME RECORDS"
+        badge="STEP 4"
+        description="Replace the all-time leaderboard benchmarks shown on the Records tab — career passing yards, rushing yards, receiving yards, TDs, tackles, sacks, and defensive INTs."
+        warning="Replaces all existing all-time record entries."
+        hint="Required: category, rank, player_name. Key optional: team_display, position, games_played, pass_yards, rush_yards, rec_yards, pass_tds, rec_tds, rush_tds, tackles, assisted_tackles, sacks, def_interceptions, pass_deflections, forced_fumbles."
+        docsLink="Valid categories: passing, rushing, receiving, passTds, tds, tackles, sacks, defInts. See docs/csv-schema.md."
+        state={alltimeRecords}
+        onImport={() => run(() => window.api.importHistoricalRecords('alltime'), setAlltimeRecords)}
+        onReset={() => setAlltimeRecords(IDLE)}
+      />
+
+      <ImportCard
+        title="SEASON RECORDS"
+        badge="STEP 5"
+        description="Replace the single-season record benchmarks shown on the Records tab. These represent the best individual season performances of all time."
+        warning="Replaces all existing season record entries."
+        hint="Required: category, rank, player_name, season. Same stat columns as All-Time Records."
+        docsLink="Valid categories: passing, rushing, receiving, passTds, tds, tackles, sacks, defInts. See docs/csv-schema.md."
+        state={seasonRecords}
+        onImport={() => run(() => window.api.importHistoricalRecords('season'), setSeasonRecords)}
+        onReset={() => setSeasonRecords(IDLE)}
       />
     </div>
   );
