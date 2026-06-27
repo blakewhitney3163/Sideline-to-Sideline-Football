@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { T } from './theme';
 import { Prospect, DraftTeam, PickSlot, MyPick, CpuPick } from './draft/types';
-import { MAX_SCOUTS, draftGrade } from './draft/draftUtils';
+import { MAX_SCOUTS, draftGrade, partialOvrRange } from './draft/draftUtils';
 import ProspectBoard from './draft/ProspectBoard';
 import MyPicksSidebar from './draft/MyPicksSidebar';
 import DraftSummary from './draft/DraftSummary';
@@ -35,7 +35,7 @@ function classGradeColor(rating: number): string {
 }
 
 export default function Draft({ onDraftComplete }: Props) {
-  const { userTeam, currentSeason, playoffsComplete } = useGameStore();
+  const { userTeam, currentSeason, playoffsComplete, simCount } = useGameStore();
 
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [draftOrder, setDraftOrder] = useState<DraftTeam[]>([]);
@@ -55,6 +55,7 @@ export default function Draft({ onDraftComplete }: Props) {
   const [scoutBudget, setScoutBudget] = useState(25);
   const [scouting, setScouting] = useState<number | null>(null);
   const [classStrength, setClassStrength] = useState<Record<string, number> | null>(null);
+  const [reminderVisible, setReminderVisible] = useState(false);
 
   const [showTradeModal, setShowTradeModal] = useState(false);
   const [tradeMyPickAssetId, setTradeMyPickAssetId] = useState<number | null>(null);
@@ -63,7 +64,20 @@ export default function Draft({ onDraftComplete }: Props) {
   const [tradeResult, setTradeResult] = useState<{ accepted: boolean; reason?: string } | null>(null);
   const [tradingPick, setTradingPick] = useState(false);
 
+  const prevSimCount = useRef(simCount);
+
   useEffect(() => { loadDraft(); }, [userTeam?.id]);
+
+  // Show weekly reminder whenever a new simulation happens and scouts are still available
+  useEffect(() => {
+    if (simCount !== prevSimCount.current) {
+      prevSimCount.current = simCount;
+      const available = scoutBudget - scoutsUsed;
+      if (available > 0 && !playoffsComplete) {
+        setReminderVisible(true);
+      }
+    }
+  }, [simCount, scoutBudget, scoutsUsed, playoffsComplete]);
 
   const loadDraft = async () => {
     const [cls, order, sc, cs] = await Promise.all([
@@ -129,6 +143,8 @@ export default function Draft({ onDraftComplete }: Props) {
     if (result.success) {
       setScoutsUsed(prev => prev + 1);
       setProspects(await window.api.getDraftClass());
+      // Dismiss reminder once user acts on it
+      setReminderVisible(false);
     }
     setScouting(null);
   };
@@ -289,9 +305,34 @@ export default function Draft({ onDraftComplete }: Props) {
             }}>
               {scoutsAvailable} / {scoutBudget}
             </div>
-            <div style={{ fontSize: 9, color: T.textDim }}>simulate games to earn more</div>
+            <div style={{ fontSize: 9, color: T.textDim }}>1st scout reveals range · 2nd reveals exact OVR</div>
           </div>
         </div>
+
+        {/* Weekly reminder banner */}
+        {reminderVisible && scoutsAvailable > 0 && (
+          <div style={{
+            background: '#1a1000', border: '1px solid #FF8740', borderRadius: 6,
+            padding: '10px 16px', marginBottom: 12,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          }}>
+            <div>
+              <div style={{ fontSize: 12, color: '#FF8740', fontWeight: 700, marginBottom: 2 }}>
+                📬 Games simulated — deploy your scouts!
+              </div>
+              <div style={{ fontSize: 10, color: '#888' }}>
+                You have <strong style={{ color: '#FF8740' }}>{scoutsAvailable}</strong> scout{scoutsAvailable !== 1 ? 's' : ''} available.
+                First scout reveals an OVR range; a second scout unlocks the exact rating and dev trait.
+              </div>
+            </div>
+            <button
+              onClick={() => setReminderVisible(false)}
+              style={{ background: 'transparent', border: 'none', color: '#555', cursor: 'pointer', fontSize: 18, padding: '0 4px' }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {classStrength && (
           <div style={{
@@ -329,7 +370,7 @@ export default function Draft({ onDraftComplete }: Props) {
           padding: '10px 16px', marginBottom: 14, fontSize: 11, color: '#4caf50',
           fontFamily: 'monospace',
         }}>
-          📋 Scouting mode — reveal prospect ratings now to prepare for draft day.
+          📋 Scouting mode — 1st scout reveals OVR range &amp; position tier · 2nd scout reveals exact OVR &amp; dev trait.
           Pick buttons unlock after playoffs complete.
         </div>
 
@@ -355,6 +396,7 @@ export default function Draft({ onDraftComplete }: Props) {
             .filter(p => !p.is_drafted && (posFilter === 'ALL' || p.position === posFilter))
             .slice(0, 60)
             .map(p => {
+              const scoutLevel = p.scouted ?? 0;
               const isScouting = scouting === p.id;
               return (
                 <div key={p.id} style={{
@@ -362,21 +404,42 @@ export default function Draft({ onDraftComplete }: Props) {
                   padding: '8px 12px', marginBottom: 3, borderRadius: 4,
                   background: '#0e0e0e', border: '1px solid #161616',
                 }}>
+                  {/* OVR / range display */}
                   <span style={{
-                    width: 36, textAlign: 'center', fontWeight: 700, fontSize: 13,
-                    color: p.scouted
+                    width: 52, textAlign: 'center', fontWeight: 700, fontSize: 13,
+                    color: scoutLevel >= 2
                       ? (p.overall_rating >= 80 ? '#FFD700' : p.overall_rating >= 70 ? '#4FC3F7' : '#888')
-                      : '#333',
+                      : scoutLevel === 1 ? '#FF8740' : '#333',
                   }}>
-                    {p.scouted ? p.overall_rating : '??'}
+                    {scoutLevel >= 2
+                      ? p.overall_rating
+                      : scoutLevel === 1
+                      ? partialOvrRange(p.id, p.overall_rating)
+                      : '??'
+                    }
                   </span>
+
                   <span style={{ flex: 1, fontSize: 12, color: '#aaa', fontFamily: 'monospace' }}>
                     {p.first_name} {p.last_name}
                     <span style={{ color: '#555', marginLeft: 8, fontSize: 10 }}>
                       {p.position} · Age {p.age}
                     </span>
+                    {scoutLevel === 1 && (
+                      <span style={{ color: '#555', marginLeft: 8, fontSize: 10 }}>· Dev: ?</span>
+                    )}
+                    {scoutLevel >= 2 && p.dev_trait && p.dev_trait !== 'Normal' && (
+                      <span style={{
+                        marginLeft: 8, fontSize: 9, fontWeight: 700, padding: '1px 4px', borderRadius: 3,
+                        background: p.dev_trait === 'X-Factor' ? '#4a4020' : p.dev_trait === 'Superstar' ? '#4a3020' : '#2d3f5a',
+                        color: p.dev_trait === 'X-Factor' ? '#FFD700' : p.dev_trait === 'Superstar' ? '#FF8740' : '#4FC3F7',
+                      }}>
+                        {p.dev_trait === 'X-Factor' ? 'XF' : p.dev_trait === 'Superstar' ? 'SS' : 'S'}
+                      </span>
+                    )}
                   </span>
-                  {!p.scouted && (
+
+                  {/* Scout / Deep Scout / Scouted indicator */}
+                  {scoutLevel === 0 && (
                     <button
                       onClick={() => handleScout(p.id)}
                       disabled={scoutsAvailable <= 0 || isScouting}
@@ -391,7 +454,24 @@ export default function Draft({ onDraftComplete }: Props) {
                       {isScouting ? '...' : '🔍 Scout'}
                     </button>
                   )}
-                  {p.scouted && (
+                  {scoutLevel === 1 && (
+                    <button
+                      onClick={() => handleScout(p.id)}
+                      disabled={scoutsAvailable <= 0 || isScouting}
+                      title="Spend 1 more scout to unlock exact OVR and dev trait"
+                      style={{
+                        padding: '3px 10px', fontSize: 10,
+                        cursor: scoutsAvailable > 0 ? 'pointer' : 'not-allowed',
+                        borderRadius: 3, background: '#1a0d00',
+                        border: `1px solid ${scoutsAvailable > 0 ? '#FF8740' : '#333'}`,
+                        color: scoutsAvailable > 0 ? '#FF8740' : '#333', fontFamily: 'monospace',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {isScouting ? '...' : '🔍 Deep Scout'}
+                    </button>
+                  )}
+                  {scoutLevel >= 2 && (
                     <span style={{ fontSize: 10, color: '#2a5a2a', fontFamily: 'monospace' }}>✓ Scouted</span>
                   )}
                 </div>
