@@ -17,7 +17,7 @@ declare const window: any;
 interface CpuFaResult { totalSigned: number; teamsActive: number; }
 
 export default function Franchise() {
-  const { userTeam, currentSeason, playoffsComplete } = useGameStore();
+  const { userTeam, currentSeason, playoffsComplete, incrementSimCount } = useGameStore();
   if (!userTeam) return null;
 
   const [contracts, setContracts] = useState<Contract[]>([]);
@@ -33,7 +33,7 @@ export default function Franchise() {
   const [teamNeeds, setTeamNeeds] = useState<string[]>([]);
 
   const [posFilter, setPosFilter] = useState('ALL');
-  const [sortBy, setSortBy] = useState<'salary' | 'years' | 'ovr' | 'age'>('salary');
+  const [sortBy, setSortBy] = useState<'position' | 'salary' | 'years' | 'ovr' | 'age'>('position');
   const [rosterSearch, setRosterSearch] = useState('');
   const [extendingId, setExtendingId] = useState<number | null>(null);
   const [extendYears, setExtendYears] = useState(3);
@@ -149,6 +149,7 @@ export default function Franchise() {
     await loadData();
     if (activeTab === 'fa') loadFreeAgents();
     if (activeTab === 'waivers') loadWaiverWire();
+    incrementSimCount();
     setWorking(false);
   };
 
@@ -184,6 +185,7 @@ export default function Franchise() {
     showToast(`${player?.first_name} ${player?.last_name} signed!`, 'success');
     await loadData();
     await loadFreeAgents();
+    incrementSimCount();
     setWorking(false);
   };
 
@@ -223,6 +225,7 @@ export default function Franchise() {
     setResigningId(null);
     showToast(`${player?.first_name} ${player?.last_name} re-signed — ${resignYears}yr / ${fmtSalary(salary)}`, 'success');
     await loadData();
+    incrementSimCount();
     setWorking(false);
   };
 
@@ -520,7 +523,7 @@ export default function Franchise() {
         />
       )}
 
-            {activeTab === 'salaries' && (
+      {activeTab === 'salaries' && (
         <SalariesTab
           contracts={contracts}
           cap={cap}
