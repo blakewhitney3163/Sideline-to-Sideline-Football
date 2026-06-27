@@ -248,4 +248,22 @@ export function registerSettingsHandlers(): void {
     db.prepare(`UPDATE teams SET ${setClauses} WHERE id = ?`).run(...values);
     return { success: true };
   });
+  ipcMain.handle('buy-stadium-upgrade', (_event: IpcEvent, teamId: number) => {
+    const UPGRADE_COSTS = [50, 75, 110, 150, 200]; // cost per level in $M
+    const MAX_LEVEL = 5;
+
+    const fin = db.prepare('SELECT stadium_upgrade_level, pending_upgrade, owner_budget FROM team_finances WHERE team_id = ?').get(teamId) as any;
+    if (!fin) return { success: false, reason: 'No financial data found.' };
+
+    const currentLevel = fin.stadium_upgrade_level ?? 0;
+    if (currentLevel >= MAX_LEVEL) return { success: false, reason: 'Stadium is already at maximum capacity.' };
+    if (fin.pending_upgrade) return { success: false, reason: 'An upgrade is already in progress. It will complete next season.' };
+
+    const cost = UPGRADE_COSTS[currentLevel];
+    if ((fin.owner_budget ?? 0) < cost) return { success: false, reason: `Insufficient budget. Need $${cost}M, have $${Math.round(fin.owner_budget ?? 0)}M.` };
+
+    db.prepare('UPDATE team_finances SET pending_upgrade = 1 WHERE team_id = ?').run(teamId);
+    return { success: true, cost, nextLevel: currentLevel + 1 };
+  });
+
 }
