@@ -111,4 +111,7 @@ export const seasonApi = {
   simulatePreseasonWeek: (week: number, season?: number) =>
     ipcRenderer.invoke('simulate-preseason-week', week, season),
 
+  buyStadiumUpgrade: (teamId: number) =>
+    ipcRenderer.invoke('buy-stadium-upgrade', teamId),
+
 };
