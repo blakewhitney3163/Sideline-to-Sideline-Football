@@ -96,4 +96,19 @@ export const seasonApi = {
 
   simulatePlayoffGame: (gameId: number) =>
     ipcRenderer.invoke('simulate-playoff-game', gameId),
+  getTeamPlayerGoals: (teamId: number, season: number) =>
+    ipcRenderer.invoke('get-team-player-goals', teamId, season),
+
+  generatePreseason: (season?: number) =>
+    ipcRenderer.invoke('generate-preseason', season),
+
+  getPreseasonStatus: (season?: number) =>
+    ipcRenderer.invoke('get-preseason-status', season),
+
+  simulatePreseasonGame: (gameId: number) =>
+    ipcRenderer.invoke('simulate-preseason-game', gameId),
+
+  simulatePreseasonWeek: (week: number, season?: number) =>
+    ipcRenderer.invoke('simulate-preseason-week', week, season),
+
 };
