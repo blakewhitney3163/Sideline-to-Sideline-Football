@@ -310,7 +310,7 @@ export function generatePlayers(): void {
 }
 
 const MIN_FA_PER_POSITION: Record<string, number> = {
-  QB: 5, RB: 12, WR: 14, TE: 7, OL: 16, DL: 14, LB: 14, CB: 14, S: 10, K: 4,
+  QB: 10, RB: 22, WR: 28, TE: 14, OL: 28, DL: 24, LB: 24, CB: 24, S: 18, K: 6,
 };
 
 export function replenishFAPool(): void {
