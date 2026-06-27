@@ -36,31 +36,31 @@ export default function PreseasonPanel({ status, userTeamId, currentSeason, onSt
 
   const handleGenerate = async () => {
     setGenerating(true);
-    await window.seasonApi.generatePreseason(currentSeason);
-    const fresh = await window.seasonApi.getPreseasonStatus(currentSeason);
+    await window.api.generatePreseason(currentSeason);
+    const fresh = await window.api.getPreseasonStatus(currentSeason);
     onStatusChange(fresh);
     setGenerating(false);
   };
 
   const handleSimWeek = async (week: number) => {
     setSimming(week);
-    await window.seasonApi.simulatePreseasonWeek(week, currentSeason);
-    const fresh = await window.seasonApi.getPreseasonStatus(currentSeason);
+    await window.api.simulatePreseasonWeek(week, currentSeason);
+    const fresh = await window.api.getPreseasonStatus(currentSeason);
     onStatusChange(fresh);
     setSimming(null);
   };
 
   const handleSimGame = async (gameId: number) => {
     setSimming(-1);
-    await window.seasonApi.simulatePreseasonGame(gameId);
-    const fresh = await window.seasonApi.getPreseasonStatus(currentSeason);
+    await window.api.simulatePreseasonGame(gameId);
+    const fresh = await window.api.getPreseasonStatus(currentSeason);
     onStatusChange(fresh);
     setSimming(null);
   };
 
   const handleStartSeason = async () => {
     setStartingSeason(true);
-    onStartSeason();
+    try { await onStartSeason(); } finally { setStartingSeason(false); }
   };
 
   if (!status.generated) {
