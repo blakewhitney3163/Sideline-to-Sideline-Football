@@ -703,7 +703,7 @@ export function registerSimHandlers(): void {
       FROM games g
       JOIN teams ht ON g.home_team_id = ht.id
       JOIN teams at ON g.away_team_id = at.id
-      WHERE g.season = ? AND g.week = ? AND g.is_playoff = 0
+      WHERE g.season = ? AND g.week = ? AND g.is_playoff = 0 AND (g.is_preseason = 0 OR g.is_preseason IS NULL)
       ORDER BY g.id
     `).all(season, week);
   });
@@ -1057,4 +1057,24 @@ export function registerSimHandlers(): void {
         .sort((a: any, b: any) => b.wins - a.wins).slice(0, 7);
     return { afc: getSeeds('AFC'), nfc: getSeeds('NFC') };
   });
+  ipcMain.handle('generate-preseason', (_event: any, season: number) => {
+    const { generatePreseasonSchedule } = require('../services/PreseasonService');
+    return generatePreseasonSchedule(season ?? getCurrentSeason());
+  });
+
+  ipcMain.handle('get-preseason-status', (_event: any, season: number) => {
+    const { getPreseasonStatus } = require('../services/PreseasonService');
+    return getPreseasonStatus(season ?? getCurrentSeason());
+  });
+
+  ipcMain.handle('simulate-preseason-game', (_event: any, gameId: number) => {
+    const { simulatePreseasonGame } = require('../services/PreseasonService');
+    return simulatePreseasonGame(gameId);
+  });
+
+  ipcMain.handle('simulate-preseason-week', (_event: any, week: number, season?: number) => {
+    const { simulatePreseasonWeek } = require('../services/PreseasonService');
+    return simulatePreseasonWeek(week, season ?? getCurrentSeason());
+  });
+
 }
