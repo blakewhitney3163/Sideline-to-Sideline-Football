@@ -29,6 +29,8 @@ interface Finances {
   season_revenue: number;
   owner_budget: number;
   attendance_rate?: number;
+  stadium_upgrade_level?: number;
+  pending_upgrade?: number;
 }
 
 interface Props {
@@ -41,6 +43,8 @@ export default function FinancesTab({ teamId, currentSeason }: Props) {
   const [gmPersonality, setGmPersonality] = useState<string>('balanced');
   const [allTeams, setAllTeams] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [upgradeWorking, setUpgradeWorking] = useState(false);
+  const [upgradeMsg, setUpgradeMsg] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -55,6 +59,26 @@ export default function FinancesTab({ teamId, currentSeason }: Props) {
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [teamId]);
+
+  const UPGRADE_COSTS = [50, 75, 110, 150, 200];
+  const MAX_UPGRADE_LEVEL = 5;
+
+  const handleBuyUpgrade = async () => {
+    if (!finances || upgradeWorking) return;
+    setUpgradeWorking(true);
+    setUpgradeMsg(null);
+    try {
+      const result = await window.api.buyStadiumUpgrade(teamId);
+      if (result?.success) {
+        setUpgradeMsg(`✅ Upgrade commissioned! New stadium expansion will be ready next season.`);
+        setFinances({ ...finances, pending_upgrade: 1 });
+      } else {
+        setUpgradeMsg(`❌ ${result?.reason ?? 'Unable to purchase upgrade.'}`);
+      }
+    } finally {
+      setUpgradeWorking(false);
+    }
+  };
 
   if (loading) return <div style={{ color: '#555', padding: 24 }}>Loading finances...</div>;
   if (!finances) return (
@@ -121,6 +145,83 @@ export default function FinancesTab({ teamId, currentSeason }: Props) {
             ? 'Small market — tight budget, rely on the draft and development. Winning helps fill seats.'
             : 'Mid market — solid foundation, balanced approach. Revenue fluctuates with results.'}
         </div>
+      </div>
+
+
+      {/* Stadium Development */}
+      <div style={{ background: '#0d0d0d', border: '1px solid #1a1a1a', borderRadius: 6, padding: '16px 20px', marginBottom: 24 }}>
+        <div style={{ fontSize: 9, letterSpacing: 2, color: '#555', marginBottom: 12 }}>STADIUM DEVELOPMENT</div>
+        {(() => {
+          const level = finances.stadium_upgrade_level ?? 0;
+          const pending = !!finances.pending_upgrade;
+          const cost = UPGRADE_COSTS[level] ?? null;
+          const canAfford = cost !== null && (finances.owner_budget ?? 0) >= cost;
+          const atMax = level >= MAX_UPGRADE_LEVEL;
+
+          return (
+            <>
+              <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
+                <div style={{ flex: 1, background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: 4, padding: '12px 16px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 8, color: '#444', letterSpacing: 1.5, marginBottom: 6 }}>UPGRADE LEVEL</div>
+                  <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginBottom: 4 }}>
+                    {Array.from({ length: MAX_UPGRADE_LEVEL }).map((_, i) => (
+                      <div key={i} style={{ width: 14, height: 14, borderRadius: 3, background: i < level ? '#FF8740' : '#1a1a1a', border: `1px solid ${i < level ? '#FF8740' : '#333'}` }} />
+                    ))}
+                  </div>
+                  <div style={{ fontSize: 11, color: '#aaa' }}>{atMax ? 'MAX' : `${level} / ${MAX_UPGRADE_LEVEL}`}</div>
+                </div>
+                <div style={{ flex: 1, background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: 4, padding: '12px 16px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 8, color: '#444', letterSpacing: 1.5, marginBottom: 6 }}>CAPACITY</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: '#aaa' }}>{finances.stadium_capacity.toLocaleString()}</div>
+                  {level > 0 && <div style={{ fontSize: 10, color: '#FF8740' }}>+{(level * 8000).toLocaleString()} from upgrades</div>}
+                </div>
+                <div style={{ flex: 1, background: '#0a0a0a', border: '1px solid #1a1a1a', borderRadius: 4, padding: '12px 16px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 8, color: '#444', letterSpacing: 1.5, marginBottom: 6 }}>REVENUE BONUS</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: '#4caf50' }}>+${level * 15}M</div>
+                  <div style={{ fontSize: 10, color: '#444' }}>per season from upgrades</div>
+                </div>
+              </div>
+
+              {pending ? (
+                <div style={{ background: '#0f1a0a', border: '1px solid #4caf5033', borderRadius: 4, padding: '10px 14px', marginBottom: 10 }}>
+                  <div style={{ fontSize: 11, color: '#4caf50' }}>🏗 Upgrade in progress — stadium expansion completes at the start of next season.</div>
+                </div>
+              ) : atMax ? (
+                <div style={{ background: '#0f0f0f', border: '1px solid #333', borderRadius: 4, padding: '10px 14px', marginBottom: 10 }}>
+                  <div style={{ fontSize: 11, color: '#555' }}>🏟 Stadium is at maximum capacity. No further upgrades available.</div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, color: '#888' }}>
+                      Next upgrade — Level {level + 1}: <span style={{ color: '#FF8740', fontWeight: 700 }}>+8,000 seats</span> · <span style={{ color: '#4caf50', fontWeight: 700 }}>+$15M/season revenue</span>
+                    </div>
+                    <div style={{ fontSize: 10, color: canAfford ? '#4caf50' : '#e57373', marginTop: 3 }}>
+                      Cost: ${cost}M · Budget: ${Math.round(finances.owner_budget ?? 0)}M {canAfford ? '✓' : '— insufficient'}
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleBuyUpgrade}
+                    disabled={upgradeWorking || !canAfford}
+                    style={{
+                      padding: '8px 18px', borderRadius: 4, fontWeight: 700, fontSize: 11,
+                      background: canAfford ? '#1a2a0a' : '#111', cursor: canAfford ? 'pointer' : 'not-allowed',
+                      border: `1px solid ${canAfford ? '#4caf50' : '#333'}`, color: canAfford ? '#4caf50' : '#444',
+                    }}
+                  >
+                    {upgradeWorking ? 'Processing...' : `Invest $${cost}M`}
+                  </button>
+                </div>
+              )}
+
+              {upgradeMsg && (
+                <div style={{ fontSize: 10, color: upgradeMsg.startsWith('✅') ? '#4caf50' : '#e57373', marginTop: 4 }}>
+                  {upgradeMsg}
+                </div>
+              )}
+            </>
+          );
+        })()}
       </div>
 
       {/* League Market Breakdown */}
