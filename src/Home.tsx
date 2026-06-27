@@ -108,11 +108,22 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
   const [allStandings, setAllStandings] = useState<{ id: number; wins: number; losses: number }[]>([]);
   const [recentNews, setRecentNews] = useState<NewsEvent[]>([]);
   const [teamChemistry, setTeamChemistry] = useState<{ chemistry: number; events: { id: number; week: number; delta: number; reason: string }[]; archetypes: { archetype: string; count: number }[] } | null>(null);
-  const [staffSetupComplete, setStaffSetupComplete] = useState(false);
+    const [staffSetupComplete, setStaffSetupComplete] = useState(false);
+  const [ownerGoals, setOwnerGoals] = useState<any[]>([]);
+  const [ownerPatience, setOwnerPatience] = useState<number>(75);
 
-  const fetchRecentNews = async () => {
+    const fetchRecentNews = async () => {
     const news = await window.api.getNewsFeed({ season: currentSeason, limit: 6 });
     setRecentNews(news ?? []);
+  };
+
+  const fetchOwnerData = async () => {
+    const [goals, patience] = await Promise.all([
+      window.seasonApi.getOwnerGoals(currentSeason),
+      window.seasonApi.getOwnerPatience(),
+    ]);
+    setOwnerGoals(Array.isArray(goals) ? goals : []);
+    setOwnerPatience(typeof patience === 'number' ? patience : 75);
   };
 
   useEffect(() => {
@@ -826,7 +837,9 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
         onConfirm={() => setConfirming(true)}
         onCancelConfirm={() => setConfirming(false)}
         onAdvance={handleAdvance}
-        onSetTradeStatus={handleSetTradeStatus}
+                onSetTradeStatus={handleSetTradeStatus}
+        ownerGoals={ownerGoals}
+        ownerPatience={ownerPatience}
       />
     </div>
   );
