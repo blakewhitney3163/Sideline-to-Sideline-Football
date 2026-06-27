@@ -178,7 +178,8 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
       setPSPromotionAlerts(psAlerts ?? []);
       setAnnouncingRetirements(announcingRets ?? []);
       setRecentNews(news ?? []);
-            setTeamChemistry(chemistry ?? null);
+                  setTeamChemistry(chemistry ?? null);
+      fetchOwnerData();
       setOwnerGoals(Array.isArray(ownerGoalsData) ? ownerGoalsData : []);
       setOwnerPatience(typeof ownerPatienceData === 'number' ? ownerPatienceData : 75);
 
