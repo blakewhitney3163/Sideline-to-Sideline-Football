@@ -103,6 +103,8 @@ CODE ARCHITECTURE
   getRelocationCities(), requestUserRelocation(cityObj), getRecentLeagueEvents(),
   getAllGmPersonalities(), initPlayoffs(season), getPlayoffState(season),
   simulatePlayoffGame(gameId)
+  contracts.ts exposes: advanceOffseasonPhase() — advances offseason phase via
+  advance-offseason-phase IPC; used by Home.tsx handleAdvancePhase handler
   preload.ts merges all via spread into a single contextBridge exposure.
 - IPC handlers split by domain in src/handlers/:
   simHandlers, seasonHandlers, settingsHandlers, statsHandlers,
@@ -241,6 +243,14 @@ HOME TAB
 - Trade Status widget, practice squad injury alert, advance season button,
   playoff seeding display, Gridiron Cup champions list, draft status,
   pending re-sign count, Season Awards panel
+- Offseason Phase Wizard (OffseasonChecklist.tsx) — rendered below SeasonAwardsView
+  when allWeeksDone && isPlayoffsComplete; 6-phase sequential flow: Re-Sign →
+  FA Wk 1 → FA Wk 2 → Combine → Draft → Roster Review. Horizontal stepper with
+  numbered circles (orange glow = active, green ✓ = done). Each phase shows a
+  focused orange-accent card with status tile and primary CTA. Phase stored in
+  settings as offseason_phase_{season}; auto-advances on FA open, draft generation,
+  and draft completion. IPC: advance-offseason-phase. Retirement announcements
+  panel preserved above stepper.
 - Weekly Game Prep panel (GameWeekPrep.tsx) — rendered above game preview
   on weeks where the user's game is not yet simulated:
   - Opponent Scout section: reveals top 5 opponent players (name, position,
@@ -662,6 +672,7 @@ get-league-office-data cast-expansion-vote
 get-relocation-cities request-user-relocation
 get-recent-league-events get-all-gm-personalities
 pick-up-fifth-year-option decline-fifth-year-option
-get-holdout-players resolve-holdout
+get-holdout-players resolve-holdout advance-offseason-phase
 get-draft-class-strength propose-draft-trade
 init-playoffs get-playoff-state simulate-playoff-game
+
