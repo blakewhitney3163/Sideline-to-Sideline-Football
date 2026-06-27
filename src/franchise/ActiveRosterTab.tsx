@@ -8,8 +8,8 @@ interface Props {
   rosterSpots: RosterSpots | null;
   posFilter: string;
   setPosFilter: (p: string) => void;
-  sortBy: 'salary' | 'years' | 'ovr' | 'age';
-  setSortBy: (s: 'salary' | 'years' | 'ovr' | 'age') => void;
+  sortBy: 'position' | 'salary' | 'years' | 'ovr' | 'age';
+  setSortBy: (s: 'position' | 'salary' | 'years' | 'ovr' | 'age') => void;
   rosterSearch: string;
   setRosterSearch: (v: string) => void;
   extendingId: number | null;
@@ -62,6 +62,16 @@ export default function ActiveRosterTab({
       return `${c.first_name} ${c.last_name}`.toLowerCase().includes(q);
     })
     .sort((a, b) => {
+      if (sortBy === 'position') {
+        const ORDER = ['QB','HB','FB','WR','TE','LT','LG','C','RG','RT','OL',
+          'DE','DT','NT','MLB','LOLB','ROLB','LB','CB','FS','SS','S','K','P','KR','PR'];
+        const ai = ORDER.indexOf(a.position ?? '');
+        const bi = ORDER.indexOf(b.position ?? '');
+        const posA = ai === -1 ? 99 : ai;
+        const posB = bi === -1 ? 99 : bi;
+        if (posA !== posB) return posA - posB;
+        return b.overall_rating - a.overall_rating;
+      }
       if (sortBy === 'salary') return b.annual_salary - a.annual_salary;
       if (sortBy === 'years') return a.years_remaining - b.years_remaining;
       if (sortBy === 'ovr') return b.overall_rating - a.overall_rating;
@@ -89,6 +99,7 @@ export default function ActiveRosterTab({
           background: '#161616', border: '1px solid #2a2a2a', borderRadius: 5,
           color: '#ccc', padding: '4px 10px', fontSize: 12, marginLeft: 'auto',
         }}>
+          <option value="position">Sort: Position</option>
           <option value="salary">Sort: Salary</option>
           <option value="years">Sort: Expiring First</option>
           <option value="ovr">Sort: OVR</option>
