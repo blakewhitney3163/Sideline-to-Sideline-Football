@@ -51,6 +51,7 @@
     "vitest": "^4.1.9"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.0.0",
     "better-sqlite3": "^12.10.1",
     "electron-squirrel-startup": "^1.0.1",
     "react-window": "^2.2.7",
