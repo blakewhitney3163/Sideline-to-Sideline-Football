@@ -246,4 +246,19 @@ export function registerSeasonHandlers(): void {
     return getTeamPlayerGoals(teamId, season);
   });
 
+  ipcMain.handle('buy-stadium-upgrade', (_event: any, teamId: number) => {
+    const finances = db.prepare('SELECT * FROM team_finances WHERE team_id = ?').get(teamId) as any;
+    if (!finances) return { success: false, reason: 'No financial record found.' };
+    const level = finances.stadium_upgrade_level ?? 0;
+    if (level >= 5) return { success: false, reason: 'Stadium is already at maximum level.' };
+    if (finances.pending_upgrade) return { success: false, reason: 'An upgrade is already pending for next season.' };
+    const COSTS = [50, 75, 110, 150, 200];
+    const cost = COSTS[level];
+    if ((finances.owner_budget ?? 0) < cost) return { success: false, reason: `Insufficient budget. Need $${cost}M.` };
+    db.prepare(
+      'UPDATE team_finances SET pending_upgrade = 1, owner_budget = owner_budget - ? WHERE team_id = ?'
+    ).run(cost, teamId);
+    return { success: true };
+  });
+
 }
