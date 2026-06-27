@@ -334,5 +334,117 @@ export function registerImportHandlers(): void {
       return { success: false, reason: e.message ?? 'Unknown error' };
     }
   });
+  // ── Career Stats ────────────────────────────────────────────────────────────
+  // Seeds historical per-season career stat lines for imported players.
+  // Matches players by first_name + last_name. Skips unmatched rows.
+
+  ipcMain.handle('import-career-stats', async () => {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      title: 'Import Career Stats CSV',
+      filters: [{ name: 'CSV Files', extensions: ['csv'] }],
+      properties: ['openFile'],
+    });
+
+    if (canceled || filePaths.length === 0) return { success: false, reason: 'Cancelled' };
+
+    try {
+      const parsed = parseFile(filePaths[0]);
+      if ('error' in parsed) return { success: false, reason: parsed.error };
+      const { headers, rows } = parsed;
+
+      const REQUIRED = ['first_name', 'last_name', 'season'];
+      const missing = REQUIRED.filter(k => !headers.includes(k));
+      if (missing.length) return { success: false, reason: `Missing required columns: ${missing.join(', ')}` };
+
+      const playerRows = db.prepare('SELECT id, first_name, last_name FROM players').all() as { id: number; first_name: string; last_name: string }[];
+      const playerMap = new Map<string, number>();
+      for (const p of playerRows) {
+        playerMap.set(`${p.first_name.toLowerCase()}|${p.last_name.toLowerCase()}`, p.id);
+      }
+
+      const teamRows = db.prepare('SELECT id, abbreviation FROM teams').all() as { id: number; abbreviation: string }[];
+      const teamMap = new Map<string, number>(teamRows.map(t => [t.abbreviation.toUpperCase(), t.id]));
+
+      const upsert = db.prepare(`
+        INSERT INTO career_stats_history (
+          player_id, season, games,
+          completions, pass_attempts, pass_yards, pass_tds, interceptions,
+          rush_attempts, rush_yards, rush_tds,
+          targets, receptions, rec_yards, rec_tds,
+          tackles, assisted_tackles, sacks, tfl,
+          forced_fumbles, fumble_recoveries, def_interceptions, pass_deflections, def_tds,
+          team_id
+        ) VALUES (
+          @player_id, @season, @games,
+          @completions, @pass_attempts, @pass_yards, @pass_tds, @interceptions,
+          @rush_attempts, @rush_yards, @rush_tds,
+          @targets, @receptions, @rec_yards, @rec_tds,
+          @tackles, @assisted_tackles, @sacks, @tfl,
+          @forced_fumbles, @fumble_recoveries, @def_interceptions, @pass_deflections, @def_tds,
+          @team_id
+        )
+        ON CONFLICT(player_id, season) DO UPDATE SET
+          games = excluded.games,
+          completions = excluded.completions, pass_attempts = excluded.pass_attempts,
+          pass_yards = excluded.pass_yards, pass_tds = excluded.pass_tds,
+          interceptions = excluded.interceptions,
+          rush_attempts = excluded.rush_attempts, rush_yards = excluded.rush_yards, rush_tds = excluded.rush_tds,
+          targets = excluded.targets, receptions = excluded.receptions,
+          rec_yards = excluded.rec_yards, rec_tds = excluded.rec_tds,
+          tackles = excluded.tackles, assisted_tackles = excluded.assisted_tackles,
+          sacks = excluded.sacks, tfl = excluded.tfl,
+          forced_fumbles = excluded.forced_fumbles, fumble_recoveries = excluded.fumble_recoveries,
+          def_interceptions = excluded.def_interceptions, pass_deflections = excluded.pass_deflections,
+          def_tds = excluded.def_tds, team_id = excluded.team_id
+      `);
+
+      let imported = 0;
+      let skipped = 0;
+
+      db.transaction(() => {
+        for (const r of rows) {
+          const key = `${col(r, 'first_name').toLowerCase()}|${col(r, 'last_name').toLowerCase()}`;
+          const playerId = playerMap.get(key);
+          if (!playerId) { skipped++; continue; }
+
+          const abbrRaw = col(r, 'team_abbreviation').toUpperCase().trim();
+          const teamId = teamMap.get(abbrRaw) ?? null;
+
+          upsert.run({
+            player_id:         playerId,
+            season:            iVal(col(r, 'season')),
+            games:             iVal(col(r, 'games')),
+            completions:       iVal(col(r, 'completions')),
+            pass_attempts:     iVal(col(r, 'pass_attempts')),
+            pass_yards:        iVal(col(r, 'pass_yards')),
+            pass_tds:          iVal(col(r, 'pass_tds')),
+            interceptions:     iVal(col(r, 'interceptions')),
+            rush_attempts:     iVal(col(r, 'rush_attempts')),
+            rush_yards:        iVal(col(r, 'rush_yards')),
+            rush_tds:          iVal(col(r, 'rush_tds')),
+            targets:           iVal(col(r, 'targets')),
+            receptions:        iVal(col(r, 'receptions')),
+            rec_yards:         iVal(col(r, 'rec_yards')),
+            rec_tds:           iVal(col(r, 'rec_tds')),
+            tackles:           fVal(col(r, 'tackles')),
+            assisted_tackles:  fVal(col(r, 'assisted_tackles')),
+            sacks:             fVal(col(r, 'sacks')),
+            tfl:               fVal(col(r, 'tfl')),
+            forced_fumbles:    fVal(col(r, 'forced_fumbles')),
+            fumble_recoveries: fVal(col(r, 'fumble_recoveries')),
+            def_interceptions: fVal(col(r, 'def_interceptions')),
+            pass_deflections:  fVal(col(r, 'pass_deflections')),
+            def_tds:           fVal(col(r, 'def_tds')),
+            team_id:           teamId,
+          });
+          imported++;
+        }
+      })();
+
+      return { success: true, imported, skipped };
+    } catch (e: any) {
+      return { success: false, reason: e.message ?? 'Unknown error' };
+    }
+  });
 
 }
