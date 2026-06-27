@@ -10,6 +10,7 @@ import { evaluateOwnerGoals } from './OwnerGoalsService';
 import { decrementCoachContracts, progressCoachXP } from './CoachingService';
 import { checkCapEscalation, checkExpansionVote, checkCpuRelocation } from './LeagueExpansionService';
 import { checkLeagueEvents } from './LeagueEventsService';
+import { generatePlayerGoals, evaluatePlayerGoals } from './PlayerGoalsService';
 
 function isHOFEligible(position: string, career: any): boolean {
   if ((career.games ?? 0) < HOF_MIN_GAMES) return false;
@@ -43,7 +44,7 @@ function recalculateTeamFinances(completedSeason: number): void {
       COUNT(g.id) as played
     FROM teams t
     LEFT JOIN games g ON (g.home_team_id=t.id OR g.away_team_id=t.id)
-      AND g.season=? AND g.is_simulated=1 AND g.is_playoff=0
+      AND g.season=? AND g.is_simulated=1 AND g.is_playoff=0 AND (g.is_preseason=0 OR g.is_preseason IS NULL)
     GROUP BY t.id
   `).all(completedSeason) as any[];
 
@@ -293,7 +294,7 @@ export async function advanceSeason(): Promise<AdvanceSeasonResult> {
       COUNT(g.id) as played
     FROM teams t
     LEFT JOIN games g ON (g.home_team_id=t.id OR g.away_team_id=t.id)
-      AND g.season=? AND g.is_simulated=1 AND g.is_playoff=0
+      AND g.season=? AND g.is_simulated=1 AND g.is_playoff=0 AND (g.is_preseason=0 OR g.is_preseason IS NULL)
     GROUP BY t.id
   `).all(current) as any[]) {
     teamWinPcts[row.id] = row.played > 0 ? row.wins / row.played : 0.5;
@@ -471,8 +472,10 @@ export async function advanceSeason(): Promise<AdvanceSeasonResult> {
   decrementCoachContracts();
   progressCoachXP(current);
   evaluateOwnerGoals(current, userTeamId);
+  evaluatePlayerGoals(current);
 
   settingsRepo.set('current_season', String(next));
+  generatePlayerGoals(next, userTeamId);
   checkCapEscalation(next);
   checkExpansionVote(next);
   checkCpuRelocation(next);
