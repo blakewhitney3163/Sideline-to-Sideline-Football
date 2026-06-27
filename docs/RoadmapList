@@ -60,6 +60,23 @@ ROSTER / PLAYER MANAGEMENT
  or Trade Request. Schema v20 adds holdout_status, holdout_weeks, trade_demand
  to players. IPCs: get-holdout-players, resolve-holdout.
 
+[DONE June 26, 2026] Offseason Phase Wizard — OffseasonChecklist.tsx rewritten
+ as a 6-phase sequential flow: Re-Sign → FA Week 1 → FA Week 2 → Combine →
+ Draft → Roster Review. Current phase stored in settings as offseason_phase_{season}.
+ Three auto-advance hooks fire on get-offseason-status: resign→fa_week1 when FA
+ opens, any early phase→draft when draft class generates, draft→roster_review when
+ draft completes. Manual advance (advance-offseason-phase IPC) handles fa_week1→
+ fa_week2 and fa_week2→combine transitions. UI: horizontal stepper with numbered
+ circles (orange glow = active, green ✓ = completed). Each phase renders a focused
+ orange-accent card with status indicators and context-specific CTA buttons. Re-Sign
+ phase links to Franchise re-sign tab + "Open Free Agency" action. FA Week 1 links
+ to FA tab + manual advance. FA Week 2 runs CPU FA inline with result display.
+ Combine phase links to Draft scouting + manual advance. Draft phase links to draft
+ tab and auto-completes. Roster Review shows active roster count (X/53) with over-
+ limit warning. Retirement announcements panel preserved above stepper.
+ New IPC: advance-offseason-phase. Preload: advanceOffseasonPhase in contracts.ts.
+ Home.tsx: offseasonPhase state, handleAdvancePhase, handleRunCpuFa.
+
 SIMULATION & SCHEDULE
 ────────────────────────────────────────────────────────────────────────────────
 [DONE June 26, 2026] Game-by-Game Playoff Simulation — Playoffs.tsx rewritten
