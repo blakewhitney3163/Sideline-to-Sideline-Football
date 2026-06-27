@@ -1,6 +1,5 @@
 import { ipcMain } from 'electron';
 import { db } from '../database';
-import { getCurrentSeason } from '../helpers/getCurrentSeason';
 import { settingsRepo } from '../repositories';
 import {
   initLiveGame, simNextPlay, simToCompletion,
