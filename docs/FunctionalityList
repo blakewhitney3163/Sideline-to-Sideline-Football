@@ -1,5 +1,5 @@
 # SIDELINE TO SIDELINE FOOTBALL — FULL FEATURE INVENTORY
-Last Updated: June 26, 2026
+Last Updated: June 27, 2026
 Repository: [https://github.com/blakewhitney3163/Sideline-to-Sideline-Football](https://github.com/blakewhitney3163/Sideline-to-Sideline-Football)
 
 CORE INFRASTRUCTURE
@@ -13,7 +13,7 @@ historical_records, news_events, pick_assets, team_trade_overrides,
 player_milestones, dead_cap_entries, coaching_staff, team_schemes,
 owner_goals, injury_history, team_chemistry, chemistry_events, scouts,
 team_finances, expansion_history
-- Schema version: v20. Migration runner in runMigrations() upgrades existing
+- Schema version: v22. Migration runner in runMigrations() upgrades existing
 saves on launch. Active migrations:
 v9:  team_id INTEGER on career_stats_history + idx_career_stats_team
 v10: Recalibrate all active-roster contract salaries to market-rate scale
@@ -46,6 +46,11 @@ v20: attendance_rate REAL DEFAULT 0.85 on team_finances;
  trade_demand INTEGER DEFAULT 0 on players;
  GM personalities seeded randomly across all 32 teams;
  attendance_rates seeded per team
+v21: stadium_upgrade_level INTEGER DEFAULT 0 and pending_upgrade INTEGER
+ DEFAULT 0 added to team_finances; pending_upgrade flag cleared and
+ stadium_upgrade_level incremented (+ 8,000 capacity) each season advance
+v22: coaching_xp INTEGER DEFAULT 0 and coaching_level INTEGER DEFAULT 1
+ added to coaching_staff; XP awarded each season advance via progressCoachXP
 - Salary cap is dynamic: stored in settings under key 'salary_cap'. All
 contract logic reads it via getSalaryCap() helper (src/helpers/getSalaryCap.ts)
 which falls back to 279000000 if not set. Cap escalates via LeagueExpansionService.
@@ -97,7 +102,8 @@ simulateGame.ts — thin orchestrator; accepts optional GamePlanOptions param
 core.ts, season.ts, roster.ts, contracts.ts, trades.ts, draft.ts,
 stats.ts, coaching.ts, injuries.ts, chemistry.ts, gameprep.ts
 core.ts exposes: setSetting(key, value), getSetting(key),
-applyDynastyTemplate(), getTeamFinances(teamId), getAllTeamFinances()
+applyDynastyTemplate(), getTeamFinances(teamId), getAllTeamFinances(),
+buyStadiumUpgrade(teamId)
 stats.ts exposes: getGamePlayLog(gameId) — fetches play-by-play log for
 a completed game; fetched in parallel with box score via Promise.all;
 importCareerStats() — triggers import-career-stats IPC (file dialog → CSV
@@ -629,6 +635,15 @@ SEASON ADVANCE (advanceSeason in SeasonService.ts)
 15. Check random league events (checkLeagueEvents in LeagueEventsService) —
   45% chance one of 10 predefined events fires each season; logged to
     news_events; effects may modify attendance_rate, revenue, or draft class
+16. Apply pending stadium upgrades (applyPendingStadiumUpgrades) — increments
+  stadium_upgrade_level +1, adds 8,000 to stadium_capacity, clears
+    pending_upgrade flag; runs before revenue recalc so new capacity is
+    immediately reflected in season_revenue
+17. Progress coach XP (progressCoachXP in CoachingService) — awards XP to all
+  employed coaches based on season wins, playoff results, and championships;
+    levels up coaches that cross XP thresholds; boosts overall/primary rating
+    on level-up; fires HC candidate news events for coordinators reaching
+    level 6
 
 IN-SEASON PLAYER PROGRESSION (ProgressionService.ts)
 ────────────────────────────────────────────────────────────────────────────────
@@ -745,5 +760,6 @@ get-relocation-cities request-user-relocation
 get-recent-league-events get-all-gm-personalities
 pick-up-fifth-year-option decline-fifth-year-option
 get-holdout-players resolve-holdout advance-offseason-phase
+buy-stadium-upgrade
 get-draft-class-strength propose-draft-trade import-career-stats
 init-playoffs get-playoff-state simulate-playoff-game
