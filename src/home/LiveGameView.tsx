@@ -276,9 +276,7 @@ export default function LiveGameView({ gameId, userTeamId, onGameComplete, onClo
   };
 
   const handleChallenge = () => {
-    if (!paused) setPaused(true);
     runNextPlay({ type: 'challenge' });
-    setPaused(false);
   };
 
   const handleAbort = async () => {
@@ -297,15 +295,9 @@ export default function LiveGameView({ gameId, userTeamId, onGameComplete, onClo
 
   const gs = gameState;
   const isUserHome = gs.homeTeamId === userTeamId;
-  const userScore = isUserHome ? gs.homeScore : gs.awayScore;
-  const oppScore = isUserHome ? gs.awayScore : gs.homeScore;
-  const userTeamName = isUserHome ? gs.homeTeamName : gs.awayTeamName;
-  const oppTeamName  = isUserHome ? gs.awayTeamName  : gs.homeTeamName;
-  const isUserPossession = (gs.possession === 'home' && isUserHome) || (gs.possession === 'away' && !isUserHome);
   const userSide: 'home' | 'away' = isUserHome ? 'home' : 'away';
   const userTimeouts = gs.timeouts[userSide];
   const userChallenges = gs.challenges[userSide];
-  const oppSide: 'home' | 'away' = isUserHome ? 'away' : 'home';
 
   const fgDist = Math.max(18, (100 - gs.yardLine) + 17);
 
