@@ -53,7 +53,8 @@ export default function Franchise() {
   const [resignSalary, setResignSalary] = useState('');
   const [playerDecisions, setPlayerDecisions] = useState<Record<number, Decision>>({});
   const [cpuFaResult, setCpuFaResult] = useState<CpuFaResult | null>(null);
-  const [cpuFaDone, setCpuFaDone] = useState(false);
+    const [cpuFaDone, setCpuFaDone] = useState(false);
+  const [holdoutPlayers, setHoldoutPlayers] = useState<any[]>([]);
   const [pendingCounters, setPendingCounters] = useState<Record<number, { salary: number; years: number }>>({});
   const [deadCap, setDeadCap] = useState<{ amount: number; entries: any[] } | null>(null);
   const [staff, setStaff] = useState<Coach[]>([]);
@@ -67,7 +68,7 @@ export default function Franchise() {
   useEffect(() => { loadData(); loadTeamNeeds(); }, [userTeam.id]);
   useEffect(() => {
     if (activeTab === 'fa') loadFreeAgents();
-    if (activeTab === 'offseason') loadExpiringContracts();
+    if (activeTab === 'offseason') { loadExpiringContracts(); loadHoldoutPlayers(); }
     if (activeTab === 'waivers') loadWaiverWire();
   }, [activeTab, faPos]);
   useEffect(() => {
@@ -109,6 +110,26 @@ export default function Franchise() {
     const decisions: Record<number, Decision> = {};
     exp.forEach((p: Contract) => { decisions[p.id] = 'pending'; });
     setPlayerDecisions(decisions);
+  };
+
+    const loadHoldoutPlayers = async () => {
+    const players = await window.api.getHoldoutPlayers();
+    setHoldoutPlayers(Array.isArray(players) ? players : []);
+  };
+
+  const handleResolveHoldout = async (playerId: number, action: 'pay' | 'wait' | 'trade_request') => {
+    if (working) return;
+    setWorking(true);
+    const result = await window.api.resolveHoldout({ playerId, action });
+    if (result?.success) {
+      const label = action === 'pay' ? 'Contract improved' : action === 'wait' ? 'Holdout continues' : 'Trade request noted';
+      showToast(label, action === 'pay' ? 'success' : 'error');
+      await loadHoldoutPlayers();
+      await loadData();
+    } else {
+      showToast(result?.reason ?? 'Could not resolve holdout.', 'error');
+    }
+    setWorking(false);
   };
 
   const loadTeamNeeds = async () => {
@@ -478,31 +499,26 @@ export default function Franchise() {
         />
       )}
 
-      {activeTab === 'offseason' && (
+            {activeTab === 'offseason' && (
         <OffseasonTab
-          expiringPlayers={expiringPlayers}
-          playerDecisions={playerDecisions}
+          expiringPlayers={expiringPlayers} playerDecisions={playerDecisions}
+          setPlayerDecisions={setPlayerDecisions}
           pendingCounters={pendingCounters}
-          cap={cap}
-          resigningId={resigningId}
-          setResigningId={setResigningId}
-          resignYears={resignYears}
-          setResignYears={setResignYears}
-          resignSalary={resignSalary}
-          setResignSalary={setResignSalary}
+          cap={cap} working={working || tagWorking}
+          resigningId={resigningId} setResigningId={setResigningId}
+          resignYears={resignYears} setResignYears={setResignYears}
+          resignSalary={resignSalary} setResignSalary={setResignSalary}
+          cpuFaDone={cpuFaDone} setCpuFaDone={setCpuFaDone}
+          cpuFaResult={cpuFaResult} setCpuFaResult={setCpuFaResult}
           handleResign={handleResign}
           handleLetWalk={handleLetWalk}
           handleAcceptCounter={handleAcceptCounter}
           handleDeclineCounter={handleDeclineCounter}
+          handleCpuFa={handleCpuFa}
           handleApplyTag={handleApplyTag}
           handleRemoveTag={handleRemoveTag}
-          handleCpuFa={handleCpuFa}
-          cpuFaResult={cpuFaResult}
-          cpuFaDone={cpuFaDone}
-          setCpuFaDone={setCpuFaDone}
-          setCpuFaResult={setCpuFaResult}
-          setPlayerDecisions={setPlayerDecisions}
-          working={working || tagWorking}
+          holdoutPlayers={holdoutPlayers}
+          onResolveHoldout={handleResolveHoldout}
         />
       )}
 
