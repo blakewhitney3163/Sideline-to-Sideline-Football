@@ -23,6 +23,7 @@ import { generateAllScouts } from './services/ScoutingService';
 import { registerSchemeHandlers, seedTeamSchemes } from './handlers/schemeHandlers';
 import { registerInjuryHandlers } from './handlers/injuryHandlers';
 import { registerChemistryHandlers } from './handlers/chemistryHandlers';
+import { registerLiveGameHandlers } from './handlers/liveGameHandlers';
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
@@ -205,6 +206,7 @@ registerCoachingHandlers();
 registerSchemeHandlers();
 registerInjuryHandlers();
 registerChemistryHandlers();
+registerLiveGameHandlers();
 
 // ─── App Lifecycle ────────────────────────────────────────────────────────────
 
