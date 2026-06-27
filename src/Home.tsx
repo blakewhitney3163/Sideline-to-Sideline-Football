@@ -11,6 +11,7 @@ import TradeOfferCard from './home/TradeOfferCard';
 import TradeDeadlineTicker from './home/TradeDeadlineTicker';
 import { CpuOffer } from './trades/types';
 import LiveGameView from './home/LiveGameView';
+import PreseasonPanel from './home/PreseasonPanel';
 
 declare const window: any;
 
@@ -603,7 +604,6 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
         onAdvance={handleAdvance}
         onSetTradeStatus={handleSetTradeStatus}
       />
-    </div>
 
       {liveGameId !== null && userTeam && (
         <LiveGameView
@@ -613,5 +613,6 @@ export default function Home({ onSeasonAdvance, onNavigate }: Props) {
           onClose={() => setLiveGameId(null)}
         />
       )}
+    </div>
   );
 }
